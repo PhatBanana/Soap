@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#e9dcc9">
+<title>Soap Calc — Recipe Unit Converter</title>
+<style>
+  :root {
+    --bg: #f5efe6;
+    --card: #fffdf9;
+    --ink: #3a3230;
+    --muted: #8a7d72;
+    --line: #e7ddce;
+    --sage: #7f9a7e;
+    --sage-dark: #5f7a5e;
+    --terra: #c8795a;
+    --terra-soft: #f3e2d8;
+    --shadow: 0 1px 2px rgba(80,60,40,.06), 0 8px 24px rgba(80,60,40,.06);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #211d1a;
+      --card: #2b2623;
+      --ink: #ece3d8;
+      --muted: #a99c8e;
+      --line: #3c352f;
+      --sage: #8fae8d;
+      --sage-dark: #a7c4a5;
+      --terra: #d98d6c;
+      --terra-soft: #3a2c24;
+      --shadow: 0 1px 2px rgba(0,0,0,.25), 0 8px 24px rgba(0,0,0,.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.4;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 620px; margin: 0 auto; padding: 20px 16px 64px; }
+
+  header { text-align: center; margin: 8px 0 20px; }
+  header h1 {
+    font-size: 1.6rem; margin: 0; letter-spacing: -.01em;
+    display: inline-flex; align-items: center; gap: .5rem;
+  }
+  header p { color: var(--muted); margin: 6px 0 0; font-size: .92rem; }
+
+  /* Unit toggle */
+  .units {
+    display: flex; gap: 6px; background: var(--card); padding: 6px;
+    border-radius: 999px; box-shadow: var(--shadow); margin: 0 0 18px;
+    position: sticky; top: 8px; z-index: 5;
+  }
+  .units button {
+    flex: 1; border: 0; background: transparent; color: var(--muted);
+    padding: 10px 4px; border-radius: 999px; font-size: .95rem; font-weight: 600;
+    cursor: pointer; transition: background .15s, color .15s; -webkit-tap-highlight-color: transparent;
+  }
+  .units button.active { background: var(--sage); color: #fff; }
+  @media (prefers-color-scheme: dark) { .units button.active { color: #1c1815; } }
+
+  /* Ingredient list */
+  .list { display: flex; flex-direction: column; gap: 10px; }
+  .row {
+    display: grid; grid-template-columns: 1fr auto auto; align-items: center;
+    gap: 10px 12px; background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow);
+  }
+  .row .name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+  .row .pct { color: var(--muted); font-size: .8rem; margin-top: 2px; }
+  .amt {
+    display: flex; align-items: baseline; gap: 4px; justify-self: end;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .amt .val { font-size: 1.15rem; font-weight: 700; }
+  .amt .u { color: var(--muted); font-size: .8rem; }
+  .del {
+    border: 0; background: transparent; color: var(--muted); cursor: pointer;
+    font-size: 1.1rem; line-height: 1; padding: 6px; border-radius: 8px;
+  }
+  .del:hover { color: var(--terra); background: var(--terra-soft); }
+
+  .empty { text-align: center; color: var(--muted); padding: 30px 10px; font-size: .95rem; }
+
+  /* Total */
+  .total {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin: 16px 2px 0; padding-top: 14px; border-top: 2px dashed var(--line);
+    font-weight: 700;
+  }
+  .total .val { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+  .total .u { color: var(--muted); font-weight: 600; font-size: .85rem; margin-left: 3px;}
+
+  .note {
+    background: var(--terra-soft); color: var(--ink); border-radius: 10px;
+    padding: 10px 12px; font-size: .82rem; margin-top: 14px; text-align: center;
+  }
+
+  /* Add form */
+  .add {
+    display: grid; grid-template-columns: 1fr 96px auto; gap: 8px; margin-top: 22px;
+  }
+  .add input {
+    font-size: 1rem; padding: 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--card); color: var(--ink); min-width: 0;
+  }
+  .add input:focus { outline: 2px solid var(--sage); outline-offset: -1px; }
+  .add button {
+    border: 0; background: var(--sage-dark); color: #fff; font-weight: 700; font-size: 1rem;
+    padding: 0 16px; border-radius: 10px; cursor: pointer;
+  }
+  @media (prefers-color-scheme: dark) { .add button { color: #1c1815; } }
+  .add .unithint { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: .78rem; }
+
+  .actions { display: flex; justify-content: center; gap: 18px; margin-top: 26px; }
+  .actions button {
+    border: 0; background: transparent; color: var(--muted); cursor: pointer;
+    font-size: .85rem; text-decoration: underline; padding: 4px;
+  }
+  .actions button:hover { color: var(--terra); }
+
+  @media (max-width: 420px) {
+    .add { grid-template-columns: 1fr 84px auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span>🧼</span> Soap Calc</h1>
+    <p>Add your oils once, then toggle units to compare recipes.</p>
+  </header>
+
+  <div class="units" id="units"></div>
+
+  <div class="list" id="list"></div>
+
+  <div class="total" id="total" hidden>
+    <span>Total oils</span>
+    <span><span class="val" id="totalVal">0</span><span class="u" id="totalUnit"></span></span>
+  </div>
+
+  <div class="note" id="pctNote" hidden>
+    Showing each oil as a % of total — this is unit- and batch-size independent, so it's the
+    fairest way to compare two recipes. Switch to a weight unit to edit amounts.
+  </div>
+
+  <form class="add" id="addForm" autocomplete="off">
+    <input id="nameIn" type="text" placeholder="Oil / ingredient (e.g. Olive oil)" required>
+    <input id="amtIn" type="number" inputmode="decimal" step="any" min="0" placeholder="Amount" required>
+    <button type="submit" aria-label="Add ingredient">Add</button>
+    <div class="unithint" id="addHint">Amount is in grams</div>
+  </form>
+
+  <div class="actions">
+    <button type="button" id="loadSample">Load a sample recipe</button>
+    <button type="button" id="clearAll">Clear all</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- Unit definitions. Everything is stored canonically in GRAMS. ----
+  var UNITS = {
+    g:  { label: "g",  name: "grams",       toG: 1,               dp: 1 },
+    oz: { label: "oz", name: "ounces",      toG: 28.349523125,    dp: 2 },
+    lb: { label: "lb", name: "pounds",      toG: 453.59237,       dp: 3 },
+    kg: { label: "kg", name: "kilograms",   toG: 1000,            dp: 3 },
+    pct:{ label: "%",  name: "percentages", toG: null,            dp: 1 }
+  };
+  var ORDER = ["g", "oz", "lb", "kg", "pct"];
+
+  var STORE_KEY = "soapcalc.v1";
+
+  var state = load() || { unit: "g", items: [] };
+
+  // ---- DOM refs ----
+  var unitsEl = document.getElementById("units");
+  var listEl = document.getElementById("list");
+  var totalEl = document.getElementById("total");
+  var totalValEl = document.getElementById("totalVal");
+  var totalUnitEl = document.getElementById("totalUnit");
+  var pctNote = document.getElementById("pctNote");
+  var addForm = document.getElementById("addForm");
+  var nameIn = document.getElementById("nameIn");
+  var amtIn = document.getElementById("amtIn");
+  var addHint = document.getElementById("addHint");
+
+  // ---- Build unit toggle ----
+  ORDER.forEach(function (u) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = UNITS[u].label;
+    b.dataset.unit = u;
+    b.addEventListener("click", function () {
+      state.unit = u;
+      save();
+      render();
+    });
+    unitsEl.appendChild(b);
+  });
+
+  // ---- Formatting helpers ----
+  function fromGrams(grams, unit) { return grams / UNITS[unit].toG; }
+
+  function fmt(n, dp) {
+    if (!isFinite(n)) return "0";
+    var s = n.toFixed(dp);
+    // trim trailing zeros but keep it tidy
+    if (s.indexOf(".") > -1) s = s.replace(/\.?0+$/, "");
+    return s;
+  }
+
+  function totalGrams() {
+    return state.items.reduce(function (s, it) { return s + it.g; }, 0);
+  }
+
+  // ---- Render ----
+  function render() {
+    // active unit button
+    Array.prototype.forEach.call(unitsEl.children, function (b) {
+      b.classList.toggle("active", b.dataset.unit === state.unit);
+    });
+
+    var isPct = state.unit === "pct";
+    var total = totalGrams();
+
+    // list
+    listEl.innerHTML = "";
+    if (state.items.length === 0) {
+      var e = document.createElement("div");
+      e.className = "empty";
+      e.textContent = "No ingredients yet. Add your first oil below 👇";
+      listEl.appendChild(e);
+    } else {
+      state.items.forEach(function (it, i) {
+        var row = document.createElement("div");
+        row.className = "row";
+
+        var left = document.createElement("div");
+        var nm = document.createElement("div");
+        nm.className = "name";
+        nm.textContent = it.name;
+        left.appendChild(nm);
+        // secondary %: always show unless we're already in % view
+        if (!isPct) {
+          var pct = document.createElement("div");
+          pct.className = "pct";
+          pct.textContent = total > 0 ? fmt((it.g / total) * 100, 1) + "% of oils" : "—";
+          left.appendChild(pct);
+        }
+        row.appendChild(left);
+
+        var amt = document.createElement("div");
+        amt.className = "amt";
+        var val = document.createElement("span");
+        val.className = "val";
+        var u = document.createElement("span");
+        u.className = "u";
+        if (isPct) {
+          val.textContent = total > 0 ? fmt((it.g / total) * 100, 1) : "0";
+          u.textContent = "%";
+        } else {
+          val.textContent = fmt(fromGrams(it.g, state.unit), UNITS[state.unit].dp);
+          u.textContent = UNITS[state.unit].label;
+        }
+        amt.appendChild(val);
+        amt.appendChild(u);
+        row.appendChild(amt);
+
+        var del = document.createElement("button");
+        del.className = "del";
+        del.type = "button";
+        del.innerHTML = "&times;";
+        del.setAttribute("aria-label", "Remove " + it.name);
+        del.addEventListener("click", function () {
+          state.items.splice(i, 1);
+          save();
+          render();
+        });
+        row.appendChild(del);
+
+        listEl.appendChild(row);
+      });
+    }
+
+    // total
+    if (state.items.length > 0) {
+      totalEl.hidden = false;
+      if (isPct) {
+        totalValEl.textContent = "100";
+        totalUnitEl.textContent = "%";
+      } else {
+        totalValEl.textContent = fmt(fromGrams(total, state.unit), UNITS[state.unit].dp);
+        totalUnitEl.textContent = UNITS[state.unit].label;
+      }
+    } else {
+      totalEl.hidden = true;
+    }
+
+    // percent note + disable adding-in-% weirdness
+    pctNote.hidden = !isPct || state.items.length === 0;
+    addHint.textContent = isPct
+      ? "Amounts are entered in grams (switch off % to edit precisely)"
+      : "Amount is in " + UNITS[state.unit].name;
+  }
+
+  // ---- Add ingredient ----
+  addForm.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var name = nameIn.value.trim();
+    var raw = parseFloat(amtIn.value);
+    if (!name || !isFinite(raw) || raw <= 0) return;
+
+    // interpret the typed amount in the current unit (grams if in % mode)
+    var unit = state.unit === "pct" ? "g" : state.unit;
+    var grams = raw * UNITS[unit].toG;
+
+    state.items.push({ name: name, g: grams });
+    save();
+    nameIn.value = "";
+    amtIn.value = "";
+    nameIn.focus();
+    render();
+  });
+
+  // ---- Actions ----
+  document.getElementById("clearAll").addEventListener("click", function () {
+    if (state.items.length && !confirm("Remove all ingredients?")) return;
+    state.items = [];
+    save();
+    render();
+  });
+
+  document.getElementById("loadSample").addEventListener("click", function () {
+    // A classic gentle bar, given in mixed real-world units to show the point.
+    state.items = [
+      { name: "Olive oil",   g: 500 },              // grams
+      { name: "Coconut oil", g: 8 * UNITS.oz.toG }, // 8 oz
+      { name: "Palm oil",    g: 0.5 * UNITS.lb.toG},// 1/2 lb
+      { name: "Castor oil",  g: 40 }                // grams
+    ];
+    save();
+    render();
+  });
+
+  // ---- Persistence ----
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (!obj || !Array.isArray(obj.items)) return null;
+      if (!UNITS[obj.unit]) obj.unit = "g";
+      // keep only valid items
+      obj.items = obj.items.filter(function (it) {
+        return it && typeof it.name === "string" && typeof it.g === "number" && isFinite(it.g);
+      });
+      return obj;
+    } catch (e) { return null; }
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
