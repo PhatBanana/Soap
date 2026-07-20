@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f5efe6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Soap Calc">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css">
+<title>Soap Calc — Recipe, Lye &amp; Scents</title>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span>🧼</span> Soap Calc</h1>
+    <p>Recipe &amp; unit converter · lye + superfat · profile · scents</p>
+  </header>
+
+  <div class="sticky">
+    <div class="units" id="units"></div>
+    <div class="tabs" id="tabs">
+      <button type="button" data-tab="base" class="active">🧼 Soap base</button>
+      <button type="button" data-tab="scents">🌸 Scents</button>
+    </div>
+  </div>
+
+  <!-- ============ SOAP BASE TAB ============ -->
+  <section id="tab-base">
+    <div class="card">
+      <h2>Oils &amp; Ingredients</h2>
+      <div class="subhead">Oils &amp; fats</div>
+      <div id="oilList"></div>
+      <div class="subhead" id="addSubhead">Additives</div>
+      <div id="addList"></div>
+      <div class="total" id="total" hidden>
+        <span>Total oils</span>
+        <span><span class="val" id="totalVal">0</span><span class="u" id="totalUnit"></span></span>
+      </div>
+      <div class="pctnote" id="pctNote" hidden>
+        In % view each oil shows its share of total oils — unit- &amp; batch-independent, the fairest way to compare recipes.
+      </div>
+      <form class="add" id="addForm" autocomplete="off" style="margin-top:16px">
+        <select id="baseSelect" aria-label="Choose an oil or additive"></select>
+        <input id="amtIn" class="amt" type="number" inputmode="decimal" step="any" min="0" placeholder="Amount" required>
+        <button type="submit" class="addbtn">Add</button>
+        <input id="customName" class="custom-name hide" type="text" placeholder="Custom oil name">
+        <div class="hint" id="addHint">Amount is in grams</div>
+      </form>
+    </div>
+
+    <div class="card" id="lyeCard" hidden>
+      <h2>Lye &amp; Water</h2>
+      <div class="seg" id="lyeType">
+        <button type="button" data-t="naoh" class="active">NaOH · bar soap</button>
+        <button type="button" data-t="koh">KOH · liquid soap</button>
+      </div>
+      <div class="ctrl">
+        <div class="lbl"><span>Superfat</span><b><span id="sfVal">5</span>%</b></div>
+        <input type="range" id="sf" min="0" max="15" step="1" value="5">
+      </div>
+      <div class="ctrl">
+        <div class="lbl"><span>Water (as % of oils)</span><b><span id="waterVal">38</span>%</b></div>
+        <input type="range" id="water" min="25" max="50" step="1" value="38">
+      </div>
+      <div class="ctrl hide" id="purityCtrl">
+        <div class="lbl"><span>KOH purity</span><b><span id="purVal">90</span>%</b></div>
+        <input type="range" id="purity" min="85" max="100" step="1" value="90">
+      </div>
+      <div class="results">
+        <div class="result hero"><div class="k" id="lyeK">NaOH (lye)</div><div class="v"><span id="lyeVal">0</span><span class="u" id="lyeUnit">g</span></div></div>
+        <div class="result"><div class="k">Water</div><div class="v"><span id="waterOut">0</span><span class="u" id="waterUnit">g</span></div></div>
+        <div class="result"><div class="k">Total batch</div><div class="v"><span id="batchOut">0</span><span class="u" id="batchUnit">g</span></div></div>
+      </div>
+      <div class="subinfo" id="lyeInfo"></div>
+      <div class="safety">⚠️ Lye is caustic — wear gloves &amp; eye protection. SAP values are references and vary by supplier; double-check before making a batch.</div>
+    </div>
+
+    <div class="card" id="qualCard" hidden>
+      <h2>Soap Profile</h2>
+      <div id="bars"></div>
+      <div class="chips" id="chips"></div>
+      <div class="subinfo" id="qualNote"></div>
+    </div>
+
+    <div class="card" id="notesCard" hidden>
+      <h2>Recipe Notes</h2>
+      <div id="recipeNotes"></div>
+    </div>
+
+    <div class="card" id="shapeCard" hidden>
+      <h2>Shape the Profile</h2>
+      <p style="margin:0 0 12px;color:var(--muted);font-size:.85rem">Drag any oil's slider above, or tap a goal to nudge the blend (tap again for more):</p>
+      <div class="shape" id="shape">
+        <button type="button" data-goal="harder">Harder bar<span>more coconut / palm / butters</span></button>
+        <button type="button" data-goal="condition">More moisturizing<span>more soft, conditioning oils</span></button>
+        <button type="button" data-goal="lather">Better lather<span>more bubbly oils</span></button>
+        <button type="button" data-goal="gentle">Gentler<span>less cleansing / stripping</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCENTS TAB ============ -->
+  <section id="tab-scents" hidden>
+    <div class="card">
+      <h2>Scent Blend <span class="link" id="scentUnitNote"></span></h2>
+      <div id="aromaList"></div>
+      <form class="add" id="aromaForm" autocomplete="off" style="margin-top:16px">
+        <select id="aromaSelect" aria-label="Choose a fragrance or essential oil"></select>
+        <input id="aromaAmt" class="amt" type="number" inputmode="decimal" step="any" min="0" placeholder="Amount" required>
+        <button type="submit" class="addbtn">Add</button>
+        <input id="aromaCustom" class="custom-name hide" type="text" placeholder="Custom scent name">
+        <div class="hint" id="aromaHint">Amount is in grams · needs oils in the Soap base tab to size the %</div>
+      </form>
+    </div>
+
+    <div class="card" id="scentSummary" hidden>
+      <h2>Scent Summary</h2>
+      <div class="results">
+        <div class="result hero"><div class="k">Total scent</div><div class="v"><span id="scentTotal">0</span><span class="u" id="scentUnit">g</span></div></div>
+        <div class="result"><div class="k">Of total oils</div><div class="v"><span id="scentPct">0</span><span class="u">%</span></div></div>
+      </div>
+      <div class="subinfo" id="scentAdvice"></div>
+      <div class="subhead" style="margin-top:16px">Note pyramid (share by weight)</div>
+      <div class="pyramid" id="pyramid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Blending Notes &amp; Hints</h2>
+      <div id="tips"></div>
+    </div>
+  </section>
+</div>
+
+<!-- bottom action bar -->
+<div class="bottombar" id="bottombar">
+  <button type="button" id="scanBtn"><span class="ic">📷</span>Scan photo</button>
+  <button type="button" id="importBtn"><span class="ic">📄</span>Import CSV</button>
+  <button type="button" id="exportBtn"><span class="ic">⬇️</span>Export CSV</button>
+  <button type="button" id="sampleBtn"><span class="ic">🧪</span>Sample</button>
+  <button type="button" id="clearBtn"><span class="ic">🗑️</span>Clear</button>
+  <button type="button" id="installBtn" class="hide"><span class="ic">⬇️</span>Install</button>
+</div>
+
+<input type="file" id="photoInput" accept="image/*" capture="environment" class="hide">
+<input type="file" id="csvInput" accept=".csv,text/csv" class="hide">
+<div id="modalRoot"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
