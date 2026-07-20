@@ -191,12 +191,6 @@
 
     $("aromaHint").textContent = state.unit==="pct" ? "New amounts are read in grams while in % view" : "Amount is in "+UNITS[state.unit].name+" · sized against your total oils";
     $("scentSummary").hidden = state.aromas.length===0;
-
-    // tips
-    var tipsEl=$("tips"); tipsEl.innerHTML="";
-    BLEND_TIPS.forEach(function(t){
-      var d=el("div","tip"); d.appendChild(el("b",null,t.h)); d.appendChild(el("span",null,t.t)); tipsEl.appendChild(d);
-    });
     refreshDerived();
   }
 
@@ -282,7 +276,8 @@
         else { $("totalVal").textContent=fmt(fromG(total,state.unit),UNITS[state.unit].dp); $("totalUnit").textContent=UNITS[state.unit].label; }
       } else $("total").hidden=true;
 
-      if(state.oils.length>0){ updateLyePanel(); updateQuality(); }
+      if(state.oils.length>0){ updateLyePanel(); updateQuality(); updateNotes(); }
+      else $("notesCard").hidden=true;
     }
 
     if(state.tab==="scents") updateScents(active);
@@ -326,6 +321,41 @@
     return c;
   }
 
+  /* ---------- context-aware recipe notes (soap base) ---------- */
+  function updateNotes(){
+    var notes=recipeNotes(), box=$("recipeNotes"); box.innerHTML="";
+    $("notesCard").hidden = notes.length===0;
+    notes.forEach(function(n){
+      var d=el("div","tip");
+      var b=el("b",null,n[1]); if(n[0]==="warn") b.style.color="var(--amber)"; else if(n[0]==="soft") b.style.color="var(--terra)";
+      d.appendChild(b); d.appendChild(el("span",null,n[2]));
+      box.appendChild(d);
+    });
+  }
+  function recipeNotes(){
+    var out=[], B=blendFA(), f=B.fa, total=totalOilsG();
+    function pctOf(key){ var g=0; state.oils.forEach(function(it){ if(it.key===key) g+=it.g; }); return total>0?g/total*100:0; }
+    function hasOil(key){ return state.oils.some(function(it){ return it.key===key; }); }
+    function hasAdd(key){ return state.additives.some(function(it){ return it.key===key; }); }
+    if(B.tot>0){
+      var hard=f.pa+f.st+f.la+f.my, clean=f.la+f.my, cond=f.ol+f.li+f.ln+f.ri, bub=f.la+f.my+f.ri, poly=f.li+f.ln;
+      if(hard<29) out.push(["soft","Bar may come out soft","Hardness is "+Math.round(hard)+" (aim 29–54). Add a hard oil (coconut, palm, or a butter) or a little sodium lactate for a firmer bar that unmolds cleanly."]);
+      else if(hard>54) out.push(["warn","Very hard blend","Hardness is "+Math.round(hard)+" — bars this hard can turn brittle and crack. Ease back on hard oils/butters."]);
+      if(clean>22) out.push(["warn","May feel drying","Cleansing is "+Math.round(clean)+" (aim 12–22). Raise your superfat or cut coconut / palm-kernel oil."]);
+      if(cond<44) out.push(["soft","Low conditioning","Conditioning is "+Math.round(cond)+" (aim 44–69). Add soft oils like olive, sweet almond, or avocado."]);
+      if(bub<14 && pctOf("castor")<3) out.push(["soft","Light on lather","Bubbly lather is "+Math.round(bub)+". A bit more coconut/palm-kernel, or ~5% castor, boosts the bubbles."]);
+      if(poly>18) out.push(["warn","Watch for rancidity (DOS)","This blend is "+Math.round(poly)+"% polyunsaturated (linoleic+linolenic). Those oils go rancid faster — use fresh oils, keep superfat modest, and consider an antioxidant like ROE."]);
+    }
+    if(pctOf("castor")>10) out.push(["warn","High castor","Castor is "+Math.round(pctOf("castor"))+"% — wonderful for lather but it can make soap soft and sticky. 5–8% is usually plenty."]);
+    if(hasOil("olive") && state.oils.length===1) out.push(["tip","Castile soap","Pure olive oil is beautifully gentle, but trace is slow and it needs a long cure (4–6 weeks or more) to firm up."]);
+    if(hasOil("beeswax")) out.push(["tip","Beeswax present","Beeswax firms the bar but speeds up trace and can mute lather — keep it around 1–3%."]);
+    if(hasOil("stearic")) out.push(["tip","Stearic acid present","Stearic acid accelerates trace fast — mix and pour quickly."]);
+    if(hasOil("palmkernel") && hasOil("coconut")) out.push(["tip","Coconut + palm kernel","Both are high-cleansing lauric oils. Together they can get drying — keep the combined amount in check and superfat a touch higher."]);
+    if(hasAdd("goatmilk")||hasAdd("coconutmilk")) out.push(["tip","Making a milk soap","Swap part or all of your water for the milk. Keep it cold or frozen and add the lye slowly to stop it scorching (or use powdered milk at trace)."]);
+    if(hasAdd("honey")) out.push(["tip","Honey added","Honey feeds lather but can overheat the batch — soap at a cooler temperature and watch for gel/volcano."]);
+    return out;
+  }
+
   function updateScents(active){
     var totalOil=totalOilsG(), wunit=weightUnit();
     var scentG=state.aromas.reduce(function(s,it){return s+it.g;},0);
@@ -361,6 +391,40 @@
       });
     }
     $("scentUnitNote").textContent="";
+    buildScentTips();
+  }
+
+  /* ---------- context-aware blending tips (scents) ---------- */
+  function buildScentTips(){
+    var tipsEl=$("tips"); if(!tipsEl) return;
+    var used=state.aromas.filter(function(a){ return a.key && AROMAS[a.key] && a.g>0; })
+                         .map(function(a){ return { k:a.key, d:AROMAS[a.key] }; });
+    var out=[];
+    if(used.length===0){ out=BLEND_TIPS.slice(); }
+    else {
+      var names=function(arr){ return arr.map(function(u){ return AROMAS[u.k].name.replace(/ (EO|FO)$/,""); }).join(", "); };
+      var tops=used.filter(function(u){ return u.d.note==="top"; });
+      var anchored=used.some(function(u){ return u.d.note==="base" || u.d.anchor; });
+      out.push(BLEND_TIPS[0]); // aim ~3%
+      if(tops.length && !anchored)
+        out.push({ h:"Anchor your top notes", t:"Your blend leans on "+names(tops)+", which fade during cure. Add a base note (cedarwood, patchouli, vanilla) or litsea (may chang) so the scent lasts." });
+      var accel=used.filter(function(u){ return u.d.accel; });
+      if(accel.length) out.push({ h:"These can speed up trace", t:names(accel)+" may accelerate trace or seize — soap at a low temperature and hand-stir instead of blending." });
+      var disc=used.filter(function(u){ return u.d.discolor; });
+      if(disc.length) out.push({ h:"Expect some discoloration", t:names(disc)+" can turn soap tan to brown over a few weeks. Plan your colors around it, or use a vanilla stabilizer." });
+      var irr=used.filter(function(u){ return u.d.irritant; });
+      if(irr.length) out.push({ h:"Mind skin-safe limits", t:names(irr)+" can irritate skin above low rates — keep within IFRA / supplier maximums." });
+      var cats={top:0,middle:0,base:0}; used.forEach(function(u){ cats[u.d.note]++; });
+      if(used.length>=2 && (cats.top===used.length||cats.middle===used.length||cats.base===used.length)){
+        var only=cats.top?"top":cats.middle?"middle":"base";
+        out.push({ h:"Blend is all "+only+" notes", t:"Everything you've added is a "+only+" note. Mixing in the other layers — top for lift, middle for body, base to anchor — gives a rounder, longer-lasting scent." });
+      }
+      if(used.length>=2)
+        out.push({ h:"Test your blend first", t:"You're combining "+names(used)+". "+(anchored?"You've got an anchor in there — nice. ":"")+"Mix these EO/FO drops on a strip and let them mingle before committing a full batch." });
+      if(out.length<3) out.push(BLEND_TIPS[1]);
+    }
+    tipsEl.innerHTML="";
+    out.forEach(function(t){ var d=el("div","tip"); d.appendChild(el("b",null,t.h)); d.appendChild(el("span",null,t.t)); tipsEl.appendChild(d); });
   }
 
   /* ---------- shape / nudge ---------- */
