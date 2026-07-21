@@ -46,7 +46,24 @@
     beeswax:    { name:"Beeswax",           sap:.069,  iod:10,  ins:84,  fa:{la:0, my:0, pa:0, st:0, ri:0, ol:0, li:0, ln:0},
                   note:"Hardener — use 1–3%. Raises rigidity but can dull lather and speed trace." },
     stearic:    { name:"Stearic acid",      sap:.148,  iod:0,   ins:197, fa:{la:0, my:0, pa:0, st:100,ri:0,ol:0, li:0, ln:0},
-                  note:"Pure hardener — use 0.5–1%. Firms bars fast and can accelerate trace." }
+                  note:"Pure hardener — use 0.5–1%. Firms bars fast and can accelerate trace." },
+
+    // --- widely available at grocery / pharmacy / craft stores / Amazon ---
+    shortening: { name:"Vegetable shortening",   sap:.136,  iod:65,  ins:115, fa:{la:0, my:0, pa:25,st:15,ri:0, ol:42,li:16,ln:2},
+                  note:"Cheap grocery shortening (e.g. Crisco) — an easy, low-cost hard-oil for firmer bars." },
+    vegoil:     { name:"Vegetable oil (soybean)",sap:.135,  iod:130, ins:61,  fa:{la:0, my:0, pa:11,st:4, ri:0, ol:24,li:50,ln:7} },
+    safflower:  { name:"Safflower oil",          sap:.1362, iod:145, ins:47,  fa:{la:0, my:0, pa:7, st:2, ri:0, ol:13,li:77,ln:1} },
+    safflowerho:{ name:"Safflower (high-oleic)", sap:.1362, iod:90,  ins:90,  fa:{la:0, my:0, pa:5, st:2, ri:0, ol:75,li:16,ln:0} },
+    sunflowerho:{ name:"Sunflower (high-oleic)", sap:.134,  iod:83,  ins:97,  fa:{la:0, my:0, pa:4, st:4, ri:0, ol:81,li:9, ln:0} },
+    cottonseed: { name:"Cottonseed oil",         sap:.1386, iod:108, ins:89,  fa:{la:0, my:0, pa:23,st:2, ri:0, ol:18,li:53,ln:1} },
+    walnut:     { name:"Walnut oil",             sap:.1353, iod:145, ins:45,  fa:{la:0, my:0, pa:7, st:2, ri:0, ol:18,li:60,ln:11} },
+    flax:       { name:"Flaxseed (linseed) oil", sap:.1357, iod:178, ins:30,  fa:{la:0, my:0, pa:5, st:4, ri:0, ol:20,li:18,ln:53},
+                  note:"Very high linolenic — nice but prone to DOS (rancid spots); use small amounts and keep it fresh." },
+    wheatgerm:  { name:"Wheat germ oil",         sap:.131,  iod:128, ins:58,  fa:{la:0, my:0, pa:17,st:1, ri:0, ol:15,li:55,ln:7} },
+    pumpkinseed:{ name:"Pumpkin seed oil",       sap:.1363, iod:125, ins:67,  fa:{la:0, my:0, pa:12,st:6, ri:0, ol:30,li:50,ln:0} },
+    rosehip:    { name:"Rosehip seed oil",       sap:.1378, iod:185, ins:16,  fa:{la:0, my:0, pa:4, st:2, ri:0, ol:14,li:44,ln:33},
+                  note:"Skincare oil, high in polyunsaturates — best as a small superfat treat; goes rancid quickly." },
+    emu:        { name:"Emu oil",                sap:.1359, iod:60,  ins:128, fa:{la:0, my:0, pa:22,st:9, ri:0, ol:47,li:15,ln:1} }
   };
 
   /* Additives are dosed relative to oils and do NOT go through the lye math.
@@ -65,7 +82,29 @@
     kaolin:        { name:"Kaolin clay",      kind:"dry",
                      note:"~1 tsp per lb of oils. Silky slip, anchors fragrance, great for shaving soap. Disperse in a little water first." },
     charcoal:      { name:"Activated charcoal",kind:"dry",
-                     note:"~1 tsp per lb of oils. Detoxing color for oily skin. Use lightly to avoid gray lather." }
+                     note:"~1 tsp per lb of oils. Detoxing color for oily skin. Use lightly to avoid gray lather." },
+    glycerin:      { name:"Vegetable glycerin", kind:"liquid",
+                     note:"Humectant that pulls moisture to skin. A little (1–2 tsp PPO) adds a silky feel; too much softens the bar." },
+    aloe:          { name:"Aloe vera juice",    kind:"liquid",
+                     note:"Swap for part of your water. Soothing and skin-loving — keep it cool when adding the lye." },
+    sugar:         { name:"White sugar",        kind:"dry",
+                     note:"~1 tsp per lb of oils, dissolved in the water. Boosts big bubbly lather. Can heat the batch up." },
+    salt:          { name:"Salt (table/sea)",   kind:"dry",
+                     note:"A little (~1 tsp PPO) hardens bars; a lot makes 'salt bars' (pair with high coconut + high superfat). Cut salt bars while warm." },
+    coffee:        { name:"Brewed coffee",      kind:"liquid",
+                     note:"Use in place of your water for a coffee soap. Keep cool when adding lye; it may darken the bar." },
+    coffeegrounds: { name:"Coffee grounds",     kind:"dry",
+                     note:"1–2 Tbsp per lb of oils at trace for scrubby, kitchen-deodorizing exfoliation." },
+    bentonite:     { name:"Bentonite clay",     kind:"dry",
+                     note:"~1 tsp per lb of oils. Adds slip and 'grip' — great for shaving and facial bars. Disperse in water first." },
+    silk:          { name:"Tussah silk fibers", kind:"dry",
+                     note:"A small pinch dissolved into the hot lye water gives a silky, luxurious skin feel." },
+    vitamine:      { name:"Vitamin E oil",      kind:"liquid",
+                     note:"Antioxidant — a few drops per lb helps slow rancidity in delicate oils. Not a preservative." },
+    titanium:      { name:"Titanium dioxide",   kind:"dry",
+                     note:"Whitener for lighter colors. Disperse in a little oil or water first to avoid specks." },
+    mica:          { name:"Mica (colorant)",    kind:"dry",
+                     note:"Cosmetic color — mix into a little oil before adding at trace. Use CP-stable micas; some fade in high pH." }
   };
 
   /* Aromas — fragrance (FO) & essential oils (EO).
