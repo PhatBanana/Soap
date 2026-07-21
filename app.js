@@ -43,10 +43,12 @@
   var unitsEl=$("units"), oilList=$("oilList"), addList=$("addList"), aromaList=$("aromaList");
   var oilRefs=[], addRefs=[], aromaRefs=[];
   var activeInput=null;
+  var scaleDirty=false; // true once the user edits the scale field (stops auto-prefill)
+  var BAR_G=110;        // assumed weight of one bar for the yield estimate
 
   UORDER.forEach(function(u){
     var b=el("button",null,UNITS[u].label); b.type="button"; b.dataset.unit=u;
-    b.addEventListener("click",function(){ state.unit=u; save(); render(); });
+    b.addEventListener("click",function(){ state.unit=u; scaleDirty=false; save(); render(); });
     unitsEl.appendChild(b);
   });
   Array.prototype.forEach.call($("tabs").children,function(b){
@@ -96,9 +98,10 @@
 
   // scale controls
   Array.prototype.forEach.call($("scaleMode").children,function(b){
-    b.addEventListener("click",function(){ state.scaleMode=b.dataset.m; save(); updateScaleCard(); });
+    b.addEventListener("click",function(){ state.scaleMode=b.dataset.m; scaleDirty=false; save(); updateScaleCard(); });
   });
-  $("scaleTarget").addEventListener("input",updateScaleHint);
+  $("scaleTarget").addEventListener("input",function(){ scaleDirty=true; updateScaleHint(); });
+  $("scaleTarget").addEventListener("focus",function(){ scaleDirty=true; });
   $("scaleApply").addEventListener("click",applyWeightScale);
   ["mL","mW","mH"].forEach(function(id){ $(id).addEventListener("input",updateMoldHint); });
   $("mUnit").addEventListener("change",updateMoldHint);
@@ -394,7 +397,7 @@
     var targetG=raw*UNITS[wunit].toG;
     var cur = state.scaleMode==="oils" ? totalOilsG() : currentBatchG();
     if(cur<=0) return;
-    $("scaleTarget").value="";
+    scaleDirty=false; $("scaleTarget").value="";
     scaleAll(targetG/cur);
   }
   function applyMold(){
@@ -412,15 +415,26 @@
     $("scaleUnit").textContent=ul;
     $("scaleTarget").placeholder = state.scaleMode==="oils" ? "Target oils in "+ul : "Target batch in "+ul;
     var oilsG=totalOilsG(), batchG=currentBatchG();
-    $("scaleCurrent").textContent="Now: oils "+fmt(fromG(oilsG,wunit),1)+" "+ul+" · batch "+fmt(fromG(batchG,wunit),1)+" "+ul+(state.unit==="pct"?" (shown in grams)":"");
+
+    // expected yield readout
+    $("yieldVal").textContent=fmt(fromG(batchG,wunit),UNITS[wunit].dp);
+    $("yieldUnit").textContent=ul;
+    var bars=batchG>0?Math.max(1,Math.round(batchG/BAR_G)):0;
+    $("yieldBars").textContent="≈ "+bars+" bar"+(bars===1?"":"s")+" (~"+BAR_G+" g each) · "+fmt(fromG(oilsG,wunit),1)+" "+ul+" of oils"+(state.unit==="pct"?" · shown in grams":"");
+
+    // reuse the target field to also show the current amount (until the user edits it)
+    if(!isMold && !scaleDirty && document.activeElement!==$("scaleTarget")){
+      var curShown = state.scaleMode==="oils" ? oilsG : batchG;
+      $("scaleTarget").value = curShown>0 ? fmt(fromG(curShown,wunit),UNITS[wunit].dp) : "";
+    }
     updateScaleHint(); updateMoldHint();
   }
   function updateScaleHint(){
     var wunit=weightUnit(), ul=UNITS[wunit].label, raw=parseFloat($("scaleTarget").value);
-    if(!(raw>0)){
+    if(!scaleDirty || !(raw>0)){
       $("scaleHint").textContent = state.scaleMode==="oils"
-        ? "Scales every oil, additive & scent to hit this total oil weight."
-        : "Scales the whole recipe to hit this finished batch weight (oils + lye + water + extras).";
+        ? "Currently shows your total oils — type a new target and tap Scale."
+        : "Currently shows your batch — type a desired amount of soap and tap Scale.";
       return;
     }
     var targetG=raw*UNITS[wunit].toG;

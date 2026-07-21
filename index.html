@@ -53,7 +53,13 @@
     </div>
 
     <div class="card" id="scaleCard" hidden>
-      <h2>Scale Recipe</h2>
+      <h2>Batch Yield &amp; Scaling</h2>
+      <div class="result hero" id="yieldHero" style="margin-bottom:16px">
+        <div class="k">Expected yield · current recipe</div>
+        <div class="v"><span id="yieldVal">0</span><span class="u" id="yieldUnit">g</span></div>
+        <div class="subinfo" id="yieldBars" style="text-align:left;margin-top:4px"></div>
+      </div>
+      <div class="subhead">Resize to a target</div>
       <div class="seg" id="scaleMode">
         <button type="button" data-m="batch" class="active">Total batch</button>
         <button type="button" data-m="oils">Total oils</button>
@@ -79,8 +85,7 @@
         <div class="subinfo" id="moldHint"></div>
         <button type="button" class="addbtn" id="moldApply" style="width:100%;margin-top:10px;padding:11px">Scale to fit mold</button>
       </div>
-      <div class="subinfo" id="scaleCurrent"></div>
-      <div class="subinfo" style="margin-top:2px">Ratios stay the same — only the amounts change. Batch is the wet poured weight; cured bars end up ~5–10% lighter as water evaporates.</div>
+      <div class="subinfo" style="margin-top:10px">Scaling keeps every ratio the same — only the amounts change. Batch is the wet poured weight; cured bars end up ~5–10% lighter as water evaporates.</div>
     </div>
 
     <div class="card" id="lyeCard" hidden>
