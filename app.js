@@ -118,8 +118,10 @@
     b.addEventListener("click",function(){ $("recipeMenu").classList.add("hide"); var a=b.dataset.a;
       if(a==="dup") duplicateRecipe(); else if(a==="rename") renameRecipe(); else if(a==="delete") deleteRecipe();
       else if(a==="compare") openCompare(); else if(a==="card") openCard(); else if(a==="costs") openCosts();
+      else if(a==="backup") backupAll(); else if(a==="restore") $("restoreInput").click();
     });
   });
+  $("restoreInput").addEventListener("change",function(e){ var f=e.target.files&&e.target.files[0]; if(f) restoreFrom(f); $("restoreInput").value=""; });
 
   // bar weight, scent helper, make-tab controls
   $("barW").addEventListener("input",function(){ var v=parseFloat($("barW").value); state.barWeight=(isFinite(v)&&v>=10)?v:110; save(); updateScaleCard(); });
@@ -877,6 +879,30 @@
     return out;
   }
   function normUnit(u){ u=u.toLowerCase().replace(/s$/,""); if(u==="gram")u="g"; if(u==="ounce")u="oz"; if(u==="pound"||u==="lbs")u="lb"; if(u==="tbs")u="tbsp"; if(u==="cup")u="cup"; if(!CONV[u])u="g"; return u; }
+
+  /* ---------- data safety: persistent storage + backup/restore ---------- */
+  // Ask the browser to keep our storage (recipes) from being auto-evicted.
+  if(navigator.storage && navigator.storage.persist){ navigator.storage.persist().catch(function(){}); }
+  function backupAll(){
+    syncCurrent(); save();
+    var data=localStorage.getItem(STORE_KEY)||"{}";
+    var blob=new Blob([data],{type:"application/json"});
+    var a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download="soapcalc-backup-"+todayISO()+".json";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },2000);
+  }
+  function restoreFrom(file){
+    var r=new FileReader();
+    r.onload=function(){
+      var text=String(r.result), o;
+      try{ o=JSON.parse(text); }catch(e){ alert("That file isn't valid JSON — pick a Soap Calc backup."); return; }
+      if(!o||!Array.isArray(o.recipes)||o.recipes.length===0){ alert("That doesn't look like a Soap Calc backup (no recipes found)."); return; }
+      if(!confirm("Restore "+o.recipes.length+" recipe(s) from this backup? This replaces the recipes currently on this device.")) return;
+      try{ localStorage.setItem(STORE_KEY,text); location.reload(); }
+      catch(e){ alert("Couldn't save the restored data."); }
+    };
+    r.readAsText(file);
+  }
 
   /* ---------- PWA ---------- */
   if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); }); }
