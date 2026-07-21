@@ -18,6 +18,8 @@ scent blend — no accounts, no build step.
   ranges.
 - **Shape it** — drag per-oil sliders, or tap **Harder / More moisturizing / Better
   lather / Gentler** to nudge the blend live.
+- **Scale it** — enter a desired amount and resize the whole recipe (keeping every
+  ratio) to hit a target **total batch**, **total oils**, or a **mold size** (L×W×H).
 - **~30 bases** — oils, butters and fats, plus additives (goat milk, coconut milk,
   honey, sodium lactate, oatmeal, kaolin, charcoal) handled correctly (additives don't
   go through the lye math; liquids replace part of the water).
