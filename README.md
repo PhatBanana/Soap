@@ -31,6 +31,14 @@ scent blend — no accounts, no build step.
 - Curated **blending notes** per scent (pairings, what fades, what accelerates or
   discolors) and general hints.
 
+**Recipes**
+- **Saved, named recipes** — keep a library of recipes (New / Duplicate / Rename /
+  Delete) and switch between them; each is stored separately in your browser.
+- **Compare** any two recipes side by side — oils as % of oils (batch-size
+  independent), plus qualities, lye, and batch.
+- **Recipe card** — a clean printable/copyable summary (oils + %, additives, lye,
+  water, superfat, scents, profile) to take to the bench or text to someone.
+
 **Everywhere**
 - 📷 **Scan a photo** of a recipe — on-device OCR (Tesseract.js) reads it, then you
   confirm/fix the parsed lines before adding. (First scan downloads the reader ~5 MB

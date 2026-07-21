@@ -23,12 +23,11 @@
     { key:"creamy",       label:"Creamy lather",scale:70, lo:16, hi:48, fn:function(f){return f.pa+f.st+f.ri;} }
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
-  var STORE_KEY = "soapcalc.v3";
+  var STORE_KEY = "soapcalc.v4";
 
-  var state = load() || {
-    unit:"g", tab:"base", oils:[], additives:[], aromas:[],
-    lyeType:"naoh", superfat:5, waterPct:38, kohPurity:90, scaleMode:"batch"
-  };
+  var library=[];      // [{ id, name, oils, additives, aromas, lyeType, superfat, waterPct, kohPurity }]
+  var currentId=null;
+  var state = initState();
 
   /* ---------- small helpers ---------- */
   var $ = function(id){ return document.getElementById(id); };
@@ -107,8 +106,23 @@
   $("mUnit").addEventListener("change",updateMoldHint);
   $("moldApply").addEventListener("click",applyMold);
 
+  // recipe library controls
+  rebuildRecipeSelect();
+  $("recipeSelect").addEventListener("change",function(){ switchRecipe($("recipeSelect").value); });
+  $("recipeNew").addEventListener("click",newRecipe);
+  $("recipeMore").addEventListener("click",function(e){ e.stopPropagation(); $("recipeMenu").classList.toggle("hide"); });
+  document.addEventListener("click",function(){ $("recipeMenu").classList.add("hide"); });
+  Array.prototype.forEach.call($("recipeMenu").children,function(b){
+    if(b.tagName!=="BUTTON") return;
+    b.addEventListener("click",function(){ $("recipeMenu").classList.add("hide"); var a=b.dataset.a;
+      if(a==="dup") duplicateRecipe(); else if(a==="rename") renameRecipe(); else if(a==="delete") deleteRecipe();
+      else if(a==="compare") openCompare(); else if(a==="card") openCard();
+    });
+  });
+
   /* ================= RENDER ================= */
   function render(){
+    rebuildRecipeSelect();
     Array.prototype.forEach.call(unitsEl.children,function(b){ b.classList.toggle("active",b.dataset.unit===state.unit); });
     Array.prototype.forEach.call($("tabs").children,function(b){ b.classList.toggle("active",b.dataset.tab===state.tab); });
     $("tab-base").hidden = state.tab!=="base";
@@ -246,22 +260,37 @@
   }
 
   /* ---------- blend / lye ---------- */
-  function blendFA(){
-    var tot=0; state.oils.forEach(function(it){ if(oilInfo(it)) tot+=it.g; });
+  function curRV(){ return { oils:state.oils, additives:state.additives, aromas:state.aromas,
+    lyeType:state.lyeType, superfat:state.superfat, waterPct:state.waterPct, kohPurity:state.kohPurity }; }
+  function oilsGof(rv){ return rv.oils.reduce(function(s,it){return s+it.g;},0); }
+  function blendFA(rv){
+    rv=rv||curRV();
+    var tot=0; rv.oils.forEach(function(it){ if(it.key&&OILS[it.key]) tot+=it.g; });
     var fa={la:0,my:0,pa:0,st:0,ri:0,ol:0,li:0,ln:0}, iod=0, ins=0;
     if(tot<=0) return {fa:fa,iod:0,ins:0,tot:0};
-    state.oils.forEach(function(it){ var d=oilInfo(it); if(!d) return; var fr=it.g/tot;
+    rv.oils.forEach(function(it){ var d=it.key?OILS[it.key]:null; if(!d) return; var fr=it.g/tot;
       for(var k in fa) fa[k]+=fr*d.fa[k]; iod+=fr*d.iod; ins+=fr*d.ins; });
     return {fa:fa,iod:iod,ins:ins,tot:tot};
   }
-  function computeLye(){
+  function computeLye(rv){
+    rv=rv||curRV();
     var naohRaw=0, hasCustom=false;
-    state.oils.forEach(function(it){ var d=oilInfo(it); if(d) naohRaw+=it.g*d.sap; else if(it.g>0) hasCustom=true; });
-    var sf=1-state.superfat/100, lyeG, kind;
-    if(state.lyeType==="koh"){ lyeG=naohRaw*KOH_FACTOR*sf/(state.kohPurity/100); kind="KOH (lye)"; }
+    rv.oils.forEach(function(it){ var d=it.key?OILS[it.key]:null; if(d) naohRaw+=it.g*d.sap; else if(it.g>0) hasCustom=true; });
+    var sf=1-rv.superfat/100, lyeG, kind;
+    if(rv.lyeType==="koh"){ lyeG=naohRaw*KOH_FACTOR*sf/(rv.kohPurity/100); kind="KOH (lye)"; }
     else { lyeG=naohRaw*sf; kind="NaOH (lye)"; }
-    var oilG=totalOilsG();
-    return { lyeG:lyeG, waterG:oilG*state.waterPct/100, oilG:oilG, kind:kind, hasCustom:hasCustom };
+    var oilG=oilsGof(rv);
+    return { lyeG:lyeG, waterG:oilG*rv.waterPct/100, oilG:oilG, kind:kind, hasCustom:hasCustom };
+  }
+  function qualitiesOf(fa){ return { hardness:fa.pa+fa.st+fa.la+fa.my, cleansing:fa.la+fa.my,
+    conditioning:fa.ol+fa.li+fa.ln+fa.ri, bubbly:fa.la+fa.my+fa.ri, creamy:fa.pa+fa.st+fa.ri }; }
+  function statsFor(r){
+    var B=blendFA(r), L=computeLye(r), tot=oilsGof(r);
+    var scentG=r.aromas.reduce(function(s,it){return s+it.g;},0);
+    return { oilsG:tot, batchG:currentBatchG(r), lyeG:L.lyeG, waterG:L.waterG, kind:L.kind,
+      sf:r.superfat, waterPct:r.waterPct, q:qualitiesOf(B.fa), iod:B.iod, ins:B.ins,
+      oilPcts:r.oils.map(function(it){ return {name:it.name,key:it.key,pct:tot>0?it.g/tot*100:0}; }),
+      scentPct: tot>0?scentG/tot*100:0 };
   }
 
   /* ---------- refresh derived values (in place) ---------- */
@@ -371,10 +400,11 @@
   }
 
   /* ---------- scale recipe ---------- */
-  function currentBatchG(){
-    var L=computeLye();
-    var add=state.additives.reduce(function(s,it){return s+it.g;},0);
-    var ar=state.aromas.reduce(function(s,it){return s+it.g;},0);
+  function currentBatchG(rv){
+    rv=rv||curRV();
+    var L=computeLye(rv);
+    var add=rv.additives.reduce(function(s,it){return s+it.g;},0);
+    var ar=rv.aromas.reduce(function(s,it){return s+it.g;},0);
     return L.oilG + L.lyeG + L.waterG + add + ar;
   }
   function moldOilsG(){
@@ -776,17 +806,204 @@
   var isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
   if(isIOS && !standalone) $("installBtn").classList.remove("hide");
 
+  /* ---------- modal helpers ---------- */
+  function makeModal(){
+    var back=el("div","modal-back"), m=el("div","modal"); back.appendChild(m);
+    back.addEventListener("click",function(e){ if(e.target===back) closeModal(back); });
+    document.body.style.overflow="hidden"; $("modalRoot").appendChild(back);
+    return { back:back, m:m };
+  }
+  function closeModal(back){ document.body.style.overflow=""; back.remove(); }
+
+  /* ---------- compare recipes ---------- */
+  function openCompare(){
+    if(library.length<2){ alert("Add another recipe first (tap ＋ or Duplicate) to compare."); return; }
+    syncCurrent();
+    var md=makeModal();
+    md.m.appendChild(el("h3",null,"Compare recipes"));
+    md.m.appendChild(el("p","sub","Oils shown as % of oils so batch size doesn't matter."));
+    var pick=el("div","cmp-pick");
+    var selA=document.createElement("select"), selB=document.createElement("select");
+    library.forEach(function(r){
+      [selA,selB].forEach(function(s){ var o=document.createElement("option"); o.value=r.id; o.textContent=r.name; s.appendChild(o); });
+    });
+    selA.value=currentId;
+    var other=library.filter(function(r){return r.id!==currentId;})[0];
+    selB.value=other?other.id:currentId;
+    var la=el("div","cmp-lab"); la.appendChild(el("span",null,"A")); la.appendChild(selA);
+    var lb=el("div","cmp-lab"); lb.appendChild(el("span",null,"B")); lb.appendChild(selB);
+    pick.appendChild(la); pick.appendChild(lb); md.m.appendChild(pick);
+    var out=el("div","cmp-out"); md.m.appendChild(out);
+    function draw(){ renderCompare(out, libById(selA.value), libById(selB.value)); }
+    selA.addEventListener("change",draw); selB.addEventListener("change",draw); draw();
+    var foot=el("div","mfoot"); var close=el("button","primary","Done");
+    close.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(close); md.m.appendChild(foot);
+  }
+  function renderCompare(out, A, B){
+    var sa=statsFor(A), sb=statsFor(B), wunit=weightUnit(), ul=UNITS[wunit].label;
+    var map={}, order=[];
+    function addp(list,w){ list.forEach(function(o){ var k=o.key||("c:"+o.name.toLowerCase());
+      if(!map[k]){ map[k]={name:o.name,a:0,b:0}; order.push(k); } map[k][w]=o.pct; }); }
+    addp(sa.oilPcts,"a"); addp(sb.oilPcts,"b");
+    function row(label,a,b){ return "<tr><td>"+label+"</td><td>"+a+"</td><td>"+b+"</td></tr>"; }
+    function sec(t){ return '<tr class="cmp-sec"><td colspan="3">'+t+"</td></tr>"; }
+    var h='<table class="cmp-table"><thead><tr><th></th><th>'+escapeHtml(A.name)+'</th><th>'+escapeHtml(B.name)+"</th></tr></thead><tbody>";
+    h+=sec("Oils (% of oils)");
+    order.forEach(function(k){ var r=map[k]; h+=row(escapeHtml(r.name), fmt(r.a,1)+"%", fmt(r.b,1)+"%"); });
+    h+=sec("Qualities");
+    [["Hardness","hardness"],["Cleansing","cleansing"],["Conditioning","conditioning"],["Bubbly","bubbly"],["Creamy","creamy"]].forEach(function(q){
+      h+=row(q[0], Math.round(sa.q[q[1]]), Math.round(sb.q[q[1]])); });
+    h+=row("Iodine", Math.round(sa.iod), Math.round(sb.iod));
+    h+=row("INS", Math.round(sa.ins), Math.round(sb.ins));
+    h+=sec("Batch ("+ul+")");
+    h+=row("Superfat", sa.sf+"%", sb.sf+"%");
+    h+=row("Oils", fmt(fromG(sa.oilsG,wunit),1), fmt(fromG(sb.oilsG,wunit),1));
+    h+=row("Lye", fmt(fromG(sa.lyeG,wunit),1), fmt(fromG(sb.lyeG,wunit),1));
+    h+=row("Water", fmt(fromG(sa.waterG,wunit),1), fmt(fromG(sb.waterG,wunit),1));
+    h+=row("Batch", fmt(fromG(sa.batchG,wunit),1), fmt(fromG(sb.batchG,wunit),1));
+    h+=row("Scent", fmt(sa.scentPct,1)+"%", fmt(sb.scentPct,1)+"%");
+    h+="</tbody></table>";
+    out.innerHTML=h;
+  }
+
+  /* ---------- recipe card (print / share) ---------- */
+  function openCard(){
+    syncCurrent(); var r=libById(currentId), s=statsFor(r), wunit=weightUnit(), ul=UNITS[wunit].label;
+    var md=makeModal();
+    var card=el("div","print-card"); card.innerHTML=cardHTML(r,s,wunit,ul); md.m.appendChild(card);
+    var foot=el("div","mfoot no-print");
+    var pr=el("button","ghost","🖨 Print"); pr.addEventListener("click",function(){ window.print(); });
+    var cp=el("button","ghost","📋 Copy"); cp.addEventListener("click",function(){ copyText(cardText(r,s,wunit,ul),cp); });
+    var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); });
+    foot.appendChild(pr); foot.appendChild(cp); foot.appendChild(cl); md.m.appendChild(foot);
+  }
+  function nz(list){ return list.filter(function(it){ return it.g>0; }); }
+  function cardHTML(r,s,wunit,ul){
+    var d=new Date().toLocaleDateString();
+    var oils=nz(r.oils), adds=nz(r.additives), scents=nz(r.aromas);
+    function items(list){ return list.map(function(it){
+      return "<li>"+escapeHtml(it.name)+" — <b>"+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul+"</b>"+
+        (s.oilsG>0?" <span class='mut'>("+fmt(it.g/s.oilsG*100,1)+"%)</span>":"")+"</li>"; }).join(""); }
+    var h="<h2>"+escapeHtml(r.name)+"</h2><div class='mut'>Soap Calc · "+d+"</div>";
+    h+="<div class='pc-yield'>Makes ≈ "+fmt(fromG(s.batchG,wunit),1)+" "+ul+"  ·  ~"+Math.max(1,Math.round(s.batchG/BAR_G))+" bars</div>";
+    h+="<h3>Oils</h3><ul>"+items(oils)+"</ul>";
+    if(adds.length){ h+="<h3>Additives</h3><ul>"+adds.map(function(it){
+      return "<li>"+escapeHtml(it.name)+" — <b>"+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul+"</b></li>"; }).join("")+"</ul>"; }
+    h+="<h3>Lye &amp; water</h3><ul>";
+    h+="<li>"+s.kind+" — <b>"+fmt(fromG(s.lyeG,wunit),2)+" "+ul+"</b></li>";
+    h+="<li>Water — <b>"+fmt(fromG(s.waterG,wunit),1)+" "+ul+"</b></li>";
+    h+="<li>Superfat — <b>"+s.sf+"%</b></li></ul>";
+    if(scents.length){ h+="<h3>Scent"+(s.scentPct?" ("+fmt(s.scentPct,1)+"% of oils)":"")+"</h3><ul>"+scents.map(function(it){
+      return "<li>"+escapeHtml(it.name)+" — <b>"+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul+"</b></li>"; }).join("")+"</ul>"; }
+    var q=s.q;
+    h+="<h3>Profile</h3><div class='mut'>Hardness "+Math.round(q.hardness)+" · Cleansing "+Math.round(q.cleansing)+
+       " · Conditioning "+Math.round(q.conditioning)+" · Bubbly "+Math.round(q.bubbly)+" · Creamy "+Math.round(q.creamy)+"</div>";
+    h+="<p class='mut' style='margin-top:14px'>⚠️ Lye is caustic — wear gloves &amp; eye protection. SAP values are references; verify before making a batch.</p>";
+    return h;
+  }
+  function cardText(r,s,wunit,ul){
+    function line(name,g){ return name+": "+fmt(fromG(g,wunit),UNITS[wunit].dp)+" "+ul+(s.oilsG>0&&g?" ("+fmt(g/s.oilsG*100,1)+"%)":""); }
+    var oils=nz(r.oils), adds=nz(r.additives), scents=nz(r.aromas);
+    var L=[]; L.push(r.name); L.push("Makes ~"+fmt(fromG(s.batchG,wunit),1)+" "+ul+" (~"+Math.max(1,Math.round(s.batchG/BAR_G))+" bars)"); L.push("");
+    L.push("OILS"); oils.forEach(function(it){ L.push("  "+line(it.name,it.g)); });
+    if(adds.length){ L.push("ADDITIVES"); adds.forEach(function(it){ L.push("  "+it.name+": "+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul); }); }
+    L.push("LYE & WATER");
+    L.push("  "+s.kind+": "+fmt(fromG(s.lyeG,wunit),2)+" "+ul);
+    L.push("  Water: "+fmt(fromG(s.waterG,wunit),1)+" "+ul);
+    L.push("  Superfat: "+s.sf+"%");
+    if(scents.length){ L.push("SCENT"+(s.scentPct?" ("+fmt(s.scentPct,1)+"% of oils)":"")); scents.forEach(function(it){ L.push("  "+it.name+": "+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul); }); }
+    var q=s.q;
+    L.push("PROFILE: Hardness "+Math.round(q.hardness)+", Cleansing "+Math.round(q.cleansing)+", Conditioning "+Math.round(q.conditioning)+", Bubbly "+Math.round(q.bubbly)+", Creamy "+Math.round(q.creamy));
+    L.push(""); L.push("Lye is caustic — wear gloves & eye protection. Verify SAP values before a batch.");
+    return L.join("\n");
+  }
+  function copyText(text,btn){
+    var done=function(){ var old=btn.textContent; btn.textContent="Copied!"; setTimeout(function(){ btn.textContent=old; },1400); };
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done,function(){ fallback(); }); }
+    else fallback();
+    function fallback(){ try{ var ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0";
+      document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); done(); }catch(e){ alert("Couldn't copy automatically."); } }
+  }
+
+  /* ---------- recipe library ---------- */
+  function uid(){ return "r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+  function libById(id){ for(var i=0;i<library.length;i++) if(library[i].id===id) return library[i]; return null; }
+  function blankRecipe(name){ return { id:uid(), name:name, oils:[], additives:[], aromas:[],
+    lyeType:"naoh", superfat:5, waterPct:38, kohPurity:90 }; }
+  function cloneItem(it){ return {name:it.name,key:it.key,g:it.g}; }
+  function stateFromRecipe(r,view){
+    return { unit:UNITS[view.unit]?view.unit:"g", tab:(view.tab==="scents"?"scents":"base"),
+      scaleMode:(["batch","oils","mold"].indexOf(view.scaleMode)>=0?view.scaleMode:"batch"),
+      oils:r.oils, additives:r.additives, aromas:r.aromas,
+      lyeType:r.lyeType, superfat:r.superfat, waterPct:r.waterPct, kohPurity:r.kohPurity };
+  }
+  function loadRecipeIntoState(r){
+    state.oils=r.oils; state.additives=r.additives; state.aromas=r.aromas;
+    state.lyeType=r.lyeType; state.superfat=r.superfat; state.waterPct=r.waterPct; state.kohPurity=r.kohPurity;
+  }
+  function syncCurrent(){ var r=libById(currentId); if(!r) return;
+    r.oils=state.oils; r.additives=state.additives; r.aromas=state.aromas;
+    r.lyeType=state.lyeType; r.superfat=state.superfat; r.waterPct=state.waterPct; r.kohPurity=state.kohPurity; }
+
+  function switchRecipe(id){ if(id===currentId){ rebuildRecipeSelect(); return; } syncCurrent();
+    var r=libById(id); if(!r) return; currentId=id; loadRecipeIntoState(r); scaleDirty=false; save(); render(); }
+  function newRecipe(){
+    var name=(prompt("Name this recipe:","Recipe "+(library.length+1))||"").trim();
+    if(name==="") return; syncCurrent();
+    var r=blankRecipe(name); library.push(r); currentId=r.id; loadRecipeIntoState(r); scaleDirty=false; save(); render();
+  }
+  function duplicateRecipe(){ syncCurrent(); var c=libById(currentId); if(!c) return;
+    var r={ id:uid(), name:c.name+" copy", oils:c.oils.map(cloneItem), additives:c.additives.map(cloneItem),
+      aromas:c.aromas.map(cloneItem), lyeType:c.lyeType, superfat:c.superfat, waterPct:c.waterPct, kohPurity:c.kohPurity };
+    library.push(r); currentId=r.id; loadRecipeIntoState(r); scaleDirty=false; save(); render(); }
+  function renameRecipe(){ var c=libById(currentId); if(!c) return;
+    var name=(prompt("Rename recipe:",c.name)||"").trim(); if(name==="") return; c.name=name; save(); rebuildRecipeSelect(); }
+  function deleteRecipe(){ var c=libById(currentId); if(!c) return;
+    if(library.length<=1){ if(!confirm("This is your only recipe — clear its ingredients?")) return;
+      c.oils=[]; c.additives=[]; c.aromas=[]; c.lyeType="naoh"; c.superfat=5; c.waterPct=38; c.kohPurity=90;
+      loadRecipeIntoState(c); scaleDirty=false; save(); render(); return; }
+    if(!confirm("Delete \""+c.name+"\"? This can't be undone.")) return;
+    library=library.filter(function(x){return x.id!==currentId;});
+    currentId=library[0].id; loadRecipeIntoState(library[0]); scaleDirty=false; save(); render(); }
+  function rebuildRecipeSelect(){
+    var sel=$("recipeSelect"); if(!sel) return; var h="";
+    library.forEach(function(r){ h+='<option value="'+r.id+'"'+(r.id===currentId?" selected":"")+">"+escapeHtml(r.name)+"</option>"; });
+    sel.innerHTML=h;
+  }
+
   /* ---------- persistence ---------- */
-  function save(){ try{ localStorage.setItem(STORE_KEY,JSON.stringify(state)); }catch(e){} }
+  function initState(){
+    var loaded=load();
+    if(loaded){ library=loaded.recipes; currentId=loaded.currentId;
+      var r=libById(currentId)||library[0]; currentId=r.id; return stateFromRecipe(r,loaded.view); }
+    var r0=blankRecipe("My recipe"); library=[r0]; currentId=r0.id;
+    return stateFromRecipe(r0,{unit:"g",tab:"base",scaleMode:"batch"});
+  }
+  function sanitizeRecipe(r){ if(!r||typeof r!=="object") return null;
+    return { id:(typeof r.id==="string"&&r.id)?r.id:uid(),
+      name:(typeof r.name==="string"&&r.name.trim())?r.name:"Untitled",
+      oils:cleanList(r.oils,OILS), additives:cleanList(r.additives,ADDITIVES), aromas:cleanList(r.aromas,AROMAS),
+      lyeType:(r.lyeType==="koh")?"koh":"naoh", superfat:clamp(r.superfat,5,0,15),
+      waterPct:clamp(r.waterPct,38,25,50), kohPurity:clamp(r.kohPurity,90,85,100) }; }
+  function save(){ syncCurrent();
+    try{ localStorage.setItem(STORE_KEY,JSON.stringify({
+      unit:state.unit, tab:state.tab, scaleMode:state.scaleMode, currentId:currentId, recipes:library
+    })); }catch(e){} }
   function load(){
-    try{ var raw=localStorage.getItem(STORE_KEY); if(!raw) return null; var o=JSON.parse(raw); if(!o) return null;
-      if(!UNITS[o.unit]) o.unit="g"; if(o.tab!=="base"&&o.tab!=="scents") o.tab="base";
-      if(o.lyeType!=="naoh"&&o.lyeType!=="koh") o.lyeType="naoh";
-      if(["batch","oils","mold"].indexOf(o.scaleMode)<0) o.scaleMode="batch";
-      o.superfat=clamp(o.superfat,5,0,15); o.waterPct=clamp(o.waterPct,38,25,50); o.kohPurity=clamp(o.kohPurity,90,85,100);
-      o.oils=cleanList(o.oils,OILS); o.additives=cleanList(o.additives,ADDITIVES); o.aromas=cleanList(o.aromas,AROMAS);
-      return o;
-    }catch(e){ return null; }
+    try{
+      var raw=localStorage.getItem(STORE_KEY);
+      if(raw){ var o=JSON.parse(raw); if(!o||!Array.isArray(o.recipes)||o.recipes.length===0) throw 0;
+        var recipes=o.recipes.map(sanitizeRecipe).filter(Boolean);
+        if(recipes.length===0) throw 0;
+        return { recipes:recipes, currentId:o.currentId, view:{unit:o.unit,tab:o.tab,scaleMode:o.scaleMode} }; }
+      // migrate a single v3 recipe, if present
+      var v3=localStorage.getItem("soapcalc.v3");
+      if(v3){ var o3=JSON.parse(v3); if(o3){
+        var r=sanitizeRecipe({ name:"My recipe", oils:o3.oils, additives:o3.additives, aromas:o3.aromas,
+          lyeType:o3.lyeType, superfat:o3.superfat, waterPct:o3.waterPct, kohPurity:o3.kohPurity });
+        return { recipes:[r], currentId:r.id, view:{unit:o3.unit,tab:o3.tab,scaleMode:o3.scaleMode} }; } }
+    }catch(e){}
+    return null;
   }
   function cleanList(list,db){ if(!Array.isArray(list)) return [];
     return list.filter(function(it){ return it&&typeof it.name==="string"&&typeof it.g==="number"&&isFinite(it.g); })
