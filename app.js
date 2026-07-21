@@ -107,19 +107,15 @@
   $("mUnit").addEventListener("change",updateMoldHint);
   $("moldApply").addEventListener("click",applyMold);
 
-  // recipe library controls
+  // recipe selector + single action menu (sheet)
   rebuildRecipeSelect();
   $("recipeSelect").addEventListener("change",function(){ switchRecipe($("recipeSelect").value); });
   $("recipeNew").addEventListener("click",newRecipe);
-  $("recipeMore").addEventListener("click",function(e){ e.stopPropagation(); $("recipeMenu").classList.toggle("hide"); });
-  document.addEventListener("click",function(){ $("recipeMenu").classList.add("hide"); });
-  Array.prototype.forEach.call($("recipeMenu").children,function(b){
-    if(b.tagName!=="BUTTON") return;
-    b.addEventListener("click",function(){ $("recipeMenu").classList.add("hide"); var a=b.dataset.a;
-      if(a==="dup") duplicateRecipe(); else if(a==="rename") renameRecipe(); else if(a==="delete") deleteRecipe();
-      else if(a==="compare") openCompare(); else if(a==="card") openCard(); else if(a==="costs") openCosts();
-      else if(a==="backup") backupAll(); else if(a==="restore") $("restoreInput").click();
-    });
+  $("menuBtn").addEventListener("click",openSheet);
+  $("sheetClose").addEventListener("click",closeSheet);
+  $("sheetBack").addEventListener("click",function(e){ if(e.target===$("sheetBack")) closeSheet(); });
+  Array.prototype.forEach.call($("sheet").querySelectorAll("[data-a]"),function(b){
+    b.addEventListener("click",function(){ closeSheet(); doAction(b.dataset.a); });
   });
   $("restoreInput").addEventListener("change",function(e){ var f=e.target.files&&e.target.files[0]; if(f) restoreFrom(f); $("restoreInput").value=""; });
 
@@ -681,12 +677,31 @@
     save(); render();
   });
 
-  /* ---------- bottom bar actions ---------- */
-  $("clearBtn").addEventListener("click",function(){
-    if((state.oils.length||state.additives.length||state.aromas.length) && !confirm("Clear the whole recipe?")) return;
+  /* ---------- action dispatcher (single menu sheet) ---------- */
+  function doAction(a){
+    switch(a){
+      case "new": newRecipe(); break;
+      case "dup": duplicateRecipe(); break;
+      case "rename": renameRecipe(); break;
+      case "delete": deleteRecipe(); break;
+      case "compare": openCompare(); break;
+      case "costs": openCosts(); break;
+      case "card": openCard(); break;
+      case "sample": loadSample(); break;
+      case "scan": $("photoInput").click(); break;
+      case "import": $("csvInput").click(); break;
+      case "export": exportCSV(); break;
+      case "backup": backupAll(); break;
+      case "restore": $("restoreInput").click(); break;
+      case "clear": clearRecipe(); break;
+      case "install": doInstall(); break;
+    }
+  }
+  function clearRecipe(){
+    if((state.oils.length||state.additives.length||state.aromas.length) && !confirm("Clear all ingredients in this recipe?")) return;
     state.oils=[]; state.additives=[]; state.aromas=[]; save(); render();
-  });
-  $("sampleBtn").addEventListener("click",function(){
+  }
+  function loadSample(){
     state.oils=[
       {name:OILS.olive.name,key:"olive",g:500},
       {name:OILS.coconut.name,key:"coconut",g:8*UNITS.oz.toG},
@@ -697,11 +712,9 @@
     state.aromas=[{name:AROMAS.lavender.name,key:"lavender",g:22},{name:AROMAS.litsea.name,key:"litsea",g:8}];
     state.superfat=5; state.waterPct=38; state.lyeType="naoh";
     save(); render();
-  });
+  }
 
   /* ---------- CSV ---------- */
-  $("exportBtn").addEventListener("click",exportCSV);
-  $("importBtn").addEventListener("click",function(){ $("csvInput").click(); });
   $("csvInput").addEventListener("change",function(e){
     var f=e.target.files&&e.target.files[0]; if(!f) return;
     var r=new FileReader();
@@ -827,7 +840,6 @@
   }
 
   /* ---------- OCR ---------- */
-  $("scanBtn").addEventListener("click",function(){ $("photoInput").click(); });
   $("photoInput").addEventListener("change",function(e){
     var f=e.target.files&&e.target.files[0]; if(!f) return;
     var url=URL.createObjectURL(f);
@@ -904,19 +916,27 @@
     r.readAsText(file);
   }
 
+  /* ---------- action sheet open/close ---------- */
+  function openSheet(){
+    $("sheetBack").classList.remove("hide");
+    document.body.style.overflow="hidden";
+  }
+  function closeSheet(){ $("sheetBack").classList.add("hide"); document.body.style.overflow=""; }
+
   /* ---------- PWA ---------- */
   if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); }); }
   var deferredPrompt=null;
   var standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
-  window.addEventListener("beforeinstallprompt",function(e){ e.preventDefault(); deferredPrompt=e; if(!standalone) $("installBtn").classList.remove("hide"); });
-  window.addEventListener("appinstalled",function(){ $("installBtn").classList.add("hide"); });
-  $("installBtn").addEventListener("click",function(){
-    if(deferredPrompt){ deferredPrompt.prompt(); deferredPrompt.userChoice.finally(function(){ deferredPrompt=null; $("installBtn").classList.add("hide"); }); }
+  function showInstall(){ if(!standalone) $("sheetInstall").classList.remove("hide"); }
+  window.addEventListener("beforeinstallprompt",function(e){ e.preventDefault(); deferredPrompt=e; showInstall(); });
+  window.addEventListener("appinstalled",function(){ $("sheetInstall").classList.add("hide"); });
+  function doInstall(){
+    if(deferredPrompt){ deferredPrompt.prompt(); deferredPrompt.userChoice.finally(function(){ deferredPrompt=null; $("sheetInstall").classList.add("hide"); }); }
     else { alert("To install on iPhone/iPad: tap the Share button, then \"Add to Home Screen\"."); }
-  });
-  // Show an install hint button on iOS Safari (no beforeinstallprompt there)
+  }
+  // iOS Safari has no beforeinstallprompt — surface the install hint anyway
   var isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
-  if(isIOS && !standalone) $("installBtn").classList.remove("hide");
+  if(isIOS && !standalone) showInstall();
 
   /* ---------- modal helpers ---------- */
   function makeModal(){
