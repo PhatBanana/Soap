@@ -20,22 +20,23 @@
     <p>Recipe &amp; unit converter · lye + superfat · profile · scents</p>
   </header>
 
-  <div class="sticky">
-    <div class="recipebar">
-      <select id="recipeSelect" aria-label="Current recipe"></select>
-      <button type="button" class="rb-icon" id="recipeNew" title="New recipe" aria-label="New recipe">＋</button>
-      <div class="rb-more">
-        <button type="button" class="rb-icon" id="recipeMore" title="Recipe options" aria-label="Recipe options" aria-haspopup="true">⋯</button>
-        <div class="rmenu hide" id="recipeMenu">
-          <button type="button" data-a="dup">⧉ Duplicate</button>
-          <button type="button" data-a="rename">✎ Rename</button>
-          <button type="button" data-a="delete">🗑 Delete</button>
-          <div class="rsep"></div>
-          <button type="button" data-a="compare">⇄ Compare recipes</button>
-          <button type="button" data-a="card">📋 Recipe card</button>
-        </div>
+  <div class="recipebar">
+    <select id="recipeSelect" aria-label="Current recipe"></select>
+    <button type="button" class="rb-icon" id="recipeNew" title="New recipe" aria-label="New recipe">＋</button>
+    <div class="rb-more">
+      <button type="button" class="rb-icon" id="recipeMore" title="Recipe options" aria-label="Recipe options" aria-haspopup="true">⋯</button>
+      <div class="rmenu hide" id="recipeMenu">
+        <button type="button" data-a="dup">⧉ Duplicate</button>
+        <button type="button" data-a="rename">✎ Rename</button>
+        <button type="button" data-a="delete">🗑 Delete</button>
+        <div class="rsep"></div>
+        <button type="button" data-a="compare">⇄ Compare recipes</button>
+        <button type="button" data-a="card">📋 Recipe card</button>
       </div>
     </div>
+  </div>
+
+  <div class="sticky">
     <div class="units" id="units"></div>
     <div class="tabs" id="tabs">
       <button type="button" data-tab="base" class="active">🧼 Soap base</button>
