@@ -790,6 +790,7 @@
   function openConfirm(rows,title,sub,previewURL){
     var back=el("div","modal-back");
     var m=el("div","modal");
+    forceVisible(back,"flex"); forceVisible(m,"block");
     m.appendChild(el("h3",null,title));
     m.appendChild(el("p","sub",sub));
     if(previewURL){ var img=document.createElement("img"); img.className="ocr-preview"; img.src=previewURL; m.appendChild(img); }
@@ -845,6 +846,7 @@
     var url=URL.createObjectURL(f);
     // open modal in loading state
     var back=el("div","modal-back"); var m=el("div","modal");
+    forceVisible(back,"flex"); forceVisible(m,"block");
     m.appendChild(el("h3",null,"Reading photo…"));
     var img=document.createElement("img"); img.className="ocr-preview"; img.src=url; m.appendChild(img);
     var status=el("div","ocr-status","<span class='spin'></span>Loading the text reader…");
@@ -917,11 +919,16 @@
   }
 
   /* ---------- action sheet open/close ---------- */
+  // Force an element visible with inline !important, which outranks any injected
+  // stylesheet rule (e.g. an ad-blocker / Brave Shields cosmetic filter that hides
+  // an overlay with display:none !important).
+  function forceVisible(elm,disp){ if(!elm) return; elm.style.setProperty("display",disp,"important"); elm.style.setProperty("visibility","visible","important"); }
   function openSheet(){
-    $("sheetBack").classList.remove("hide");
+    var b=$("sheetBack"); b.classList.remove("hide");
+    forceVisible(b,"flex"); forceVisible($("sheet"),"block");
     document.body.style.overflow="hidden";
   }
-  function closeSheet(){ $("sheetBack").classList.add("hide"); document.body.style.overflow=""; }
+  function closeSheet(){ var b=$("sheetBack"); b.classList.add("hide"); b.style.setProperty("display","none","important"); document.body.style.overflow=""; }
 
   /* ---------- PWA ---------- */
   if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); }); }
@@ -941,6 +948,7 @@
   /* ---------- modal helpers ---------- */
   function makeModal(){
     var back=el("div","modal-back"), m=el("div","modal"); back.appendChild(m);
+    forceVisible(back,"flex"); forceVisible(m,"block");
     back.addEventListener("click",function(e){ if(e.target===back) closeModal(back); });
     document.body.style.overflow="hidden"; $("modalRoot").appendChild(back);
     return { back:back, m:m };
