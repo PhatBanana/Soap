@@ -25,6 +25,17 @@ header p{color:var(--muted);margin:5px 0 0;font-size:.9rem}
 
 /* sticky controls */
 .sticky{position:sticky;top:0;z-index:20;background:var(--bg);padding-top:8px;margin:0 -16px;padding-left:16px;padding-right:16px}
+/* recipe bar */
+.recipebar{display:flex;gap:6px;align-items:center;margin-bottom:8px;position:relative}
+.recipebar select{flex:1;min-width:0;font-size:.95rem;font-weight:600;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+.rb-icon{border:1px solid var(--line);background:var(--card);color:var(--ink);width:40px;height:40px;border-radius:10px;font-size:1.1rem;cursor:pointer;box-shadow:var(--shadow);flex:0 0 auto}
+.rb-icon:hover{border-color:var(--sage)}
+.rb-more{position:relative}
+.rmenu{position:absolute;right:0;top:44px;z-index:40;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:6px;min-width:190px;display:flex;flex-direction:column}
+.rmenu button{border:0;background:transparent;color:var(--ink);text-align:left;padding:10px 12px;border-radius:8px;font-size:.92rem;cursor:pointer}
+.rmenu button:hover{background:var(--bg)}
+.rsep{height:1px;background:var(--line);margin:5px 4px}
+
 .units{display:flex;gap:6px;background:var(--card);padding:6px;border-radius:999px;box-shadow:var(--shadow);margin-bottom:8px}
 .units button{flex:1;border:0;background:transparent;color:var(--muted);padding:9px 4px;border-radius:999px;font-size:.92rem;font-weight:600;cursor:pointer;transition:background .15s,color .15s;-webkit-tap-highlight-color:transparent}
 .units button.active{background:var(--sage);color:#fff}
@@ -173,4 +184,51 @@ header p{color:var(--muted);margin:5px 0 0;font-size:.9rem}
 .ocr-preview{max-width:100%;border-radius:10px;margin:0 auto 12px;display:block;max-height:180px}
 .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--sage-dark);border-radius:50%;animation:sp 0.8s linear infinite;vertical-align:-3px;margin-right:6px}
 @keyframes sp{to{transform:rotate(360deg)}}
+/* compare */
+.cmp-pick{display:flex;gap:10px;margin-bottom:12px}
+.cmp-lab{flex:1;display:flex;align-items:center;gap:8px}
+.cmp-lab span{font-weight:800;color:var(--muted)}
+.cmp-lab select{flex:1;min-width:0;font-size:.92rem;padding:9px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.cmp-out{overflow-x:auto}
+.cmp-table{width:100%;border-collapse:collapse;font-size:.9rem}
+.cmp-table th,.cmp-table td{padding:7px 8px;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--line)}
+.cmp-table th:first-child,.cmp-table td:first-child{text-align:left;font-weight:600}
+.cmp-table thead th{color:var(--muted);font-size:.82rem;font-weight:700;position:sticky;top:0;background:var(--card)}
+.cmp-table .cmp-sec td{background:var(--bg);color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;font-weight:700;text-align:left}
+
+/* recipe card */
+.print-card{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:18px 18px 8px}
+.print-card h2{margin:0 0 2px;font-size:1.35rem}
+.print-card h3{margin:16px 0 4px;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.print-card ul{margin:0;padding-left:18px}
+.print-card li{margin:3px 0;font-variant-numeric:tabular-nums}
+.print-card .mut{color:var(--muted);font-size:.85rem}
+.print-card .pc-yield{margin-top:8px;font-weight:700}
+
 .hide{display:none!important}
+
+/* ---------- mobile ---------- */
+@media (max-width:560px){
+  .wrap{padding:12px 16px 78px}  /* keep 16px sides so .sticky's -16px margins align */
+  /* stop iOS from zooming when a field is focused (needs >=16px) */
+  input,select,textarea,.recipebar select{font-size:16px}
+  /* trim the sticky controls so they don't eat the screen */
+  .units button{padding:9px 4px}
+  .tabs button{padding:9px 4px}
+  .recipebar{margin-bottom:8px}
+  /* single compact scrolling row instead of a tall wrapped block */
+  .bottombar{padding:6px 8px calc(6px + env(safe-area-inset-bottom));gap:6px;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch}
+  .bottombar button{flex:0 0 auto;min-width:0;max-width:none;flex-direction:row;gap:6px;white-space:nowrap;padding:9px 13px;font-size:.8rem}
+  .bottombar button .ic{font-size:1rem}
+  /* give modals a little more room on small screens */
+  .modal{padding:16px 14px calc(18px + env(safe-area-inset-bottom))}
+  .cmp-pick{flex-direction:column;gap:8px}
+}
+
+@media print{
+  body>.wrap,body>.bottombar,input[type=file]{display:none!important}
+  .modal-back{position:static;background:none;padding:0;display:block}
+  .modal{box-shadow:none;max-height:none;border-radius:0;padding:0;max-width:none}
+  .print-card{border:0;padding:0}
+  .no-print{display:none!important}
+}
