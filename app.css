@@ -132,6 +132,17 @@ header p{color:var(--muted);margin:5px 0 0;font-size:.9rem}
 .tip b{display:block;margin-bottom:2px}
 .tip span{color:var(--muted);font-size:.86rem}
 
+/* scale recipe */
+.scale-row{display:flex;align-items:center;gap:8px}
+.scale-row input{flex:1;font-size:1rem;padding:11px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-width:0}
+.scale-row .u{color:var(--muted);font-size:.85rem;min-width:20px}
+.scale-row .addbtn{border:0;background:var(--sage-dark);color:#fff;font-weight:700;font-size:1rem;padding:11px 18px;border-radius:10px;cursor:pointer}
+@media (prefers-color-scheme:dark){.scale-row .addbtn{color:#1c1815}}
+.mold-grid{display:flex;align-items:center;gap:6px}
+.mold-grid input{width:100%;min-width:0;font-size:1rem;padding:10px 8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.mold-grid .x{color:var(--muted);font-size:.9rem}
+.mold-grid select{padding:10px 6px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+
 .safety{background:var(--terra-soft);border-radius:10px;padding:10px 12px;font-size:.8rem;margin-top:6px;text-align:center}
 .pctnote{color:var(--muted);font-size:.8rem;text-align:center;margin-top:10px}
 

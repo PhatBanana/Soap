@@ -27,7 +27,7 @@
 
   var state = load() || {
     unit:"g", tab:"base", oils:[], additives:[], aromas:[],
-    lyeType:"naoh", superfat:5, waterPct:38, kohPurity:90
+    lyeType:"naoh", superfat:5, waterPct:38, kohPurity:90, scaleMode:"batch"
   };
 
   /* ---------- small helpers ---------- */
@@ -43,10 +43,12 @@
   var unitsEl=$("units"), oilList=$("oilList"), addList=$("addList"), aromaList=$("aromaList");
   var oilRefs=[], addRefs=[], aromaRefs=[];
   var activeInput=null;
+  var scaleDirty=false; // true once the user edits the scale field (stops auto-prefill)
+  var BAR_G=110;        // assumed weight of one bar for the yield estimate
 
   UORDER.forEach(function(u){
     var b=el("button",null,UNITS[u].label); b.type="button"; b.dataset.unit=u;
-    b.addEventListener("click",function(){ state.unit=u; save(); render(); });
+    b.addEventListener("click",function(){ state.unit=u; scaleDirty=false; save(); render(); });
     unitsEl.appendChild(b);
   });
   Array.prototype.forEach.call($("tabs").children,function(b){
@@ -93,6 +95,17 @@
   Array.prototype.forEach.call($("shape").children,function(b){
     b.addEventListener("click",function(){ nudge(b.dataset.goal); });
   });
+
+  // scale controls
+  Array.prototype.forEach.call($("scaleMode").children,function(b){
+    b.addEventListener("click",function(){ state.scaleMode=b.dataset.m; scaleDirty=false; save(); updateScaleCard(); });
+  });
+  $("scaleTarget").addEventListener("input",function(){ scaleDirty=true; updateScaleHint(); });
+  $("scaleTarget").addEventListener("focus",function(){ scaleDirty=true; });
+  $("scaleApply").addEventListener("click",applyWeightScale);
+  ["mL","mW","mH"].forEach(function(id){ $(id).addEventListener("input",updateMoldHint); });
+  $("mUnit").addEventListener("change",updateMoldHint);
+  $("moldApply").addEventListener("click",applyMold);
 
   /* ================= RENDER ================= */
   function render(){
@@ -276,6 +289,7 @@
         else { $("totalVal").textContent=fmt(fromG(total,state.unit),UNITS[state.unit].dp); $("totalUnit").textContent=UNITS[state.unit].label; }
       } else $("total").hidden=true;
 
+      updateScaleCard();
       if(state.oils.length>0){ updateLyePanel(); updateQuality(); updateNotes(); }
       else $("notesCard").hidden=true;
     }
@@ -288,7 +302,7 @@
     $("lyeK").textContent=L.kind;
     $("lyeVal").textContent=fmt(fromG(L.lyeG,wunit),2); $("lyeUnit").textContent=UNITS[wunit].label;
     $("waterOut").textContent=fmt(fromG(L.waterG,wunit),1); $("waterUnit").textContent=UNITS[wunit].label;
-    var batch=L.oilG+L.lyeG+L.waterG;
+    var batch=currentBatchG();
     $("batchOut").textContent=fmt(fromG(batch,wunit),1); $("batchUnit").textContent=UNITS[wunit].label;
     var conc=(L.lyeG+L.waterG)>0?L.lyeG/(L.lyeG+L.waterG)*100:0;
     var info="Lye concentration ≈ "+fmt(conc,1)+"%"+(state.superfat>0?" · "+state.superfat+"% superfat":"");
@@ -354,6 +368,86 @@
     if(hasAdd("goatmilk")||hasAdd("coconutmilk")) out.push(["tip","Making a milk soap","Swap part or all of your water for the milk. Keep it cold or frozen and add the lye slowly to stop it scorching (or use powdered milk at trace)."]);
     if(hasAdd("honey")) out.push(["tip","Honey added","Honey feeds lather but can overheat the batch — soap at a cooler temperature and watch for gel/volcano."]);
     return out;
+  }
+
+  /* ---------- scale recipe ---------- */
+  function currentBatchG(){
+    var L=computeLye();
+    var add=state.additives.reduce(function(s,it){return s+it.g;},0);
+    var ar=state.aromas.reduce(function(s,it){return s+it.g;},0);
+    return L.oilG + L.lyeG + L.waterG + add + ar;
+  }
+  function moldOilsG(){
+    var L=parseFloat($("mL").value), W=parseFloat($("mW").value), H=parseFloat($("mH").value);
+    if(!(L>0&&W>0&&H>0)) return 0;
+    var vol=L*W*H;
+    // rule of thumb: 0.4 oz of oils per cubic inch (~0.69 g per cm³)
+    return $("mUnit").value==="cm" ? vol*0.6917 : vol*0.4*UNITS.oz.toG;
+  }
+  function scaleAll(factor){
+    if(!(factor>0)||!isFinite(factor)) return;
+    state.oils.forEach(function(it){ it.g*=factor; });
+    state.additives.forEach(function(it){ it.g*=factor; });
+    state.aromas.forEach(function(it){ it.g*=factor; });
+    save(); render();
+  }
+  function applyWeightScale(){
+    var wunit=weightUnit(), raw=parseFloat($("scaleTarget").value);
+    if(!(raw>0)) return;
+    var targetG=raw*UNITS[wunit].toG;
+    var cur = state.scaleMode==="oils" ? totalOilsG() : currentBatchG();
+    if(cur<=0) return;
+    scaleDirty=false; $("scaleTarget").value="";
+    scaleAll(targetG/cur);
+  }
+  function applyMold(){
+    var target=moldOilsG(); if(target<=0) return;
+    var cur=totalOilsG(); if(cur<=0) return;
+    scaleAll(target/cur);
+  }
+  function updateScaleCard(){
+    if(state.oils.length===0){ $("scaleCard").hidden=true; return; }
+    $("scaleCard").hidden=false;
+    Array.prototype.forEach.call($("scaleMode").children,function(b){ b.classList.toggle("active",b.dataset.m===state.scaleMode); });
+    var isMold=state.scaleMode==="mold", wunit=weightUnit(), ul=UNITS[wunit].label;
+    $("scaleWeight").classList.toggle("hide",isMold);
+    $("scaleMoldWrap").classList.toggle("hide",!isMold);
+    $("scaleUnit").textContent=ul;
+    $("scaleTarget").placeholder = state.scaleMode==="oils" ? "Target oils in "+ul : "Target batch in "+ul;
+    var oilsG=totalOilsG(), batchG=currentBatchG();
+
+    // expected yield readout
+    $("yieldVal").textContent=fmt(fromG(batchG,wunit),UNITS[wunit].dp);
+    $("yieldUnit").textContent=ul;
+    var bars=batchG>0?Math.max(1,Math.round(batchG/BAR_G)):0;
+    $("yieldBars").textContent="≈ "+bars+" bar"+(bars===1?"":"s")+" (~"+BAR_G+" g each) · "+fmt(fromG(oilsG,wunit),1)+" "+ul+" of oils"+(state.unit==="pct"?" · shown in grams":"");
+
+    // reuse the target field to also show the current amount (until the user edits it)
+    if(!isMold && !scaleDirty && document.activeElement!==$("scaleTarget")){
+      var curShown = state.scaleMode==="oils" ? oilsG : batchG;
+      $("scaleTarget").value = curShown>0 ? fmt(fromG(curShown,wunit),UNITS[wunit].dp) : "";
+    }
+    updateScaleHint(); updateMoldHint();
+  }
+  function updateScaleHint(){
+    var wunit=weightUnit(), ul=UNITS[wunit].label, raw=parseFloat($("scaleTarget").value);
+    if(!scaleDirty || !(raw>0)){
+      $("scaleHint").textContent = state.scaleMode==="oils"
+        ? "Currently shows your total oils — type a new target and tap Scale."
+        : "Currently shows your batch — type a desired amount of soap and tap Scale.";
+      return;
+    }
+    var targetG=raw*UNITS[wunit].toG;
+    var cur = state.scaleMode==="oils" ? totalOilsG() : currentBatchG();
+    if(cur<=0){ $("scaleHint").textContent=""; return; }
+    var f=targetG/cur;
+    $("scaleHint").textContent="× "+fmt(f,3)+" → oils "+fmt(fromG(totalOilsG()*f,wunit),1)+" "+ul+" · batch "+fmt(fromG(currentBatchG()*f,wunit),1)+" "+ul;
+  }
+  function updateMoldHint(){
+    var wunit=weightUnit(), ul=UNITS[wunit].label, t=moldOilsG();
+    if(t<=0){ $("moldHint").textContent="Enter the inner Length × Width × Height of a rectangular mold to estimate the oils it holds."; return; }
+    var cur=totalOilsG(), f=cur>0?t/cur:0;
+    $("moldHint").textContent="≈ "+fmt(fromG(t,wunit),1)+" "+ul+" of oils for this mold"+(f>0?"  (× "+fmt(f,3)+")":"");
   }
 
   function updateScents(active){
@@ -688,6 +782,7 @@
     try{ var raw=localStorage.getItem(STORE_KEY); if(!raw) return null; var o=JSON.parse(raw); if(!o) return null;
       if(!UNITS[o.unit]) o.unit="g"; if(o.tab!=="base"&&o.tab!=="scents") o.tab="base";
       if(o.lyeType!=="naoh"&&o.lyeType!=="koh") o.lyeType="naoh";
+      if(["batch","oils","mold"].indexOf(o.scaleMode)<0) o.scaleMode="batch";
       o.superfat=clamp(o.superfat,5,0,15); o.waterPct=clamp(o.waterPct,38,25,50); o.kohPurity=clamp(o.kohPurity,90,85,100);
       o.oils=cleanList(o.oils,OILS); o.additives=cleanList(o.additives,ADDITIVES); o.aromas=cleanList(o.aromas,AROMAS);
       return o;
