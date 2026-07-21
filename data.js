@@ -158,4 +158,61 @@
     { h:"Respect skin-safe limits", t:"Some EOs (cinnamon, clove, lemongrass) irritate skin above low rates. Always stay within IFRA / supplier maximums." }
   ];
 
+  /* Example / starter recipes. Oils sum ~1000 g (easy to rescale). Keys map to
+     OILS / ADDITIVES / AROMAS above. Loading one adds it as a saved recipe.     */
+  g.EXAMPLES = [
+    // ---- Bar soaps (NaOH) ----
+    { name:"Classic Gentle Bar", cat:"Bar", lye:"naoh", sf:5, water:38,
+      oils:{olive:400,coconut:250,palm:200,shea:100,castor:50}, aromas:{lavender:30},
+      note:"Balanced everyday bar — hard, mild, and good lather." },
+    { name:"Pure Castile", cat:"Bar", lye:"naoh", sf:5, water:38,
+      oils:{olive:1000},
+      note:"100% olive oil. Very gentle and low-lather; slow to trace and needs a 4–6 month cure." },
+    { name:"Bastille (Olive + Coconut)", cat:"Bar", lye:"naoh", sf:5, water:38,
+      oils:{olive:700,coconut:250,castor:50},
+      note:"Olive-heavy but with a little more bubble than castile. Long-ish cure." },
+    { name:"Luxury Butter Bar", cat:"Bar", lye:"naoh", sf:6, water:38,
+      oils:{olive:300,coconut:250,cocoa:150,shea:150,avocado:100,castor:50}, aromas:{ylang:15,lavender:15},
+      note:"Rich, conditioning bar built on cocoa & shea butter." },
+    { name:"Palm-Free Bar", cat:"Bar", lye:"naoh", sf:5, water:38,
+      oils:{olive:350,coconut:300,shea:200,cocoa:100,castor:50},
+      note:"No palm oil — the butters provide the hardness instead." },
+    { name:"Old-Fashioned Tallow Bar", cat:"Bar", lye:"naoh", sf:5, water:38,
+      oils:{tallow:500,coconut:300,olive:150,castor:50},
+      note:"Traditional hard, long-lasting, low-cost bar from beef tallow." },
+    { name:"Coconut Salt Spa Bar", cat:"Bar", lye:"naoh", sf:15, water:33,
+      oils:{coconut:800,shea:100,avocado:50,castor:50}, additives:{salt:500},
+      note:"Rock-hard 'spa' bar with a lotion-y lather. The high superfat offsets all that coconut — cut the bars while still warm." },
+    { name:"Shaving Bar", cat:"Bar", lye:"naoh", sf:5, water:38,
+      oils:{olive:300,coconut:250,shea:200,castor:100,stearic:100,cocoa:50}, additives:{bentonite:20,kaolin:20},
+      note:"Dense, slippery lather for a shaving brush. Stearic and clay add glide." },
+
+    // ---- Liquid soaps (KOH) ----
+    { name:"Liquid Hand Soap", cat:"Liquid", lye:"koh", koh:90, sf:3, water:38,
+      oils:{olive:400,coconut:300,castor:150,sunflower:150}, aromas:{lemon:20,litsea:10},
+      note:"KOH soap paste — dilute the finished paste with water to the thickness you like." },
+    { name:"Liquid Castile", cat:"Liquid", lye:"koh", koh:90, sf:2, water:38,
+      oils:{olive:700,coconut:200,castor:100},
+      note:"Gentle olive-based liquid soap (Dr-Bronner style). Dilute generously." },
+    { name:"Liquid Shampoo", cat:"Liquid", lye:"koh", koh:90, sf:3, water:38,
+      oils:{coconut:300,olive:300,castor:200,sunflower:150,jojoba:50}, aromas:{rosemary:20,peppermint:10},
+      note:"Soap-based (high-pH) shampoo. Follow with an acidic vinegar rinse to smooth the hair cuticle." },
+
+    // ---- Dish soap ----
+    { name:"Liquid Dish Soap", cat:"Dish", lye:"koh", koh:90, sf:1, water:38,
+      oils:{coconut:600,castor:200,olive:200},
+      note:"Grease-cutting KOH dish soap. Very low superfat so it rinses clean — dilute well." },
+    { name:"Solid Dish Block", cat:"Dish", lye:"naoh", sf:1, water:38,
+      oils:{coconut:700,olive:150,castor:100,palm:50},
+      note:"Rub a wet brush or sponge on the block. High coconut cuts grease; ~1% superfat keeps it from feeling greasy." },
+
+    // ---- Laundry soap ----
+    { name:"Laundry Bar (grated)", cat:"Laundry", lye:"naoh", sf:0, water:38,
+      oils:{coconut:500,tallow:300,olive:100,castor:100},
+      note:"0% superfat so no oils are left on your clothes. Cure hard, grate, then mix 1:1:1 with washing soda + borax for laundry powder." },
+    { name:"Palm-Free Laundry Bar", cat:"Laundry", lye:"naoh", sf:0, water:38,
+      oils:{coconut:600,olive:300,castor:100},
+      note:"Vegan laundry bar, 0% superfat. Grate and combine with washing soda + borax (both stirred in, not saponified)." }
+  ];
+
 })(window);

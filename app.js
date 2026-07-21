@@ -687,7 +687,7 @@
       case "compare": openCompare(); break;
       case "costs": openCosts(); break;
       case "card": openCard(); break;
-      case "sample": loadSample(); break;
+      case "examples": openExamples(); break;
       case "scan": $("photoInput").click(); break;
       case "import": $("csvInput").click(); break;
       case "export": exportCSV(); break;
@@ -701,17 +701,46 @@
     if((state.oils.length||state.additives.length||state.aromas.length) && !confirm("Clear all ingredients in this recipe?")) return;
     state.oils=[]; state.additives=[]; state.aromas=[]; save(); render();
   }
-  function loadSample(){
-    state.oils=[
-      {name:OILS.olive.name,key:"olive",g:500},
-      {name:OILS.coconut.name,key:"coconut",g:8*UNITS.oz.toG},
-      {name:OILS.shea.name,key:"shea",g:0.25*UNITS.lb.toG},
-      {name:OILS.castor.name,key:"castor",g:40}
-    ];
-    state.additives=[{name:ADDITIVES.goatmilk.name,key:"goatmilk",g:0}];
-    state.aromas=[{name:AROMAS.lavender.name,key:"lavender",g:22},{name:AROMAS.litsea.name,key:"litsea",g:8}];
-    state.superfat=5; state.waterPct=38; state.lyeType="naoh";
-    save(); render();
+  function mapItems(obj,db){
+    if(!obj) return [];
+    return Object.keys(obj).map(function(k){ return {name:db[k]?db[k].name:k, key:db[k]?k:null, g:obj[k]}; });
+  }
+  function loadExample(ex){
+    syncCurrent();
+    var cur=libById(currentId), target;
+    if(cur && cur.oils.length===0 && cur.additives.length===0 && cur.aromas.length===0){
+      target=cur; target.name=ex.name;               // reuse an empty recipe
+    } else {
+      target=blankRecipe(ex.name); library.push(target); currentId=target.id;
+    }
+    target.oils=mapItems(ex.oils,OILS);
+    target.additives=mapItems(ex.additives,ADDITIVES);
+    target.aromas=mapItems(ex.aromas,AROMAS);
+    target.lyeType = ex.lye==="koh" ? "koh" : "naoh";
+    target.superfat = clamp(ex.sf,5,0,15);
+    target.waterPct = clamp(ex.water,38,25,50);
+    target.kohPurity = clamp(ex.koh,90,85,100);
+    loadRecipeIntoState(target); scaleDirty=false; save(); render();
+  }
+  function openExamples(){
+    var md=makeModal();
+    md.m.appendChild(el("h3",null,"Example recipes"));
+    md.m.appendChild(el("p","sub","Tap one to add it as a new saved recipe you can tweak."));
+    var out=el("div"); md.m.appendChild(out);
+    var groups=[["Bar","Bar soaps"],["Liquid","Liquid soaps"],["Dish","Dish soap"],["Laundry","Laundry soap"]];
+    groups.forEach(function(gp){
+      var items=(window.EXAMPLES||[]).filter(function(e){ return e.cat===gp[0]; });
+      if(!items.length) return;
+      out.appendChild(el("div","ex-h",gp[1]));
+      items.forEach(function(ex){
+        var b=el("button","ex-item"); b.type="button";
+        b.innerHTML="<b>"+escapeHtml(ex.name)+"</b><span>"+escapeHtml(ex.note||"")+"</span>";
+        b.addEventListener("click",function(){ closeModal(md.back); loadExample(ex); });
+        out.appendChild(b);
+      });
+    });
+    var foot=el("div","mfoot"); var c=el("button","ghost","Cancel");
+    c.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(c); md.m.appendChild(foot);
   }
 
   /* ---------- CSV ---------- */
