@@ -207,6 +207,21 @@ header p{color:var(--muted);margin:5px 0 0;font-size:.9rem}
 
 .hide{display:none!important}
 
+/* ---------- wide screens: two-column layout ---------- */
+@media (min-width:900px){
+  .wrap{max-width:1060px}
+  /* keep the top controls a comfortable width, centered */
+  .recipebar{max-width:660px;margin-left:auto;margin-right:auto}
+  .units{margin-left:auto;margin-right:auto;max-width:660px}
+  .tabs{margin-left:auto;margin-right:auto;max-width:660px}
+  header{margin-bottom:18px}
+  /* flow the stacked cards into two balanced columns */
+  #tab-base,#tab-scents{column-count:2;column-gap:20px}
+  #tab-base>.card,#tab-scents>.card{break-inside:avoid;overflow:hidden}
+  /* center the bottom action bar to the wider content */
+  .bottombar{padding-left:calc(50% - 520px);padding-right:calc(50% - 520px)}
+}
+
 /* ---------- mobile ---------- */
 @media (max-width:560px){
   .wrap{padding:12px 16px 78px}  /* keep 16px sides so .sticky's -16px margins align */
