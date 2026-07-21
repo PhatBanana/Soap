@@ -49,7 +49,7 @@ phone in the kitchen or on a desktop.
 
 ### Batch yield & scaling
 - **Expected yield** readout for the current ingredients (batch weight + approx.
-  bar count).
+  bar count), with an **adjustable bar weight**.
 - **Scale** the whole recipe (keeping every ratio) to hit a target **total batch**,
   **total oils**, or a **mold size** (rectangular L×W×H).
 
@@ -57,8 +57,22 @@ phone in the kitchen or on a desktop.
 - A separate list & receipt for **fragrance / essential oils**, dosed by usage
   rate, with a **scent-load** read-out (~3% sweet spot) and a **note pyramid**
   (top / middle / base balance).
+- **Set recommended amounts** sizes the whole blend to a safe ~3% of oils, split
+  by each oil's typical rate and **capped at each scent's skin-safe maximum**, so
+  bars aren't over- or under-scented. Individual scents over their max are flagged.
 - **Context-aware blending notes** based on the scents you're actually using —
   anchoring advice, trace accelerators, discoloration, and skin-safety cautions.
+
+### Make it (process & cure)
+- A **Make** tab with a **step-by-step checklist** (suit up → measure → mix lye →
+  combine at temp → add scent at trace → pour → unmold → cure), with your progress
+  saved per recipe.
+- A **cure schedule**: set the date you made the batch and the cure time, and it
+  shows the **ready-to-use date** and days remaining.
+
+### Costs
+- Enter each ingredient's **price per kg** (saved and reused across recipes) and
+  see the **batch total** and **cost per bar**, in your chosen currency.
 
 ### Recipes
 - **Saved, named recipes** — keep a library (New / Duplicate / Rename / Delete) and
@@ -108,6 +122,5 @@ batch. Lye is caustic: wear gloves and eye protection.**
 Hosted free on GitHub Pages from `main`.
 
 ## Ideas for later
-- A soaping "session" checklist with a cure-until date.
-- Cost-per-bar from ingredient prices.
-- Adjustable bar weight for the yield estimate; round/cavity mold shapes.
+- Round / cylinder / cavity mold shapes for the scaler (rectangular for now).
+- Optional cloud sync so recipes follow you across devices.

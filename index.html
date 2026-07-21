@@ -31,6 +31,7 @@
         <button type="button" data-a="delete">🗑 Delete</button>
         <div class="rsep"></div>
         <button type="button" data-a="compare">⇄ Compare recipes</button>
+        <button type="button" data-a="costs">💲 Costs</button>
         <button type="button" data-a="card">📋 Recipe card</button>
       </div>
     </div>
@@ -39,8 +40,9 @@
   <div class="sticky">
     <div class="units" id="units"></div>
     <div class="tabs" id="tabs">
-      <button type="button" data-tab="base" class="active">🧼 Soap base</button>
+      <button type="button" data-tab="base" class="active">🧼 Base</button>
       <button type="button" data-tab="scents">🌸 Scents</button>
+      <button type="button" data-tab="make">🧪 Make</button>
     </div>
   </div>
 
@@ -70,11 +72,12 @@
 
     <div class="card" id="scaleCard" hidden>
       <h2>Batch Yield &amp; Scaling</h2>
-      <div class="result hero" id="yieldHero" style="margin-bottom:16px">
+      <div class="result hero" id="yieldHero" style="margin-bottom:12px">
         <div class="k">Expected yield · current recipe</div>
         <div class="v"><span id="yieldVal">0</span><span class="u" id="yieldUnit">g</span></div>
         <div class="subinfo" id="yieldBars" style="text-align:left;margin-top:4px"></div>
       </div>
+      <div class="barw-row">Bar size <input id="barW" type="number" min="10" step="5" inputmode="decimal"> g each — sets the bar count above</div>
       <div class="subhead">Resize to a target</div>
       <div class="seg" id="scaleMode">
         <button type="button" data-m="batch" class="active">Total batch</button>
@@ -176,6 +179,7 @@
         <div class="result"><div class="k">Of total oils</div><div class="v"><span id="scentPct">0</span><span class="u">%</span></div></div>
       </div>
       <div class="subinfo" id="scentAdvice"></div>
+      <button type="button" class="addbtn" id="scentSuggest" style="margin-top:10px;width:100%;padding:11px">Set recommended amounts</button>
       <div class="subhead" style="margin-top:16px">Note pyramid (share by weight)</div>
       <div class="pyramid" id="pyramid"></div>
     </div>
@@ -183,6 +187,29 @@
     <div class="card">
       <h2>Blending Notes &amp; Hints</h2>
       <div id="tips"></div>
+    </div>
+  </section>
+
+  <!-- ============ MAKE TAB ============ -->
+  <section id="tab-make" hidden>
+    <div class="card">
+      <h2>Cure Schedule</h2>
+      <div class="ctrl">
+        <div class="lbl"><span>Made on</span></div>
+        <input type="date" id="madeOn" class="dateinp">
+      </div>
+      <div class="ctrl">
+        <div class="lbl"><span>Cure time</span><b><span id="cureWeeksVal">4</span> weeks</b></div>
+        <input type="range" id="cureWeeks" min="1" max="12" step="1" value="4">
+      </div>
+      <div class="result hero"><div class="k">Ready to use</div><div class="v" id="readyOn">—</div></div>
+      <div class="subinfo" id="cureNote">Cold-process soap needs 4–6 weeks to cure — water evaporates, the bar hardens, and it gets milder and longer-lasting.</div>
+    </div>
+    <div class="card">
+      <h2>Step-by-step <span class="link" id="resetChecklist">reset</span></h2>
+      <div id="checklist"></div>
+      <div class="subinfo" id="checkProgress"></div>
+      <div class="safety">⚠️ Always add lye TO the water (never water to lye), in a ventilated space, with gloves &amp; eye protection.</div>
     </div>
   </section>
 </div>

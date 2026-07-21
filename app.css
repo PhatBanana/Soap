@@ -205,6 +205,30 @@ header p{color:var(--muted);margin:5px 0 0;font-size:.9rem}
 .print-card .mut{color:var(--muted);font-size:.85rem}
 .print-card .pc-yield{margin-top:8px;font-weight:700}
 
+/* bar-size + date inputs */
+.barw-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:.85rem;margin-bottom:14px}
+.barw-row input{width:76px;font-size:1rem;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.dateinp{font-size:1rem;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+#readyOn{font-size:1.3rem}
+
+/* checklist */
+.chk{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.chk:last-child{border-bottom:0}
+.chk input{width:22px;height:22px;flex:0 0 auto;accent-color:var(--sage-dark);margin-top:1px}
+.chk .txt{font-size:.95rem}
+.chk.done .txt{color:var(--muted);text-decoration:line-through}
+
+/* costs modal */
+.cost-table{width:100%;border-collapse:collapse;font-size:.9rem}
+.cost-table td{padding:6px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+.cost-table td:first-child{font-weight:600}
+.cost-table input{width:88px;font-size:16px;padding:7px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);text-align:right}
+.cost-table td:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.cost-cur{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.cost-cur select{font-size:16px;padding:8px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.cost-tot{display:flex;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:2px dashed var(--line);font-weight:700}
+.cost-tot .big{font-size:1.25rem}
+
 .hide{display:none!important}
 
 /* ---------- wide screens: two-column layout ---------- */

@@ -43,7 +43,8 @@
   var oilRefs=[], addRefs=[], aromaRefs=[];
   var activeInput=null;
   var scaleDirty=false; // true once the user edits the scale field (stops auto-prefill)
-  var BAR_G=110;        // assumed weight of one bar for the yield estimate
+  function barG(){ return state.barWeight>0 ? state.barWeight : 110; }
+  function barCount(g){ return g>0 ? Math.max(1,Math.round(g/barG())) : 0; }
 
   UORDER.forEach(function(u){
     var b=el("button",null,UNITS[u].label); b.type="button"; b.dataset.unit=u;
@@ -116,9 +117,16 @@
     if(b.tagName!=="BUTTON") return;
     b.addEventListener("click",function(){ $("recipeMenu").classList.add("hide"); var a=b.dataset.a;
       if(a==="dup") duplicateRecipe(); else if(a==="rename") renameRecipe(); else if(a==="delete") deleteRecipe();
-      else if(a==="compare") openCompare(); else if(a==="card") openCard();
+      else if(a==="compare") openCompare(); else if(a==="card") openCard(); else if(a==="costs") openCosts();
     });
   });
+
+  // bar weight, scent helper, make-tab controls
+  $("barW").addEventListener("input",function(){ var v=parseFloat($("barW").value); state.barWeight=(isFinite(v)&&v>=10)?v:110; save(); updateScaleCard(); });
+  $("scentSuggest").addEventListener("click",suggestScents);
+  $("madeOn").addEventListener("change",function(){ state.madeOn=$("madeOn").value; save(); updateReady(); });
+  $("cureWeeks").addEventListener("input",function(){ state.cureWeeks=parseInt($("cureWeeks").value,10)||4; $("cureWeeksVal").textContent=state.cureWeeks; save(); updateReady(); });
+  $("resetChecklist").addEventListener("click",function(){ if(confirm("Uncheck all steps?")){ state.checklist={}; save(); renderMake(); } });
 
   /* ================= RENDER ================= */
   function render(){
@@ -127,9 +135,11 @@
     Array.prototype.forEach.call($("tabs").children,function(b){ b.classList.toggle("active",b.dataset.tab===state.tab); });
     $("tab-base").hidden = state.tab!=="base";
     $("tab-scents").hidden = state.tab!=="scents";
+    $("tab-make").hidden = state.tab!=="make";
 
     if(state.tab==="base") renderBase();
-    else renderScents();
+    else if(state.tab==="scents") renderScents();
+    else renderMake();
   }
 
   function renderBase(){
@@ -232,6 +242,7 @@
     top.appendChild(del); row.appendChild(top);
     if(d) row.appendChild(el("div","note",d.tips));
     var suggEl=el("div","note"); suggEl.style.color="var(--sage-dark)"; row.appendChild(suggEl);
+    var warnEl=el("div","warn"); warnEl.style.display="none"; row.appendChild(warnEl);
 
     var ne=el("div","numedit");
     var inp=document.createElement("input"); inp.type="number"; inp.step="any"; inp.min="0"; inp.inputMode="decimal";
@@ -244,7 +255,7 @@
       refreshDerived(inp); save();
     });
     ne.appendChild(inp); ne.appendChild(u); ne.appendChild(pctLbl); row.appendChild(ne);
-    aromaRefs[i]={input:inp,pctLbl:pctLbl,sugg:suggEl,d:d};
+    aromaRefs[i]={input:inp,pctLbl:pctLbl,sugg:suggEl,warn:warnEl,d:d};
     return row;
   }
 
@@ -449,8 +460,9 @@
     // expected yield readout
     $("yieldVal").textContent=fmt(fromG(batchG,wunit),UNITS[wunit].dp);
     $("yieldUnit").textContent=ul;
-    var bars=batchG>0?Math.max(1,Math.round(batchG/BAR_G)):0;
-    $("yieldBars").textContent="≈ "+bars+" bar"+(bars===1?"":"s")+" (~"+BAR_G+" g each) · "+fmt(fromG(oilsG,wunit),1)+" "+ul+" of oils"+(state.unit==="pct"?" · shown in grams":"");
+    var bars=barCount(batchG);
+    $("yieldBars").textContent="≈ "+bars+" bar"+(bars===1?"":"s")+" (~"+barG()+" g each) · "+fmt(fromG(oilsG,wunit),1)+" "+ul+" of oils"+(state.unit==="pct"?" · shown in grams":"");
+    if($("barW")!==document.activeElement) $("barW").value=state.barWeight;
 
     // reuse the target field to also show the current amount (until the user edits it)
     if(!isMold && !scaleDirty && document.activeElement!==$("scaleTarget")){
@@ -493,18 +505,24 @@
         buckets[r.d.note]+=it.g;
         var sug = totalOil>0 ? " (~"+fmt(fromG(totalOil*r.d.rate[1]/100,wunit),1)+" "+UNITS[wunit].label+")" : "";
         r.sugg.textContent="Typical "+r.d.rate[1]+"% of oils"+sug+" · currently "+fmt(pct,2)+"%";
-      } else r.sugg.textContent="";
+        // per-scent safety: flag when above its own max usage rate
+        if(totalOil>0 && it.g>0 && pct > r.d.rate[2] + 0.05){
+          r.warn.textContent="⚠ Above its ~"+r.d.rate[2]+"% skin-safe max — reduce to ≈ "+fmt(fromG(totalOil*r.d.rate[2]/100,wunit),1)+" "+UNITS[wunit].label+".";
+          r.warn.style.display="";
+        } else r.warn.style.display="none";
+      } else { r.sugg.textContent=""; if(r.warn) r.warn.style.display="none"; }
     });
     if(state.aromas.length>0){
       $("scentTotal").textContent=fmt(fromG(scentG,wunit),1); $("scentUnit").textContent=UNITS[wunit].label;
       var pct=totalOil>0?scentG/totalOil*100:0;
       $("scentPct").textContent = totalOil>0 ? fmt(pct,2) : "—";
       var advice;
+      var recG = totalOil>0 ? " Recommended ≈ "+fmt(fromG(totalOil*0.03,wunit),1)+" "+UNITS[wunit].label+" (3% of oils; safe range ~2–5%)." : "";
       if(totalOil<=0) advice="Add oils in the Soap base tab to size your scent load.";
-      else if(pct>6) advice="⚠️ That's a heavy scent load — most CP soap uses ~3% (max ~5–6%). Check IFRA limits.";
-      else if(pct>5) advice="On the strong side — many aim for ~3%. Fine for robust FOs within IFRA limits.";
-      else if(pct<1.5) advice="Light scent — bump toward ~3% if you want it to last through cure.";
-      else advice="Nicely in the ~3% sweet spot for cold-process soap.";
+      else if(pct>6) advice="⚠️ Heavy scent load — bars may be overpowering and could exceed skin-safe limits. Aim for ~3%."+recG;
+      else if(pct>5) advice="On the strong side — many aim for ~3%. OK for robust FOs within IFRA limits."+recG;
+      else if(pct<1.5) advice="Light scent — it may fade during cure. Nudge toward ~3% so it lasts."+recG;
+      else advice="Nicely in the ~3% sweet spot for cold-process soap."+recG;
       $("scentAdvice").textContent=advice;
       // pyramid
       var known=buckets.top+buckets.middle+buckets.base;
@@ -549,6 +567,74 @@
     }
     tipsEl.innerHTML="";
     out.forEach(function(t){ var d=el("div","tip"); d.appendChild(el("b",null,t.h)); d.appendChild(el("span",null,t.t)); tipsEl.appendChild(d); });
+  }
+
+  /* Set each scent to a proper amount: known scents to their typical usage rate,
+     custom scents to an even share of a 3% total — so the bar isn't over/under-scented. */
+  function suggestScents(){
+    var oil=totalOilsG();
+    if(oil<=0){ alert("Add oils in the Base tab first so scent amounts can be sized."); return; }
+    if(state.aromas.length===0) return;
+    // Target ~3% of oils TOTAL, split between scents by their typical rate, and never
+    // let any single scent exceed its own skin-safe max — so the bar isn't over/under-scented.
+    var target=oil*0.03;
+    var weights=state.aromas.map(function(a){ var d=a.key?AROMAS[a.key]:null; return d?d.rate[1]:3; });
+    var sw=weights.reduce(function(s,w){return s+w;},0)||1;
+    state.aromas.forEach(function(a,i){
+      var d=a.key?AROMAS[a.key]:null;
+      var g=target*(weights[i]/sw);
+      if(d){ var maxG=oil*d.rate[2]/100; if(g>maxG) g=maxG; }
+      a.g=g;
+    });
+    save(); render();
+  }
+
+  /* ---------- make tab: checklist + cure date ---------- */
+  var CHECK_STEPS=[
+    "Suit up: gloves + eye protection, apron, good ventilation.",
+    "Weigh your oils; melt the hard oils/butters and combine with the liquid oils.",
+    "Weigh the water (or milk) and the lye separately.",
+    "Add the lye TO the water (never the reverse), stir until clear, and let it cool.",
+    "Cool the oils and the lye water to about 95–105°F (35–40°C).",
+    "Pour lye water into the oils and blend to a light trace.",
+    "Add fragrance, additives, and color at trace; stir in well.",
+    "Pour into the mold, tap out bubbles, and insulate/cover.",
+    "Unmold and cut into bars after 1–2 days.",
+    "Cure the bars on a rack until the ready date, turning occasionally."
+  ];
+  function todayISO(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function renderMake(){
+    $("madeOn").value = state.madeOn || "";
+    $("cureWeeks").value = state.cureWeeks; $("cureWeeksVal").textContent = state.cureWeeks;
+    var box=$("checklist"); box.innerHTML="";
+    CHECK_STEPS.forEach(function(step,i){
+      var id="s"+i, on=!!state.checklist[id];
+      var lab=el("label","chk"+(on?" done":""));
+      var cb=document.createElement("input"); cb.type="checkbox"; cb.checked=on;
+      cb.addEventListener("change",function(){
+        if(cb.checked){ state.checklist[id]=true; lab.classList.add("done"); }
+        else { delete state.checklist[id]; lab.classList.remove("done"); }
+        save(); updateChecklistProgress();
+      });
+      lab.appendChild(cb); lab.appendChild(el("span","txt",step)); box.appendChild(lab);
+    });
+    updateChecklistProgress();
+    updateReady();
+  }
+  function updateChecklistProgress(){
+    var done=CHECK_STEPS.filter(function(_,i){ return state.checklist["s"+i]; }).length;
+    $("checkProgress").textContent = done+" of "+CHECK_STEPS.length+" steps done";
+  }
+  function updateReady(){
+    var base = state.madeOn ? new Date(state.madeOn+"T00:00:00") : new Date();
+    if(isNaN(base.getTime())) base=new Date();
+    var ready=new Date(base.getTime()); ready.setDate(ready.getDate()+state.cureWeeks*7);
+    $("readyOn").textContent = ready.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"});
+    var days=Math.ceil((ready-new Date())/86400000);
+    $("cureNote").textContent = state.madeOn
+      ? (days>0 ? "About "+days+" day"+(days===1?"":"s")+" left to cure — the bar keeps hardening and getting milder as it dries."
+                : "Cure time is up — your soap should be ready to use and gift. 🎉")
+      : "Set the date you made this batch to track when it's ready. Cold-process soap needs ~4–6 weeks to cure.";
   }
 
   /* ---------- shape / nudge ---------- */
@@ -885,7 +971,7 @@
       return "<li>"+escapeHtml(it.name)+" — <b>"+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul+"</b>"+
         (s.oilsG>0?" <span class='mut'>("+fmt(it.g/s.oilsG*100,1)+"%)</span>":"")+"</li>"; }).join(""); }
     var h="<h2>"+escapeHtml(r.name)+"</h2><div class='mut'>Soap Calc · "+d+"</div>";
-    h+="<div class='pc-yield'>Makes ≈ "+fmt(fromG(s.batchG,wunit),1)+" "+ul+"  ·  ~"+Math.max(1,Math.round(s.batchG/BAR_G))+" bars</div>";
+    h+="<div class='pc-yield'>Makes ≈ "+fmt(fromG(s.batchG,wunit),1)+" "+ul+"  ·  ~"+barCount(s.batchG)+" bars</div>";
     h+="<h3>Oils</h3><ul>"+items(oils)+"</ul>";
     if(adds.length){ h+="<h3>Additives</h3><ul>"+adds.map(function(it){
       return "<li>"+escapeHtml(it.name)+" — <b>"+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul+"</b></li>"; }).join("")+"</ul>"; }
@@ -904,7 +990,7 @@
   function cardText(r,s,wunit,ul){
     function line(name,g){ return name+": "+fmt(fromG(g,wunit),UNITS[wunit].dp)+" "+ul+(s.oilsG>0&&g?" ("+fmt(g/s.oilsG*100,1)+"%)":""); }
     var oils=nz(r.oils), adds=nz(r.additives), scents=nz(r.aromas);
-    var L=[]; L.push(r.name); L.push("Makes ~"+fmt(fromG(s.batchG,wunit),1)+" "+ul+" (~"+Math.max(1,Math.round(s.batchG/BAR_G))+" bars)"); L.push("");
+    var L=[]; L.push(r.name); L.push("Makes ~"+fmt(fromG(s.batchG,wunit),1)+" "+ul+" (~"+barCount(s.batchG)+" bars)"); L.push("");
     L.push("OILS"); oils.forEach(function(it){ L.push("  "+line(it.name,it.g)); });
     if(adds.length){ L.push("ADDITIVES"); adds.forEach(function(it){ L.push("  "+it.name+": "+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul); }); }
     L.push("LYE & WATER");
@@ -925,25 +1011,84 @@
       document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); done(); }catch(e){ alert("Couldn't copy automatically."); } }
   }
 
+  /* ---------- costs (price book + cost per bar) ---------- */
+  function priceKeyOf(it){ return it.key || ("c:"+it.name.toLowerCase()); }
+  function openCosts(){
+    syncCurrent();
+    var md=makeModal();
+    md.m.appendChild(el("h3",null,"Costs"));
+    md.m.appendChild(el("p","sub","Enter each ingredient's price per kg. Prices are saved and reused across recipes."));
+    var cur=el("div","cost-cur"); cur.appendChild(el("span",null,"Currency"));
+    var sel=document.createElement("select");
+    ["$","€","£","¥","₹","R$","kr","A$","C$"].forEach(function(c){ var o=document.createElement("option"); o.value=c; o.textContent=c; if(c===state.currency)o.selected=true; sel.appendChild(o); });
+    cur.appendChild(sel); md.m.appendChild(cur);
+    var out=el("div"); md.m.appendChild(out);
+    sel.addEventListener("change",function(){ state.currency=sel.value; save(); draw(); });
+
+    function draw(){
+      out.innerHTML="";
+      var items=[].concat(
+        state.oils.map(function(t){return {it:t};}),
+        state.additives.map(function(t){return {it:t};}),
+        state.aromas.map(function(t){return {it:t};})
+      ).filter(function(x){ return x.it.g>0; });
+      if(items.length===0){ out.appendChild(el("div","ocr-status","Add ingredients first to price them.")); return; }
+      var table=el("table","cost-table"), tb=document.createElement("tbody"); table.appendChild(tb);
+      var refs=[];
+      items.forEach(function(x){
+        var pk=priceKeyOf(x.it), tr=document.createElement("tr");
+        tr.appendChild(el("td",null,escapeHtml(x.it.name)));
+        var td2=document.createElement("td");
+        var inp=document.createElement("input"); inp.type="number"; inp.min="0"; inp.step="any";
+        inp.value=state.prices[pk]||""; inp.placeholder="0";
+        inp.addEventListener("input",function(){ var v=parseFloat(inp.value); if(isFinite(v)&&v>0) state.prices[pk]=v; else delete state.prices[pk]; save(); recompute(); });
+        td2.appendChild(inp); td2.appendChild(document.createTextNode(" "+state.currency+"/kg"));
+        tr.appendChild(td2);
+        var costCell=el("td",null,""); tr.appendChild(costCell);
+        tb.appendChild(tr); refs.push({it:x.it,pk:pk,cell:costCell});
+      });
+      out.appendChild(table);
+      var totRow=el("div","cost-tot"); var totSpan=el("span","big",""); totRow.appendChild(el("span",null,"Batch total")); totRow.appendChild(totSpan); out.appendChild(totRow);
+      var perEl=el("div","subinfo"); perEl.style.textAlign="left"; out.appendChild(perEl);
+      recompute();
+      function recompute(){
+        var total=0;
+        refs.forEach(function(r){ var p=state.prices[r.pk]||0; var c=r.it.g/1000*p; total+=c; r.cell.textContent=p?state.currency+fmt(c,2):"—"; });
+        totSpan.textContent=state.currency+fmt(total,2);
+        var s=statsFor(libById(currentId)), bars=barCount(s.batchG);
+        perEl.textContent = (bars>0 && total>0) ? state.currency+fmt(total/bars,2)+" per bar (~"+bars+" bars)" : "Enter prices to see cost per bar.";
+      }
+    }
+    draw();
+    var foot=el("div","mfoot"); var close=el("button","primary","Done"); close.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(close); md.m.appendChild(foot);
+  }
+
   /* ---------- recipe library ---------- */
   function uid(){ return "r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
   function libById(id){ for(var i=0;i<library.length;i++) if(library[i].id===id) return library[i]; return null; }
   function blankRecipe(name){ return { id:uid(), name:name, oils:[], additives:[], aromas:[],
-    lyeType:"naoh", superfat:5, waterPct:38, kohPurity:90 }; }
+    lyeType:"naoh", superfat:5, waterPct:38, kohPurity:90, madeOn:"", cureWeeks:4, checklist:{} }; }
   function cloneItem(it){ return {name:it.name,key:it.key,g:it.g}; }
   function stateFromRecipe(r,view){
-    return { unit:UNITS[view.unit]?view.unit:"g", tab:(view.tab==="scents"?"scents":"base"),
+    return { unit:UNITS[view.unit]?view.unit:"g",
+      tab:(["base","scents","make"].indexOf(view.tab)>=0?view.tab:"base"),
       scaleMode:(["batch","oils","mold"].indexOf(view.scaleMode)>=0?view.scaleMode:"batch"),
+      barWeight:(view.barWeight>0?view.barWeight:110),
+      currency:(typeof view.currency==="string"&&view.currency?view.currency:"$"),
+      prices:(view.prices&&typeof view.prices==="object"?view.prices:{}),
       oils:r.oils, additives:r.additives, aromas:r.aromas,
-      lyeType:r.lyeType, superfat:r.superfat, waterPct:r.waterPct, kohPurity:r.kohPurity };
+      lyeType:r.lyeType, superfat:r.superfat, waterPct:r.waterPct, kohPurity:r.kohPurity,
+      madeOn:r.madeOn||"", cureWeeks:(r.cureWeeks>=1?r.cureWeeks:4), checklist:r.checklist||{} };
   }
   function loadRecipeIntoState(r){
     state.oils=r.oils; state.additives=r.additives; state.aromas=r.aromas;
     state.lyeType=r.lyeType; state.superfat=r.superfat; state.waterPct=r.waterPct; state.kohPurity=r.kohPurity;
+    state.madeOn=r.madeOn||""; state.cureWeeks=(r.cureWeeks>=1?r.cureWeeks:4); state.checklist=r.checklist||{};
   }
   function syncCurrent(){ var r=libById(currentId); if(!r) return;
     r.oils=state.oils; r.additives=state.additives; r.aromas=state.aromas;
-    r.lyeType=state.lyeType; r.superfat=state.superfat; r.waterPct=state.waterPct; r.kohPurity=state.kohPurity; }
+    r.lyeType=state.lyeType; r.superfat=state.superfat; r.waterPct=state.waterPct; r.kohPurity=state.kohPurity;
+    r.madeOn=state.madeOn; r.cureWeeks=state.cureWeeks; r.checklist=state.checklist; }
 
   function switchRecipe(id){ if(id===currentId){ rebuildRecipeSelect(); return; } syncCurrent();
     var r=libById(id); if(!r) return; currentId=id; loadRecipeIntoState(r); scaleDirty=false; save(); render(); }
@@ -984,10 +1129,14 @@
       name:(typeof r.name==="string"&&r.name.trim())?r.name:"Untitled",
       oils:cleanList(r.oils,OILS), additives:cleanList(r.additives,ADDITIVES), aromas:cleanList(r.aromas,AROMAS),
       lyeType:(r.lyeType==="koh")?"koh":"naoh", superfat:clamp(r.superfat,5,0,15),
-      waterPct:clamp(r.waterPct,38,25,50), kohPurity:clamp(r.kohPurity,90,85,100) }; }
+      waterPct:clamp(r.waterPct,38,25,50), kohPurity:clamp(r.kohPurity,90,85,100),
+      madeOn:(typeof r.madeOn==="string")?r.madeOn:"", cureWeeks:clamp(r.cureWeeks,4,1,12),
+      checklist:(r.checklist&&typeof r.checklist==="object")?r.checklist:{} }; }
   function save(){ syncCurrent();
     try{ localStorage.setItem(STORE_KEY,JSON.stringify({
-      unit:state.unit, tab:state.tab, scaleMode:state.scaleMode, currentId:currentId, recipes:library
+      unit:state.unit, tab:state.tab, scaleMode:state.scaleMode,
+      barWeight:state.barWeight, currency:state.currency, prices:state.prices,
+      currentId:currentId, recipes:library
     })); }catch(e){} }
   function load(){
     try{
@@ -995,7 +1144,8 @@
       if(raw){ var o=JSON.parse(raw); if(!o||!Array.isArray(o.recipes)||o.recipes.length===0) throw 0;
         var recipes=o.recipes.map(sanitizeRecipe).filter(Boolean);
         if(recipes.length===0) throw 0;
-        return { recipes:recipes, currentId:o.currentId, view:{unit:o.unit,tab:o.tab,scaleMode:o.scaleMode} }; }
+        return { recipes:recipes, currentId:o.currentId, view:{unit:o.unit,tab:o.tab,scaleMode:o.scaleMode,
+          barWeight:o.barWeight, currency:o.currency, prices:o.prices} }; }
       // migrate a single v3 recipe, if present
       var v3=localStorage.getItem("soapcalc.v3");
       if(v3){ var o3=JSON.parse(v3); if(o3){
