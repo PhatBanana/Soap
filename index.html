@@ -33,6 +33,9 @@
         <button type="button" data-a="compare">⇄ Compare recipes</button>
         <button type="button" data-a="costs">💲 Costs</button>
         <button type="button" data-a="card">📋 Recipe card</button>
+        <div class="rsep"></div>
+        <button type="button" data-a="backup">💾 Back up all data</button>
+        <button type="button" data-a="restore">📂 Restore from backup</button>
       </div>
     </div>
   </div>
@@ -226,6 +229,7 @@
 
 <input type="file" id="photoInput" accept="image/*" capture="environment" class="hide">
 <input type="file" id="csvInput" accept=".csv,text/csv" class="hide">
+<input type="file" id="restoreInput" accept="application/json,.json" class="hide">
 <div id="modalRoot"></div>
 
 <script src="data.js"></script>

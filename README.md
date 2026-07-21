@@ -96,6 +96,13 @@ phone in the kitchen or on a desktop.
 - Everything is saved **locally in your browser** (localStorage). There's no
   server and no account — nothing is transmitted, and one person's recipes never
   reach another's browser.
+- **Updates are automatic** — the service worker is network-first, so when you're
+  online you always get the latest version (no need to clear the cache), and the
+  cache is only an offline fallback. Cache updates never touch your saved recipes.
+- **Your data is protected** — the app requests *persistent storage* so recipes
+  aren't auto-evicted, and **Back up all data / Restore from backup** (in the
+  recipe **⋯** menu) export/import everything as a JSON file — a safety net before
+  clearing site data, and a way to move recipes between devices or browsers.
 
 ## Install on your phone
 Open the live URL and:
