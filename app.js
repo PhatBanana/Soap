@@ -90,7 +90,12 @@
   });
   bindRange($("sf"),"sfVal","superfat");
   bindRange($("water"),"waterVal","waterPct");
+  bindRange($("lyeConc"),"concVal","lyeConc");
   bindRange($("purity"),"purVal","kohPurity");
+  Array.prototype.forEach.call($("waterMode").children,function(b){
+    b.addEventListener("click",function(){ state.waterMode=b.dataset.w; save(); render(); });
+  });
+  $("recalcBtn").addEventListener("click",function(){ save(); render(); showToast("Recalculated ✓",true); });
   function bindRange(input,labelId,key){
     input.addEventListener("input",function(){ state[key]=parseFloat(input.value); $(labelId).textContent=input.value; refreshDerived(); save(); });
   }
@@ -168,7 +173,12 @@
     $("purityCtrl").classList.toggle("hide",state.lyeType!=="koh");
     $("sf").value=state.superfat; $("sfVal").textContent=state.superfat;
     $("water").value=state.waterPct; $("waterVal").textContent=state.waterPct;
+    $("lyeConc").value=state.lyeConc; $("concVal").textContent=state.lyeConc;
     $("purity").value=state.kohPurity; $("purVal").textContent=state.kohPurity;
+    var concMode=state.waterMode==="conc";
+    Array.prototype.forEach.call($("waterMode").children,function(b){ b.classList.toggle("active",(b.dataset.w==="conc")===concMode); });
+    $("waterOilsCtrl").classList.toggle("hide",concMode);
+    $("waterConcCtrl").classList.toggle("hide",!concMode);
 
     $("clearOils").hidden = !(state.oils.length||state.additives.length||state.aromas.length);
     if(!$("useSelect").options.length){ var uh=""; USES.forEach(function(u){ uh+='<option value="'+u[0]+'">'+u[1]+'</option>'; }); $("useSelect").innerHTML=uh; }
@@ -293,7 +303,8 @@
 
   /* ---------- blend / lye ---------- */
   function curRV(){ return { oils:state.oils, additives:state.additives, aromas:state.aromas,
-    lyeType:state.lyeType, superfat:state.superfat, waterPct:state.waterPct, kohPurity:state.kohPurity }; }
+    lyeType:state.lyeType, superfat:state.superfat, waterPct:state.waterPct, kohPurity:state.kohPurity,
+    waterMode:state.waterMode, lyeConc:state.lyeConc }; }
   function oilsGof(rv){ return rv.oils.reduce(function(s,it){return s+it.g;},0); }
   function blendFA(rv){
     rv=rv||curRV();
@@ -312,7 +323,14 @@
     if(rv.lyeType==="koh"){ lyeG=naohRaw*KOH_FACTOR*sf/(rv.kohPurity/100); kind="KOH (lye)"; }
     else { lyeG=naohRaw*sf; kind="NaOH (lye)"; }
     var oilG=oilsGof(rv);
-    return { lyeG:lyeG, waterG:oilG*rv.waterPct/100, oilG:oilG, kind:kind, hasCustom:hasCustom };
+    var waterG;
+    if(rv.waterMode==="conc"){
+      var c=(rv.lyeConc>0?rv.lyeConc:33)/100;   // lye concentration = lye / (lye + water)
+      waterG = lyeG*(1-c)/c;                     // water sized from the lye (so superfat lowers it too)
+    } else {
+      waterG = oilG*rv.waterPct/100;
+    }
+    return { lyeG:lyeG, waterG:waterG, oilG:oilG, kind:kind, hasCustom:hasCustom };
   }
   function qualitiesOf(fa){ return { hardness:fa.pa+fa.st+fa.la+fa.my, cleansing:fa.la+fa.my,
     conditioning:fa.ol+fa.li+fa.ln+fa.ri, bubbly:fa.la+fa.my+fa.ri, creamy:fa.pa+fa.st+fa.ri }; }
@@ -368,7 +386,11 @@
     var batch=currentBatchG();
     $("batchOut").textContent=fmt(fromG(batch,wunit),1); $("batchUnit").textContent=UNITS[wunit].label;
     var conc=(L.lyeG+L.waterG)>0?L.lyeG/(L.lyeG+L.waterG)*100:0;
-    var info="Lye concentration ≈ "+fmt(conc,1)+"%"+(state.superfat>0?" · "+state.superfat+"% superfat":"");
+    var waterOfOils=L.oilG>0?L.waterG/L.oilG*100:0;
+    var info=(state.waterMode==="conc"
+        ? "Water ≈ "+fmt(waterOfOils,1)+"% of oils"
+        : "Lye concentration ≈ "+fmt(conc,1)+"%")
+      +(state.superfat>0?" · "+state.superfat+"% superfat":"");
     if(isPct) info+=" · shown in "+UNITS[wunit].name;
     if(L.hasCustom) info+=" · custom oils excluded";
     var liquidAdd=state.additives.some(function(it){ return it.key&&ADDITIVES[it.key].kind==="liquid"&&it.g>0; });
@@ -1088,10 +1110,11 @@
   /* ---------- undo (single-level) + toast ---------- */
   var undoSnap=null, toastTimer=null;
   function pushUndo(){ undoSnap={ oils:state.oils.map(cloneItem), additives:state.additives.map(cloneItem), aromas:state.aromas.map(cloneItem) }; }
-  function showToast(msg){
+  function showToast(msg,noUndo){
     $("toastMsg").textContent=msg;
+    $("toastUndo").classList.toggle("hide",!!noUndo);
     $("toast").classList.remove("hide");
-    clearTimeout(toastTimer); toastTimer=setTimeout(function(){ $("toast").classList.add("hide"); },6000);
+    clearTimeout(toastTimer); toastTimer=setTimeout(function(){ $("toast").classList.add("hide"); },noUndo?2500:6000);
   }
   function doUndo(){
     if(!undoSnap) return;
@@ -1292,7 +1315,7 @@
   function libById(id){ for(var i=0;i<library.length;i++) if(library[i].id===id) return library[i]; return null; }
   function validUse(u){ for(var i=0;i<USES.length;i++) if(USES[i][0]===u) return true; return false; }
   function blankRecipe(name){ return { id:uid(), name:name, oils:[], additives:[], aromas:[],
-    lyeType:"naoh", superfat:5, waterPct:38, kohPurity:90, madeOn:"", cureWeeks:4, checklist:{}, use:"body" }; }
+    lyeType:"naoh", superfat:5, waterPct:38, waterMode:"oils", lyeConc:33, kohPurity:90, madeOn:"", cureWeeks:4, checklist:{}, use:"body" }; }
   function cloneItem(it){ return {name:it.name,key:it.key,g:it.g}; }
   function stateFromRecipe(r,view){
     return { unit:UNITS[view.unit]?view.unit:"g",
@@ -1304,16 +1327,19 @@
       prices:(view.prices&&typeof view.prices==="object"?view.prices:{}),
       oils:r.oils, additives:r.additives, aromas:r.aromas,
       lyeType:r.lyeType, superfat:r.superfat, waterPct:r.waterPct, kohPurity:r.kohPurity,
+      waterMode:(r.waterMode==="conc"?"conc":"oils"), lyeConc:(r.lyeConc>=25&&r.lyeConc<=50?r.lyeConc:33),
       madeOn:r.madeOn||"", cureWeeks:(r.cureWeeks>=1?r.cureWeeks:4), checklist:r.checklist||{}, use:(validUse(r.use)?r.use:"body") };
   }
   function loadRecipeIntoState(r){
     state.oils=r.oils; state.additives=r.additives; state.aromas=r.aromas;
     state.lyeType=r.lyeType; state.superfat=r.superfat; state.waterPct=r.waterPct; state.kohPurity=r.kohPurity;
+    state.waterMode=(r.waterMode==="conc"?"conc":"oils"); state.lyeConc=(r.lyeConc>=25&&r.lyeConc<=50?r.lyeConc:33);
     state.madeOn=r.madeOn||""; state.cureWeeks=(r.cureWeeks>=1?r.cureWeeks:4); state.checklist=r.checklist||{}; state.use=validUse(r.use)?r.use:"body";
   }
   function syncCurrent(){ var r=libById(currentId); if(!r) return;
     r.oils=state.oils; r.additives=state.additives; r.aromas=state.aromas;
     r.lyeType=state.lyeType; r.superfat=state.superfat; r.waterPct=state.waterPct; r.kohPurity=state.kohPurity;
+    r.waterMode=state.waterMode; r.lyeConc=state.lyeConc;
     r.madeOn=state.madeOn; r.cureWeeks=state.cureWeeks; r.checklist=state.checklist; r.use=state.use; }
 
   function switchRecipe(id){ if(id===currentId){ rebuildRecipeSelect(); return; } syncCurrent();
@@ -1325,7 +1351,8 @@
   }
   function duplicateRecipe(){ syncCurrent(); var c=libById(currentId); if(!c) return;
     var r={ id:uid(), name:c.name+" copy", oils:c.oils.map(cloneItem), additives:c.additives.map(cloneItem),
-      aromas:c.aromas.map(cloneItem), lyeType:c.lyeType, superfat:c.superfat, waterPct:c.waterPct, kohPurity:c.kohPurity };
+      aromas:c.aromas.map(cloneItem), lyeType:c.lyeType, superfat:c.superfat, waterPct:c.waterPct, kohPurity:c.kohPurity,
+      waterMode:c.waterMode, lyeConc:c.lyeConc, madeOn:c.madeOn, cureWeeks:c.cureWeeks, checklist:{}, use:c.use };
     library.push(r); currentId=r.id; loadRecipeIntoState(r); scaleDirty=false; save(); render(); }
   function renameRecipe(){ var c=libById(currentId); if(!c) return;
     var name=(prompt("Rename recipe:",c.name)||"").trim(); if(name==="") return; c.name=name; save(); rebuildRecipeSelect(); }
@@ -1355,7 +1382,8 @@
       name:(typeof r.name==="string"&&r.name.trim())?r.name:"Untitled",
       oils:cleanList(r.oils,OILS), additives:cleanList(r.additives,ADDITIVES), aromas:cleanList(r.aromas,AROMAS),
       lyeType:(r.lyeType==="koh")?"koh":"naoh", superfat:clamp(r.superfat,5,0,15),
-      waterPct:clamp(r.waterPct,38,25,50), kohPurity:clamp(r.kohPurity,90,85,100),
+      waterPct:clamp(r.waterPct,38,25,50), waterMode:(r.waterMode==="conc"?"conc":"oils"), lyeConc:clamp(r.lyeConc,33,25,50),
+      kohPurity:clamp(r.kohPurity,90,85,100),
       madeOn:(typeof r.madeOn==="string")?r.madeOn:"", cureWeeks:clamp(r.cureWeeks,4,1,12),
       checklist:(r.checklist&&typeof r.checklist==="object")?r.checklist:{}, use:(validUse(r.use)?r.use:"body") }; }
   function save(){ syncCurrent();
