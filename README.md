@@ -110,6 +110,10 @@ phone in the kitchen or on a desktop.
 - 📱 **Installable PWA** — add to your home screen; works fully offline.
 - **Responsive** — a compact single column on phones, a two-column layout on
   desktop.
+- **Collapsible sections** — tap any card's header to fold or unfold it (the
+  chevron shows the state), so a long recipe stays scannable; your choices are
+  remembered, and the guidance-heavy cards (Recipe Notes, Shape the Profile) start
+  folded.
 - Everything is saved **locally in your browser** (localStorage). There's no
   server and no account — nothing is transmitted, and one person's recipes never
   reach another's browser.
