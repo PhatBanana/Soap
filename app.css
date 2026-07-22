@@ -51,6 +51,9 @@ body{
 .card h2{font-size:1.05rem;font-weight:800;margin:0 0 14px;display:flex;align-items:center}
 .card h2::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--coral);flex:0 0 auto;margin-right:9px}
 .card h2 .link{margin-left:auto}
+.use-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.use-row label{font-size:.85rem;font-weight:700;color:var(--muted)}
+.use-row select{flex:1;font-size:1rem;font-weight:700;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:var(--bg-2);color:var(--ink)}
 .subhead{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800;margin:16px 0 8px}
 .subhead:first-child{margin-top:0}
 
