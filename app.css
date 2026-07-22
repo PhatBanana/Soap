@@ -21,6 +21,7 @@ body{
 }
 .wrap{max-width:640px;margin:0 auto;padding:12px 16px 40px}
 .hide{display:none!important}
+[hidden]{display:none!important}  /* the hidden attribute must beat author display rules (e.g. .total{display:flex}) */
 .link{background:none;border:0;color:var(--coral-d);cursor:pointer;font-weight:700;text-decoration:underline;font-size:.8rem}
 
 /* ---------- app bar ---------- */
@@ -80,7 +81,16 @@ body{
 .pill.base{background:var(--coral-soft);color:var(--coral-d)}
 .pill.eo,.pill.fo{background:var(--bg-2);color:var(--muted)}
 
-.empty{text-align:center;color:var(--muted);padding:22px 10px;font-size:.98rem;font-weight:600}
+.empty{text-align:center;color:var(--muted);padding:20px 10px;font-size:.98rem;font-weight:600}
+.empty-btn{margin:10px auto 4px;display:inline-block;border:0;background:var(--coral);color:#fff;font-weight:800;font-size:.95rem;padding:11px 18px;border-radius:12px;cursor:pointer;box-shadow:0 4px 0 var(--coral-d)}
+.empty-btn:active{transform:translateY(3px);box-shadow:none}
+.empty-sub{font-size:.85rem;margin-top:6px;font-weight:600}
+/* editable oil amount */
+.amt-inp{width:74px;text-align:right;font-weight:800;font-size:1.05rem;font-variant-numeric:tabular-nums;border:2px solid transparent;background:transparent;color:var(--ink);border-radius:9px;padding:3px 6px}
+.amt-inp:focus{border-color:var(--coral);background:var(--bg-2);outline:none}
+/* undo toast */
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:70;display:flex;align-items:center;gap:16px;background:var(--ink);color:var(--bg);padding:13px 18px;border-radius:15px;box-shadow:var(--shadow);font-weight:700;font-size:.9rem;max-width:calc(100% - 32px)}
+.toast button{border:0;background:transparent;color:var(--coral);font-weight:800;font-size:.95rem;cursor:pointer;padding:2px 4px}
 .total{display:flex;justify-content:space-between;align-items:baseline;margin-top:16px;padding-top:14px;border-top:3px dashed var(--line);font-weight:800}
 .total .val{font-size:1.35rem;font-variant-numeric:tabular-nums}
 .total .u{color:var(--muted);font-weight:700;font-size:.85rem;margin-left:3px}

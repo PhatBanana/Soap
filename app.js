@@ -145,7 +145,13 @@
     var isPct=state.unit==="pct";
     // oils
     oilList.innerHTML=""; oilRefs=[];
-    if(state.oils.length===0){ oilList.appendChild(el("div","empty","No oils yet — add one below, or tap Sample 👇")); }
+    if(state.oils.length===0){
+      var em=el("div","empty"); em.appendChild(el("div",null,"No oils yet."));
+      var eb=el("button","empty-btn","📖 Start from an example"); eb.type="button";
+      eb.addEventListener("click",openExamples); em.appendChild(eb);
+      em.appendChild(el("div","empty-sub","…or add an oil with the picker below."));
+      oilList.appendChild(em);
+    }
     else state.oils.forEach(function(it,i){ oilList.appendChild(buildOilRow(it,i)); });
 
     // additives
@@ -176,9 +182,19 @@
     var row=el("div","row"), d=oilInfo(it);
     var top=el("div","top");
     top.appendChild(el("div","name",escapeHtml(it.name)));
-    var amt=el("div","amt"); var amtVal=el("span"), amtU=el("span","u"); amt.appendChild(amtVal); amt.appendChild(amtU);
+    var amt=el("div","amt");
+    var amtVal=document.createElement("input"); amtVal.className="amt-inp"; amtVal.type="text"; amtVal.inputMode="decimal";
+    amtVal.setAttribute("aria-label",it.name+" amount");
+    var amtU=el("span","u"); amt.appendChild(amtVal); amt.appendChild(amtU);
+    amtVal.addEventListener("focus",function(){ activeInput=amtVal; if(amtVal.select) amtVal.select(); });
+    amtVal.addEventListener("blur",function(){ activeInput=null; refreshDerived(); });
+    amtVal.addEventListener("input",function(){
+      var v=parseFloat(amtVal.value); if(!isFinite(v)||v<0) return;
+      if(state.unit==="pct") setOilPercent(i,v); else it.g=v*UNITS[state.unit].toG;
+      lastGoal=null; refreshDerived(amtVal); save();
+    });
     var del=el("button","del","&times;"); del.type="button"; del.setAttribute("aria-label","Remove "+it.name);
-    del.addEventListener("click",function(){ state.oils.splice(i,1); lastGoal=null; save(); render(); });
+    del.addEventListener("click",function(){ pushUndo(); var nm=it.name; state.oils.splice(i,1); lastGoal=null; save(); render(); showToast("Removed "+nm); });
     top.appendChild(amt); top.appendChild(del); row.appendChild(top);
     if(d && d.note) row.appendChild(el("div","note",d.note));
     if(!d) row.appendChild(el("div","warn","No SAP/profile data — excluded from lye & quality math."));
@@ -312,8 +328,10 @@
       var pct=total>0?it.g/total*100:0;
       if(r.slider!==active) r.slider.value=pct;
       r.pctLbl.textContent=fmt(pct,1)+"%";
-      if(isPct){ r.amtVal.textContent=fmt(pct,1); r.amtU.textContent="%"; }
-      else { r.amtVal.textContent=fmt(fromG(it.g,state.unit),UNITS[state.unit].dp); r.amtU.textContent=UNITS[state.unit].label; }
+      if(r.amtVal!==active && r.amtVal!==activeInput){
+        r.amtVal.value = isPct ? fmt(pct,1) : fmt(fromG(it.g,state.unit),UNITS[state.unit].dp);
+      }
+      r.amtU.textContent = isPct ? "%" : UNITS[state.unit].label;
     });
     // additives
     state.additives.forEach(function(it,i){ var r=addRefs[i]; if(!r) return;
@@ -438,12 +456,12 @@
     var cur = state.scaleMode==="oils" ? totalOilsG() : currentBatchG();
     if(cur<=0) return;
     scaleDirty=false; $("scaleTarget").value="";
-    scaleAll(targetG/cur);
+    pushUndo(); scaleAll(targetG/cur); showToast("Recipe scaled");
   }
   function applyMold(){
     var target=moldOilsG(); if(target<=0) return;
     var cur=totalOilsG(); if(cur<=0) return;
-    scaleAll(target/cur);
+    pushUndo(); scaleAll(target/cur); showToast("Scaled to fit mold");
   }
   function updateScaleCard(){
     if(state.oils.length===0){ $("scaleCard").hidden=true; return; }
@@ -726,8 +744,9 @@
     }
   }
   function clearRecipe(){
-    if((state.oils.length||state.additives.length||state.aromas.length) && !confirm("Clear all ingredients in this recipe?")) return;
-    state.oils=[]; state.additives=[]; state.aromas=[]; lastGoal=null; save(); render();
+    if(!(state.oils.length||state.additives.length||state.aromas.length)) return;
+    pushUndo();
+    state.oils=[]; state.additives=[]; state.aromas=[]; lastGoal=null; save(); render(); showToast("Recipe cleared");
   }
   function mapItems(obj,db){
     if(!obj) return [];
@@ -980,12 +999,38 @@
   // stylesheet rule (e.g. an ad-blocker / Brave Shields cosmetic filter that hides
   // an overlay with display:none !important).
   function forceVisible(elm,disp){ if(!elm) return; elm.style.setProperty("display",disp,"important"); elm.style.setProperty("visibility","visible","important"); }
+  var sheetPrevFocus=null;
   function openSheet(){
     var b=$("sheetBack"); b.classList.remove("hide");
     forceVisible(b,"flex"); forceVisible($("sheet"),"block");
     document.body.style.overflow="hidden";
+    sheetPrevFocus=document.activeElement;
+    setTimeout(function(){ var f=$("sheet").querySelector("button"); if(f) f.focus(); },0);
   }
-  function closeSheet(){ var b=$("sheetBack"); b.classList.add("hide"); b.style.setProperty("display","none","important"); document.body.style.overflow=""; }
+  function closeSheet(){ var b=$("sheetBack"); b.classList.add("hide"); b.style.setProperty("display","none","important"); document.body.style.overflow="";
+    if(sheetPrevFocus&&sheetPrevFocus.focus){ try{ sheetPrevFocus.focus(); }catch(e){} } sheetPrevFocus=null; }
+
+  /* Esc closes the menu sheet or the top-most modal */
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="Escape") return;
+    if(!$("sheetBack").classList.contains("hide")){ closeSheet(); return; }
+    var kids=$("modalRoot").children; if(kids.length){ kids[kids.length-1].click(); }
+  });
+
+  /* ---------- undo (single-level) + toast ---------- */
+  var undoSnap=null, toastTimer=null;
+  function pushUndo(){ undoSnap={ oils:state.oils.map(cloneItem), additives:state.additives.map(cloneItem), aromas:state.aromas.map(cloneItem) }; }
+  function showToast(msg){
+    $("toastMsg").textContent=msg;
+    $("toast").classList.remove("hide");
+    clearTimeout(toastTimer); toastTimer=setTimeout(function(){ $("toast").classList.add("hide"); },6000);
+  }
+  function doUndo(){
+    if(!undoSnap) return;
+    state.oils=undoSnap.oils; state.additives=undoSnap.additives; state.aromas=undoSnap.aromas;
+    undoSnap=null; lastGoal=null; $("toast").classList.add("hide"); save(); render();
+  }
+  $("toastUndo").addEventListener("click",doUndo);
 
   /* ---------- PWA ---------- */
   if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); }); }
