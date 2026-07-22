@@ -34,7 +34,7 @@
   function el(tag, cls, html){ var e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e; }
   function fromG(g,u){ return g/UNITS[u].toG; }
   function fmt(n,dp){ if(!isFinite(n)) return "0"; var s=n.toFixed(dp); if(s.indexOf(".")>-1) s=s.replace(/\.?0+$/,""); return s; }
-  function weightUnit(){ return state.unit==="pct" ? "g" : state.unit; }
+  function weightUnit(){ return state.unit==="pct" ? (UNITS[state.lastWeightUnit]&&state.lastWeightUnit!=="pct" ? state.lastWeightUnit : "g") : state.unit; }
   function totalOilsG(){ return state.oils.reduce(function(s,it){return s+it.g;},0); }
   function oilInfo(it){ return it.key ? OILS[it.key] : null; }
 
@@ -49,7 +49,7 @@
 
   UORDER.forEach(function(u){
     var b=el("button",null,UNITS[u].label); b.type="button"; b.dataset.unit=u;
-    b.addEventListener("click",function(){ state.unit=u; scaleDirty=false; save(); render(); });
+    b.addEventListener("click",function(){ state.unit=u; if(u!=="pct") state.lastWeightUnit=u; scaleDirty=false; save(); render(); });
     unitsEl.appendChild(b);
   });
   Array.prototype.forEach.call($("tabs").children,function(b){
@@ -123,6 +123,7 @@
   // bar weight, scent helper, make-tab controls
   $("barW").addEventListener("input",function(){ var v=parseFloat($("barW").value); state.barWeight=(isFinite(v)&&v>=10)?v:110; save(); updateScaleCard(); });
   $("scentSuggest").addEventListener("click",suggestScents);
+  $("clearOils").addEventListener("click",clearRecipe);
   $("madeOn").addEventListener("change",function(){ state.madeOn=$("madeOn").value; save(); updateReady(); });
   $("cureWeeks").addEventListener("input",function(){ state.cureWeeks=parseInt($("cureWeeks").value,10)||4; $("cureWeeksVal").textContent=state.cureWeeks; save(); updateReady(); });
   $("resetChecklist").addEventListener("click",function(){ if(confirm("Uncheck all steps?")){ state.checklist={}; save(); renderMake(); } });
@@ -167,6 +168,7 @@
     $("water").value=state.waterPct; $("waterVal").textContent=state.waterPct;
     $("purity").value=state.kohPurity; $("purVal").textContent=state.kohPurity;
 
+    $("clearOils").hidden = !(state.oils.length||state.additives.length||state.aromas.length);
     var has=state.oils.length>0;
     $("lyeCard").hidden=!has; $("qualCard").hidden=!has; $("shapeCard").hidden=!has;
     $("pctNote").hidden=!(isPct&&has);
@@ -363,7 +365,7 @@
     $("batchOut").textContent=fmt(fromG(batch,wunit),1); $("batchUnit").textContent=UNITS[wunit].label;
     var conc=(L.lyeG+L.waterG)>0?L.lyeG/(L.lyeG+L.waterG)*100:0;
     var info="Lye concentration ≈ "+fmt(conc,1)+"%"+(state.superfat>0?" · "+state.superfat+"% superfat":"");
-    if(isPct) info+=" · shown in grams";
+    if(isPct) info+=" · shown in "+UNITS[wunit].name;
     if(L.hasCustom) info+=" · custom oils excluded";
     var liquidAdd=state.additives.some(function(it){ return it.key&&ADDITIVES[it.key].kind==="liquid"&&it.g>0; });
     if(liquidAdd) info+=" · liquid additives replace part of the water";
@@ -505,7 +507,7 @@
     $("yieldVal").textContent=fmt(fromG(batchG,wunit),UNITS[wunit].dp);
     $("yieldUnit").textContent=ul;
     var bars=barCount(batchG);
-    $("yieldBars").textContent="≈ "+bars+" bar"+(bars===1?"":"s")+" (~"+barG()+" g each) · "+fmt(fromG(oilsG,wunit),1)+" "+ul+" of oils"+(state.unit==="pct"?" · shown in grams":"");
+    $("yieldBars").textContent="≈ "+bars+" bar"+(bars===1?"":"s")+" (~"+barG()+" g each) · "+fmt(fromG(oilsG,wunit),1)+" "+ul+" of oils";
     if($("barW")!==document.activeElement) $("barW").value=state.barWeight;
 
     // reuse the target field to also show the current amount (until the user edits it)
@@ -1254,6 +1256,7 @@
   function cloneItem(it){ return {name:it.name,key:it.key,g:it.g}; }
   function stateFromRecipe(r,view){
     return { unit:UNITS[view.unit]?view.unit:"g",
+      lastWeightUnit:(UNITS[view.lastWeightUnit]&&view.lastWeightUnit!=="pct"?view.lastWeightUnit:(UNITS[view.unit]&&view.unit!=="pct"?view.unit:"g")),
       tab:(["base","scents","make"].indexOf(view.tab)>=0?view.tab:"base"),
       scaleMode:(["batch","oils","mold"].indexOf(view.scaleMode)>=0?view.scaleMode:"batch"),
       barWeight:(view.barWeight>0?view.barWeight:110),
@@ -1317,7 +1320,7 @@
       checklist:(r.checklist&&typeof r.checklist==="object")?r.checklist:{} }; }
   function save(){ syncCurrent();
     try{ localStorage.setItem(STORE_KEY,JSON.stringify({
-      unit:state.unit, tab:state.tab, scaleMode:state.scaleMode,
+      unit:state.unit, lastWeightUnit:state.lastWeightUnit, tab:state.tab, scaleMode:state.scaleMode,
       barWeight:state.barWeight, currency:state.currency, prices:state.prices,
       currentId:currentId, recipes:library
     })); }catch(e){} }
@@ -1327,7 +1330,7 @@
       if(raw){ var o=JSON.parse(raw); if(!o||!Array.isArray(o.recipes)||o.recipes.length===0) throw 0;
         var recipes=o.recipes.map(sanitizeRecipe).filter(Boolean);
         if(recipes.length===0) throw 0;
-        return { recipes:recipes, currentId:o.currentId, view:{unit:o.unit,tab:o.tab,scaleMode:o.scaleMode,
+        return { recipes:recipes, currentId:o.currentId, view:{unit:o.unit,lastWeightUnit:o.lastWeightUnit,tab:o.tab,scaleMode:o.scaleMode,
           barWeight:o.barWeight, currency:o.currency, prices:o.prices} }; }
       // migrate a single v3 recipe, if present
       var v3=localStorage.getItem("soapcalc.v3");
