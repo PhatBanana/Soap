@@ -178,7 +178,7 @@
     top.appendChild(el("div","name",escapeHtml(it.name)));
     var amt=el("div","amt"); var amtVal=el("span"), amtU=el("span","u"); amt.appendChild(amtVal); amt.appendChild(amtU);
     var del=el("button","del","&times;"); del.type="button"; del.setAttribute("aria-label","Remove "+it.name);
-    del.addEventListener("click",function(){ state.oils.splice(i,1); save(); render(); });
+    del.addEventListener("click",function(){ state.oils.splice(i,1); lastGoal=null; save(); render(); });
     top.appendChild(amt); top.appendChild(del); row.appendChild(top);
     if(d && d.note) row.appendChild(el("div","note",d.note));
     if(!d) row.appendChild(el("div","warn","No SAP/profile data — excluded from lye & quality math."));
@@ -187,7 +187,7 @@
     var range=document.createElement("input"); range.type="range"; range.min="0"; range.max="100"; range.step="0.5";
     range.setAttribute("aria-label",it.name+" percent of oils");
     var pctLbl=el("span","pctlbl");
-    range.addEventListener("input",function(){ setOilPercent(i,parseFloat(range.value)); refreshDerived(range); save(); });
+    range.addEventListener("input",function(){ setOilPercent(i,parseFloat(range.value)); lastGoal=null; refreshDerived(range); save(); });
     sl.appendChild(range); sl.appendChild(pctLbl); row.appendChild(sl);
     oilRefs[i]={slider:range,amtVal:amtVal,amtU:amtU,pctLbl:pctLbl};
     return row;
@@ -653,32 +653,31 @@
     lastGoal=goal; save(); render();
   }
   function oilPct(key){ var g=0,t=totalOilsG(); state.oils.forEach(function(it){ if(it.key===key) g+=it.g; }); return t>0?g/t*100:0; }
-  /* After a Shape nudge, flag any downside it created and suggest a fix ingredient. */
+  /* Live balance check for the current blend — updates as you drag the oil
+     sliders or tap a goal. Flags any downside and suggests a fix ingredient. */
   function updateShapeFeedback(){
     var box=$("shapeFeedback"); if(!box) return;
     if(fbId!==currentId){ fbId=currentId; lastGoal=null; }          // reset when the recipe changes
-    if(!lastGoal || state.oils.filter(oilInfo).length<2){ box.className="shape-fb hide"; box.textContent=""; return; }
+    if(state.oils.filter(oilInfo).length<2){ box.className="shape-fb hide"; box.textContent=""; return; }
     var f=blendFA().fa;
     var hard=f.pa+f.st+f.la+f.my, clean=f.la+f.my, cond=f.ol+f.li+f.ln+f.ri, bub=f.la+f.my+f.ri, poly=f.li+f.ln;
-    var label={harder:"Harder",condition:"More moisturizing",lather:"Better lather",gentle:"Gentler"}[lastGoal];
     var w=[];
-    if(lastGoal==="harder"){
-      if(clean>22) w.push("cleansing is now "+Math.round(clean)+" — the bar may feel drying. Add a conditioning oil (olive, sweet almond, avocado) or raise your superfat.");
-      if(hard>54) w.push("hardness "+Math.round(hard)+" is very high — bars can turn brittle and crack. Add a splash of a soft oil.");
-      if(cond<44) w.push("conditioning dropped to "+Math.round(cond)+" — add olive/almond/avocado to keep it skin-friendly.");
-    } else if(lastGoal==="condition"){
-      if(hard<29) w.push("hardness dropped to "+Math.round(hard)+" — softer and slower to unmould. Add a hard oil (coconut/palm), a butter, or a little sodium lactate.");
-      if(poly>18) w.push("polyunsaturated oils are high ("+Math.round(poly)+"%) — more prone to rancid spots (DOS) and a shorter shelf life; keep them modest and use fresh oils.");
-      if(bub<14) w.push("lather is low (bubbly "+Math.round(bub)+") — add ~5% castor or a little coconut.");
-    } else if(lastGoal==="lather"){
-      if(clean>22) w.push("cleansing is "+Math.round(clean)+" — bubbly, but can be drying. Offset it with a conditioning oil or a higher superfat.");
-      if(oilPct("castor")>8) w.push("castor is "+Math.round(oilPct("castor"))+"% — great lather, but above ~8% it can make the bar soft and sticky.");
-    } else if(lastGoal==="gentle"){
-      if(bub<14) w.push("lather is low now (bubbly "+Math.round(bub)+") — add ~5% castor for bubbles without much cleansing.");
-      if(hard<29) w.push("the bar is soft (hardness "+Math.round(hard)+") — add a butter or a little coconut for firmness.");
+    if(clean>22) w.push("cleansing is "+Math.round(clean)+" — the bar may feel drying. Add a conditioning oil (olive, sweet almond, avocado) or raise superfat.");
+    if(hard<29) w.push("it's soft (hardness "+Math.round(hard)+") and slow to unmould — add a hard oil (coconut/palm), a butter, or a little sodium lactate.");
+    if(hard>54) w.push("very hard (hardness "+Math.round(hard)+") — can turn brittle and crack; add a splash of a soft oil.");
+    if(cond<44) w.push("low conditioning ("+Math.round(cond)+") — add soft oils like olive, sweet almond, or avocado.");
+    if(bub<14 && oilPct("castor")<3) w.push("light lather (bubbly "+Math.round(bub)+") — add ~5% castor or a little coconut.");
+    if(poly>18) w.push("high in polyunsaturated oils ("+Math.round(poly)+"%) — prone to rancid spots (DOS); use fresh oils and keep them modest.");
+    if(oilPct("castor")>8) w.push("castor is "+Math.round(oilPct("castor"))+"% — above ~8% it can make the bar soft and sticky.");
+    var label = lastGoal ? ({harder:"Harder",condition:"More moisturizing",lather:"Better lather",gentle:"Gentler"}[lastGoal]+" ✓") : "Balance check";
+    box.classList.remove("hide");
+    if(w.length){
+      box.className="shape-fb warn";
+      box.innerHTML="<b>"+label+"</b>"+(lastGoal?" Heads-up: ":" — ")+w.slice(0,2).join(" Also, ");
+    } else {
+      box.className="shape-fb ok";
+      box.innerHTML="<b>"+(lastGoal?label:"Balanced ✓")+"</b> All the core qualities are in their recommended ranges.";
     }
-    if(w.length){ box.className="shape-fb warn"; box.innerHTML="<b>"+label+" ✓</b> Heads-up: "+w.slice(0,2).join(" Also, "); }
-    else { box.className="shape-fb ok"; box.innerHTML="<b>"+label+" ✓</b> Still nicely balanced — the core qualities are all in their recommended ranges."; }
   }
 
   /* ---------- add forms ---------- */
@@ -692,7 +691,7 @@
     else if(sel.indexOf("oil:")===0){ var k=sel.slice(4); state.oils.push({name:OILS[k].name,key:k,g:grams}); }
     else if(sel.indexOf("add:")===0){ var ka=sel.slice(4); state.additives.push({name:ADDITIVES[ka].name,key:ka,g:grams}); }
     $("baseSelect").value=""; $("amtIn").value=""; $("customName").value=""; $("customName").classList.add("hide");
-    save(); render();
+    lastGoal=null; save(); render();
   });
   $("aromaForm").addEventListener("submit",function(ev){
     ev.preventDefault();
@@ -728,7 +727,7 @@
   }
   function clearRecipe(){
     if((state.oils.length||state.additives.length||state.aromas.length) && !confirm("Clear all ingredients in this recipe?")) return;
-    state.oils=[]; state.additives=[]; state.aromas=[]; save(); render();
+    state.oils=[]; state.additives=[]; state.aromas=[]; lastGoal=null; save(); render();
   }
   function mapItems(obj,db){
     if(!obj) return [];
@@ -749,7 +748,7 @@
     target.superfat = clamp(ex.sf,5,0,15);
     target.waterPct = clamp(ex.water,38,25,50);
     target.kohPurity = clamp(ex.koh,90,85,100);
-    loadRecipeIntoState(target); scaleDirty=false; save(); render();
+    loadRecipeIntoState(target); scaleDirty=false; lastGoal=null; save(); render();
   }
   function openExamples(){
     var md=makeModal();
