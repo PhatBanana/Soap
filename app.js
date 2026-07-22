@@ -1340,6 +1340,7 @@
       barWeight:(view.barWeight>0?view.barWeight:110),
       currency:(typeof view.currency==="string"&&view.currency?view.currency:"$"),
       prices:(view.prices&&typeof view.prices==="object"?view.prices:{}),
+      collapsed:(view.collapsed&&typeof view.collapsed==="object"?view.collapsed:null),
       oils:r.oils, additives:r.additives, aromas:r.aromas,
       lyeType:r.lyeType, superfat:r.superfat, waterPct:r.waterPct, kohPurity:r.kohPurity,
       waterMode:(r.waterMode==="conc"?"conc":"oils"), lyeConc:(r.lyeConc>=25&&r.lyeConc<=50?r.lyeConc:33),
@@ -1404,7 +1405,7 @@
   function save(){ syncCurrent();
     try{ localStorage.setItem(STORE_KEY,JSON.stringify({
       unit:state.unit, lastWeightUnit:state.lastWeightUnit, tab:state.tab, scaleMode:state.scaleMode,
-      barWeight:state.barWeight, currency:state.currency, prices:state.prices,
+      barWeight:state.barWeight, currency:state.currency, prices:state.prices, collapsed:state.collapsed,
       currentId:currentId, recipes:library
     })); }catch(e){} }
   function load(){
@@ -1414,7 +1415,7 @@
         var recipes=o.recipes.map(sanitizeRecipe).filter(Boolean);
         if(recipes.length===0) throw 0;
         return { recipes:recipes, currentId:o.currentId, view:{unit:o.unit,lastWeightUnit:o.lastWeightUnit,tab:o.tab,scaleMode:o.scaleMode,
-          barWeight:o.barWeight, currency:o.currency, prices:o.prices} }; }
+          barWeight:o.barWeight, currency:o.currency, prices:o.prices, collapsed:o.collapsed} }; }
       // migrate a single v3 recipe, if present
       var v3=localStorage.getItem("soapcalc.v3");
       if(v3){ var o3=JSON.parse(v3); if(o3){
@@ -1430,5 +1431,34 @@
   function clamp(v,def,lo,hi){ v=parseFloat(v); if(!isFinite(v)) return def; return Math.max(lo,Math.min(hi,v)); }
   function escapeHtml(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
 
+  /* ---------- collapsible cards ---------- */
+  function cardKey(card){
+    if(card.id) return card.id;
+    var h2=card.querySelector("h2");
+    return h2 ? "c_"+h2.textContent.trim().toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,24) : null;
+  }
+  function initCollapsibles(){
+    var DEFAULT_COLLAPSED={ notesCard:1, shapeCard:1 };   // fold the advisory, text-heavy cards to start
+    if(!state.collapsed){ state.collapsed={}; }
+    Array.prototype.forEach.call(document.querySelectorAll(".card"),function(card){
+      var h2=card.querySelector("h2"); if(!h2) return;
+      var key=cardKey(card); if(!key) return;
+      card.dataset.ckey=key;
+      var chev=el("span","chev","▾"); chev.setAttribute("aria-hidden","true"); h2.appendChild(chev);
+      var collapsed = (key in state.collapsed) ? !!state.collapsed[key] : !!DEFAULT_COLLAPSED[key];
+      card.classList.toggle("collapsed",collapsed);
+      h2.setAttribute("role","button"); h2.setAttribute("tabindex","0"); h2.setAttribute("aria-expanded",String(!collapsed));
+      function toggle(){
+        var c=!card.classList.contains("collapsed");
+        card.classList.toggle("collapsed",c);
+        h2.setAttribute("aria-expanded",String(!c));
+        state.collapsed[key]=c; save();
+      }
+      h2.addEventListener("click",function(e){ if(e.target.closest(".link")) return; toggle(); });
+      h2.addEventListener("keydown",function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggle(); } });
+    });
+  }
+
   render();
+  initCollapsibles();
 })();
