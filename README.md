@@ -64,6 +64,20 @@ phone in the kitchen or on a desktop.
   high cleansing and ~0% superfat (no "drying" warning — that's the point), facial
   bars get a gentler cleansing cap, shampoo bars get an acid-rinse tip, and so on.
 
+### Safety check
+- A **Safety Check** card turns the numbers into a plain **pass / review / stop**
+  verdict, all computed **on-device** (works on every phone, offline, instantly):
+  it flags a missing lye cushion (0% superfat on a skin bar), custom oils the lye
+  math can't see, a too-high superfat (soft/rancid), a strong lye solution, any
+  scent over its skin-safe max, a heavy overall scent load, and rancidity-prone
+  (DOS) blends.
+- **Optional AI explainer** — where your browser has a built-in on-device model
+  (e.g. Chrome's Prompt API / Gemini Nano), a **✨ Explain in plain language**
+  button rephrases the findings into a friendly summary. It runs entirely on your
+  device, and the **verdict always stays the rule-based one** — the AI only
+  explains, it never decides. On browsers without it, the button simply doesn't
+  appear; the safety check itself always works.
+
 ### Batch yield & scaling
 - **Expected yield** readout for the current ingredients (batch weight + approx.
   bar count), with an **adjustable bar weight**.

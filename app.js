@@ -101,6 +101,7 @@
     b.addEventListener("click",function(){ state.waterMode=b.dataset.w; save(); render(); });
   });
   $("recalcBtn").addEventListener("click",function(){ save(); render(); showToast("Recalculated ✓",true); });
+  $("aiExplain").addEventListener("click",runAIExplain);
   function bindRange(input,labelId,key){
     input.addEventListener("input",function(){ state[key]=parseFloat(input.value); $(labelId).textContent=input.value; refreshDerived(); save(); });
   }
@@ -189,7 +190,7 @@
     if(!$("useSelect").options.length){ var uh=""; USES.forEach(function(u){ uh+='<option value="'+u[0]+'">'+u[1]+'</option>'; }); $("useSelect").innerHTML=uh; }
     $("useSelect").value=state.use;
     var has=state.oils.length>0;
-    $("lyeCard").hidden=!has; $("qualCard").hidden=!has; $("shapeCard").hidden=!has;
+    $("lyeCard").hidden=!has; $("safetyCard").hidden=!has; $("qualCard").hidden=!has; $("shapeCard").hidden=!has;
     $("pctNote").hidden=!(isPct&&has);
     $("addHint").textContent = isPct ? "New amounts are read in grams while in % view" : "Amount is in "+UNITS[state.unit].name;
 
@@ -385,7 +386,7 @@
       } else $("total").hidden=true;
 
       updateScaleCard();
-      if(state.oils.length>0){ updateLyePanel(); updateQuality(); updateNotes(); updateShapeFeedback(); }
+      if(state.oils.length>0){ updateLyePanel(); updateSafety(); updateQuality(); updateNotes(); updateShapeFeedback(); }
       else { $("notesCard").hidden=true; var sfb=$("shapeFeedback"); if(sfb){ sfb.className="shape-fb hide"; sfb.textContent=""; } }
     }
 
@@ -513,6 +514,109 @@
     if(hasAdd("goatmilk")||hasAdd("coconutmilk")) out.push(["tip","Making a milk soap","Swap part or all of your water for the milk. Keep it cold or frozen and add the lye slowly to stop it scorching (or use powdered milk at trace)."]);
     if(hasAdd("honey")) out.push(["tip","Honey added","Honey feeds lather but can overheat the batch — soap at a cooler temperature and watch for gel/volcano."]);
     return out;
+  }
+
+  /* ---------- deterministic safety check (all on-device, works on every phone) ---------- */
+  var lastSafety=null;
+  function safetyChecks(){
+    var items=[], L=computeLye(), sf=state.superfat, use=state.use||"body";
+    var skin=(use==="body"||use==="face"||use==="hair"||use==="shave");
+    var f=blendFA().fa, poly=f.li+f.ln;
+    var conc=(L.lyeG+L.waterG)>0 ? L.lyeG/(L.lyeG+L.waterG)*100 : 0;
+    function add(level,title,detail){ items.push({level:level,title:title,detail:detail}); }
+
+    if(L.oilG<=0 || L.lyeG<=0){
+      add("fail","Can't verify the lye","No oils with SAP data, so the app can't confirm the lye is balanced. Add oils from the list (custom oils have no data).");
+    } else {
+      if(L.hasCustom) add("warn","Custom oils aren't in the lye math","The lye is sized only for oils that have data, so your true superfat is higher and unverified. Look up the SAP value of any custom oil before you make this.");
+      if(sf<=0){
+        if(skin) add("warn","No superfat cushion","Superfat is 0% — with no extra oil, a small measuring slip could leave free lye, which is harsh on skin. Use at least 1–2% for a skin bar.");
+        else add("ok","0% superfat is intended here","For dish/laundry soap, 0% superfat is correct so no oil is left behind.");
+      } else if(sf>12){
+        add("warn","Very high superfat","Superfat is "+sf+"% — that's a lot of unsaponified oil, so the bar stays soft and can go rancid sooner. 5–8% is typical for skin.");
+      } else {
+        add("ok","Lye is balanced","Superfat "+sf+"% leaves a little extra oil so no free lye is left over — this is the safe zone.");
+      }
+      if(conc>=43) add("warn","Strong lye solution","Lye concentration is about "+Math.round(conc)+"% — it heats up fast and is harsher to handle. Mix slowly and watch the temperature.");
+    }
+
+    var tot=totalOilsG(), scentG=state.aromas.reduce(function(s,it){return s+it.g;},0);
+    var scentPct = tot>0 ? scentG/tot*100 : 0, over=[];
+    state.aromas.forEach(function(it){ var d=it.key?AROMAS[it.key]:null;
+      if(d && tot>0){ var pct=it.g/tot*100; if(pct > d.rate[2]+0.05) over.push(it.name+" (~"+fmt(pct,1)+"% vs "+d.rate[2]+"% max)"); } });
+    if(over.length) add("warn","Scent over its skin-safe max", over.join("; ")+". Reduce these to stay skin-safe.");
+    if(skin && scentPct>6) add("warn","Heavy scent load","Total scent is about "+fmt(scentPct,1)+"% of oils — above ~5–6% can irritate skin. Ease it back.");
+
+    if(poly>18) add("warn","Prone to rancid spots (DOS)","This blend is about "+Math.round(poly)+"% polyunsaturated oil, which spoils faster. Use fresh oils, keep superfat modest, and consider vitamin E / ROE.");
+
+    var fail=items.some(function(i){return i.level==="fail";});
+    var warn=items.some(function(i){return i.level==="warn";});
+    var verdict = fail ? {level:"fail",text:"Not safe to make as-is"}
+      : (warn ? {level:"warn",text:"Safe to make, but read the notes below"}
+              : {level:"ok",text:"Looks good — core safety checks pass"});
+    return {verdict:verdict, items:items,
+      ctx:{use:use, sf:sf, lyeType:state.lyeType, conc:Math.round(conc), scentPct:+fmt(scentPct,1)}};
+  }
+  function updateSafety(){
+    var card=$("safetyCard"); if(!card) return;
+    var S=safetyChecks(); lastSafety=S;
+    var v=$("safetyVerdict");
+    v.className="safety-verdict "+S.verdict.level;
+    v.textContent=(S.verdict.level==="fail"?"⛔ ":S.verdict.level==="warn"?"⚠️ ":"✅ ")+S.verdict.text;
+    var list=$("safetyList"); list.innerHTML="";
+    S.items.forEach(function(it){
+      var row=el("div","safety-item "+it.level);
+      row.appendChild(el("div","si-title",escapeHtml(it.title)));
+      row.appendChild(el("div","si-detail",escapeHtml(it.detail)));
+      list.appendChild(row);
+    });
+    // a fresh recipe state invalidates any prior AI summary
+    $("aiOut").classList.add("hide"); $("aiOut").textContent=""; $("aiNote").hidden=true;
+    maybeShowAI();
+  }
+
+  /* ---------- optional on-device AI explainer (Chrome Prompt API / Gemini Nano) ---------- */
+  var aiAvail=false, aiApi=null;
+  function detectAI(){
+    try{
+      if(typeof LanguageModel!=="undefined" && LanguageModel.availability){
+        LanguageModel.availability().then(function(s){
+          if(s==="available"||s==="downloadable"){ aiAvail=true; aiApi="new"; maybeShowAI(); }
+        }).catch(function(){});
+      } else if(window.ai && window.ai.languageModel && window.ai.languageModel.capabilities){
+        window.ai.languageModel.capabilities().then(function(c){
+          if(c && (c.available==="readily"||c.available==="after-download")){ aiAvail=true; aiApi="old"; maybeShowAI(); }
+        }).catch(function(){});
+      }
+    }catch(e){}
+  }
+  function maybeShowAI(){ var b=$("aiExplain"); if(b) b.classList.toggle("hide", !(aiAvail&&lastSafety)); }
+  function buildAIPrompt(S){
+    var lines=["Verdict: "+S.verdict.text+"."];
+    S.items.forEach(function(it){ if(it.level!=="ok") lines.push("- ["+it.level.toUpperCase()+"] "+it.title+": "+it.detail); });
+    if(lines.length===1) lines.push("- No warnings; all core safety checks passed.");
+    var ctx="Recipe: intended use "+S.ctx.use+", superfat "+S.ctx.sf+"%, "+String(S.ctx.lyeType).toUpperCase()+
+      " lye, lye concentration about "+S.ctx.conc+"%, scent load about "+S.ctx.scentPct+"% of oils.";
+    return "You are helping a beginner make soap at home. The app has ALREADY computed the safety check below. "+
+      "Do not change the verdict or invent new problems. In 2 to 4 short, friendly sentences, explain what it means and the single most important thing to do. Be accurate and reassuring.\n\n"+
+      lines.join("\n")+"\n"+ctx;
+  }
+  function aiRun(prompt,onProgress){
+    var opts={};
+    if(onProgress) opts.monitor=function(m){ m.addEventListener("downloadprogress",function(e){ onProgress(Math.round((e.loaded||0)*100)); }); };
+    if(aiApi==="new") return LanguageModel.create(opts).then(function(sess){ return sess.prompt(prompt).then(function(r){ if(sess.destroy)sess.destroy(); return r; }); });
+    if(aiApi==="old") return window.ai.languageModel.create(opts).then(function(sess){ return sess.prompt(prompt).then(function(r){ if(sess.destroy)sess.destroy(); return r; }); });
+    return Promise.reject(new Error("no ai"));
+  }
+  function runAIExplain(){
+    if(!lastSafety) return;
+    var b=$("aiExplain"), out=$("aiOut"), orig=b.textContent;
+    b.disabled=true; b.textContent="Thinking…";
+    out.classList.remove("hide"); out.textContent="Preparing the on-device model…";
+    aiRun(buildAIPrompt(lastSafety),function(p){ out.textContent="Downloading the on-device model… "+p+"%"; })
+      .then(function(text){ out.textContent=String(text).trim(); $("aiNote").hidden=false; })
+      .catch(function(){ out.textContent="Couldn't run the on-device model this time — the rule-based checks above still stand."; })
+      .then(function(){ b.disabled=false; b.textContent=orig; });
   }
 
   /* ---------- scale recipe ---------- */
@@ -1461,4 +1565,5 @@
 
   render();
   initCollapsibles();
+  detectAI();
 })();
