@@ -70,6 +70,8 @@ body{
 .row .note,.row .warn{font-size:.78rem;margin-top:4px}
 .row .note{color:var(--muted)}
 .row .warn{color:var(--amber);font-weight:700}
+.oil-desc{font-size:.82rem;line-height:1.4;color:var(--ink);background:var(--bg-2);border-left:3px solid var(--coral);border-radius:8px;padding:8px 10px;margin-top:6px}
+.pick-preview{grid-column:1/-1;font-size:.82rem;line-height:1.4;color:var(--ink);background:var(--bg-2);border-left:3px solid var(--coral);border-radius:8px;padding:8px 10px;margin-top:2px}
 .slider-line{display:flex;align-items:center;gap:10px;margin-top:10px}
 .slider-line input[type=range]{flex:1;accent-color:var(--coral);height:24px}
 .slider-line .pctlbl{width:54px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:.85rem;font-weight:800}
