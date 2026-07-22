@@ -76,6 +76,9 @@ body{
 .row .warn{color:var(--amber);font-weight:700}
 .oil-desc{font-size:.82rem;line-height:1.45;color:var(--ink);background:var(--coral-soft);border-left:3px solid var(--coral);border-radius:8px;padding:9px 11px;margin-top:8px}
 .pick-preview{grid-column:1/-1;font-size:.82rem;line-height:1.45;color:var(--ink);background:var(--coral-soft);border-left:3px solid var(--coral);border-radius:8px;padding:9px 11px;margin-top:4px}
+/* pan-y: a vertical swipe scrolls the page instead of grabbing the slider;
+   only a horizontal drag moves the thumb. Fixes accidental changes while scrolling. */
+input[type=range]{touch-action:pan-y}
 .slider-line{display:flex;align-items:center;gap:10px;margin-top:10px}
 .slider-line input[type=range]{flex:1;accent-color:var(--coral);height:24px}
 .slider-line .pctlbl{width:54px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:.85rem;font-weight:800}
