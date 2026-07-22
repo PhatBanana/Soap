@@ -131,9 +131,15 @@ body{
 .track .band{position:absolute;top:0;bottom:0;background:var(--green-soft)}
 .track .fill{position:absolute;top:0;bottom:0;left:0;background:var(--green);border-radius:8px 0 0 8px}
 .track .fill.off{background:var(--amber)}
+.qhelp{margin-left:2px;border:0;background:var(--bg-2);color:var(--muted);width:20px;height:20px;border-radius:50%;font-size:.72rem;font-weight:800;cursor:pointer;line-height:1;padding:0;vertical-align:middle}
+.qhelp:hover,.qhelp.on{background:var(--coral);color:#fff}
 .chips{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
-.chip{background:var(--bg-2);border-radius:999px;padding:7px 13px;font-size:.85rem;font-weight:700}
+.chip{background:var(--bg-2);border:2px solid transparent;border-radius:999px;padding:7px 13px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;color:var(--ink)}
 .chip.off{color:var(--amber)}
+.chip.on{border-color:var(--coral)}
+.qual-explain{margin-top:14px;background:var(--bg-2);border-radius:13px;padding:12px 14px;font-size:.86rem;line-height:1.45;font-weight:600}
+.qual-explain b{display:block;font-weight:800;margin-bottom:4px}
+.qual-explain .r{color:var(--muted);font-weight:700}
 
 /* shape goals */
 .shape{display:grid;grid-template-columns:1fr 1fr;gap:10px}
