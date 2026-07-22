@@ -28,6 +28,10 @@ phone in the kitchen or on a desktop.
   seed, hemp, rosehip, jojoba, lard, tallow, vegetable shortening, beeswax,
   stearic acid, and more. Custom oils are allowed too (flagged, and left out of
   the lye/quality math).
+- **Every oil explains itself** — tap the **?** next to any oil for a plain-language
+  note on what it brings (hardness / cleansing / conditioning / lather), its standout
+  trait, and a typical usage %, so you know whether to use it. The same description
+  previews under the picker the moment you select an oil, before you add it.
 - **Additives** handled correctly (they don't go through the lye math): goat &
   coconut milk, honey, sugar, salt, aloe, brewed coffee & grounds, sodium lactate,
   oatmeal, kaolin & bentonite clay, activated charcoal, silk, glycerin, vitamin E,

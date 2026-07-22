@@ -70,7 +70,12 @@
     $("baseSelect").innerHTML=h;
   })();
   $("baseSelect").addEventListener("change",function(){
-    $("customName").classList.toggle("hide", $("baseSelect").value!=="__custom__");
+    var v=$("baseSelect").value;
+    $("customName").classList.toggle("hide", v!=="__custom__");
+    var pv=$("pickPreview"), txt="";
+    if(v.indexOf("oil:")===0){ var o=OILS[v.slice(4)]; if(o) txt=o.desc||o.note||""; }
+    else if(v.indexOf("add:")===0){ var a=ADDITIVES[v.slice(4)]; if(a) txt=a.note||""; }
+    pv.textContent=txt; pv.classList.toggle("hide",!txt);
   });
 
   // aroma picker
@@ -197,7 +202,15 @@
   function buildOilRow(it,i){
     var row=el("div","row"), d=oilInfo(it);
     var top=el("div","top");
-    top.appendChild(el("div","name",escapeHtml(it.name)));
+    var nameEl=el("div","name"); nameEl.appendChild(document.createTextNode(it.name));
+    var descEl=null;
+    if(d && d.desc){
+      var q=el("button","qhelp","?"); q.type="button"; q.setAttribute("aria-label","About "+it.name); q.title="What is "+it.name+"?";
+      nameEl.appendChild(document.createTextNode(" ")); nameEl.appendChild(q);
+      descEl=el("div","oil-desc hide",escapeHtml(d.desc));
+      q.addEventListener("click",function(){ descEl.classList.toggle("hide"); q.classList.toggle("on"); });
+    }
+    top.appendChild(nameEl);
     var amt=el("div","amt");
     var amtVal=document.createElement("input"); amtVal.className="amt-inp"; amtVal.type="text"; amtVal.inputMode="decimal";
     amtVal.setAttribute("aria-label",it.name+" amount");
@@ -212,6 +225,7 @@
     var del=el("button","del","&times;"); del.type="button"; del.setAttribute("aria-label","Remove "+it.name);
     del.addEventListener("click",function(){ pushUndo(); var nm=it.name; state.oils.splice(i,1); lastGoal=null; save(); render(); showToast("Removed "+nm); });
     top.appendChild(amt); top.appendChild(del); row.appendChild(top);
+    if(descEl) row.appendChild(descEl);
     if(d && d.note) row.appendChild(el("div","note",d.note));
     if(!d) row.appendChild(el("div","warn","No SAP/profile data — excluded from lye & quality math."));
 
@@ -789,6 +803,7 @@
     else if(sel.indexOf("oil:")===0){ var k=sel.slice(4); state.oils.push({name:OILS[k].name,key:k,g:grams}); }
     else if(sel.indexOf("add:")===0){ var ka=sel.slice(4); state.additives.push({name:ADDITIVES[ka].name,key:ka,g:grams}); }
     $("baseSelect").value=""; $("amtIn").value=""; $("customName").value=""; $("customName").classList.add("hide");
+    $("pickPreview").textContent=""; $("pickPreview").classList.add("hide");
     lastGoal=null; save(); render();
   });
   $("aromaForm").addEventListener("submit",function(ev){
