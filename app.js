@@ -370,25 +370,52 @@
     $("lyeInfo").textContent=info;
   }
 
+  var QUAL_HELP={
+    hardness:"How firm and long-lasting the bar is. Too low and it's soft and dissolves fast; too high and it can be brittle and crack. Comes from palmitic, stearic, lauric & myristic acids — coconut, palm, tallow, and butters.",
+    cleansing:"How strongly the soap strips oil and grime. Higher feels more 'squeaky' but can be drying; lower is gentler and milder. Comes from lauric & myristic acids — coconut, palm-kernel, babassu.",
+    conditioning:"How moisturizing and skin-loving the bar feels. Higher is more emollient. Comes from oleic, linoleic, linolenic & ricinoleic acids — olive, soft oils, and castor.",
+    bubbly:"Big, fluffy, foamy bubbles. Comes from lauric, myristic & ricinoleic acids — coconut, palm-kernel, and castor.",
+    creamy:"Dense, stable, lotion-like lather. Comes from palmitic, stearic & ricinoleic acids — butters, palm, and castor.",
+    iodine:"A measure of how unsaturated (soft) the oils are. Higher iodine → a softer bar that's more prone to rancid spots (DOS); lower → harder and longer-lasting.",
+    ins:"A rough overall-quality index that blends hardness with other traits (around 160 is often cited as a sweet spot). Treat it as a rule of thumb, not a rule."
+  };
+  var openHelp=null;
+  function helpRange(k){ var r=null; QUALITIES.forEach(function(x){ if(x.key===k) r=x.lo+"–"+x.hi; });
+    if(r) return r; if(k==="iodine") return IOD_RANGE[0]+"–"+IOD_RANGE[1]; if(k==="ins") return INS_RANGE[0]+"–"+INS_RANGE[1]; return ""; }
+  function toggleHelp(k){ openHelp=(openHelp===k?null:k); updateQuality(); }
   function updateQuality(){
     var B=blendFA(), barsEl=$("bars"); barsEl.innerHTML="";
     QUALITIES.forEach(function(q){
       var v=q.fn(B.fa), inR=v>=q.lo&&v<=q.hi;
       var wrap=el("div","qbar");
-      wrap.appendChild(el("div","qtop","<span>"+q.label+"</span><b class='"+(inR?"":"off")+"'>"+Math.round(v)+"</b>"));
+      var t=el("div","qtop");
+      var left=el("span"); left.appendChild(document.createTextNode(q.label+" "));
+      var help=el("button","qhelp"+(openHelp===q.key?" on":""),"?"); help.type="button"; help.setAttribute("aria-label","About "+q.label);
+      help.addEventListener("click",function(){ toggleHelp(q.key); });
+      left.appendChild(help);
+      var val=el("b",null,String(Math.round(v))); if(!inR) val.className="off";
+      t.appendChild(left); t.appendChild(val); wrap.appendChild(t);
       var track=el("div","track");
       var band=el("div","band"); band.style.left=(q.lo/q.scale*100)+"%"; band.style.width=((q.hi-q.lo)/q.scale*100)+"%";
       var fill=el("div","fill"+(inR?"":" off")); fill.style.width=Math.min(100,v/q.scale*100)+"%";
       track.appendChild(band); track.appendChild(fill); wrap.appendChild(track); barsEl.appendChild(wrap);
     });
     var chipsEl=$("chips"); chipsEl.innerHTML="";
-    chipsEl.appendChild(makeChip("Iodine",B.iod,IOD_RANGE));
-    chipsEl.appendChild(makeChip("INS",B.ins,INS_RANGE));
-    $("qualNote").textContent = B.tot>0 ? "Green band = typical range for a balanced bar. Amber numbers sit outside it." : "Add oils with profile data to see qualities.";
+    chipsEl.appendChild(makeChip("Iodine",B.iod,IOD_RANGE,"iodine"));
+    chipsEl.appendChild(makeChip("INS",B.ins,INS_RANGE,"ins"));
+    // explanation panel
+    var ex=$("qualExplain");
+    if(openHelp && QUAL_HELP[openHelp]){
+      var titles={hardness:"Hardness",cleansing:"Cleansing",conditioning:"Conditioning",bubbly:"Bubbly lather",creamy:"Creamy lather",iodine:"Iodine",ins:"INS"};
+      ex.className="qual-explain";
+      ex.innerHTML="<b>"+titles[openHelp]+" <span class='r'>· good range "+helpRange(openHelp)+"</span></b>"+escapeHtml(QUAL_HELP[openHelp]);
+    } else { ex.className="qual-explain hide"; ex.textContent=""; }
+    $("qualNote").textContent = B.tot>0 ? "Tap the ? on any quality to learn what it means. Green band = typical range; amber = outside it." : "Add oils with profile data to see qualities.";
   }
-  function makeChip(label,val,range){
+  function makeChip(label,val,range,key){
     var inR=val>=range[0]&&val<=range[1];
-    var c=el("span","chip"+(inR?"":" off"),label+" <b>"+Math.round(val)+"</b> <span style='opacity:.7'>("+range[0]+"–"+range[1]+")</span>");
+    var c=el("button","chip"+(inR?"":" off")+(openHelp===key?" on":""),label+" <b>"+Math.round(val)+"</b> <span style='opacity:.7'>("+range[0]+"–"+range[1]+")</span>");
+    c.type="button"; c.addEventListener("click",function(){ toggleHelp(key); });
     return c;
   }
 
