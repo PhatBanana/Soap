@@ -132,6 +132,10 @@ body{
 .shape button:active{transform:translateY(2px)}
 .shape button:disabled{opacity:.45;cursor:default;transform:none}
 .shape button span{display:block;color:var(--muted);font-size:.72rem;font-weight:600;margin-top:3px}
+.shape-fb{margin-top:14px;border-radius:13px;padding:12px 14px;font-size:.86rem;font-weight:600;line-height:1.45}
+.shape-fb b{font-weight:800}
+.shape-fb.warn{background:var(--amber-soft);color:var(--ink)}
+.shape-fb.ok{background:var(--green-soft);color:var(--ink)}
 
 /* scent pyramid */
 .pyramid{display:flex;gap:10px;margin-top:4px}
