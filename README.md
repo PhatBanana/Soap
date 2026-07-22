@@ -45,7 +45,11 @@ phone in the kitchen or on a desktop.
 - **Shape it:** drag per-oil sliders, or tap **Harder / More moisturizing / Better
   lather / Gentler** to nudge the blend live.
 - **Context-aware Recipe Notes** react to your blend (soft/brittle bars, drying
-  cleansing, DOS-prone oils, high castor, milk/honey handling, and more).
+  cleansing, DOS-prone oils, high castor, milk/honey handling, and more) — and to
+  the **intended use**: pick *Body / Facial / Shampoo / Shaving / Dish / Laundry*
+  in the **Made for** selector and the advice retunes. Dish and laundry soaps want
+  high cleansing and ~0% superfat (no "drying" warning — that's the point), facial
+  bars get a gentler cleansing cap, shampoo bars get an acid-rinse tip, and so on.
 
 ### Batch yield & scaling
 - **Expected yield** readout for the current ingredients (batch weight + approx.

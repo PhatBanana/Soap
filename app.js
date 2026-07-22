@@ -24,6 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
+  var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   var library=[];      // [{ id, name, oils, additives, aromas, lyeType, superfat, waterPct, kohPurity }]
   var currentId=null;
@@ -124,6 +125,7 @@
   $("barW").addEventListener("input",function(){ var v=parseFloat($("barW").value); state.barWeight=(isFinite(v)&&v>=10)?v:110; save(); updateScaleCard(); });
   $("scentSuggest").addEventListener("click",suggestScents);
   $("clearOils").addEventListener("click",clearRecipe);
+  $("useSelect").addEventListener("change",function(){ state.use=$("useSelect").value; save(); render(); });
   $("madeOn").addEventListener("change",function(){ state.madeOn=$("madeOn").value; save(); updateReady(); });
   $("cureWeeks").addEventListener("input",function(){ state.cureWeeks=parseInt($("cureWeeks").value,10)||4; $("cureWeeksVal").textContent=state.cureWeeks; save(); updateReady(); });
   $("resetChecklist").addEventListener("click",function(){ if(confirm("Uncheck all steps?")){ state.checklist={}; save(); renderMake(); } });
@@ -169,6 +171,8 @@
     $("purity").value=state.kohPurity; $("purVal").textContent=state.kohPurity;
 
     $("clearOils").hidden = !(state.oils.length||state.additives.length||state.aromas.length);
+    if(!$("useSelect").options.length){ var uh=""; USES.forEach(function(u){ uh+='<option value="'+u[0]+'">'+u[1]+'</option>'; }); $("useSelect").innerHTML=uh; }
+    $("useSelect").value=state.use;
     var has=state.oils.length>0;
     $("lyeCard").hidden=!has; $("qualCard").hidden=!has; $("shapeCard").hidden=!has;
     $("pctNote").hidden=!(isPct&&has);
@@ -437,13 +441,32 @@
     function pctOf(key){ var g=0; state.oils.forEach(function(it){ if(it.key===key) g+=it.g; }); return total>0?g/total*100:0; }
     function hasOil(key){ return state.oils.some(function(it){ return it.key===key; }); }
     function hasAdd(key){ return state.additives.some(function(it){ return it.key===key; }); }
+    var use=state.use||"body", sf=state.superfat;
     if(B.tot>0){
       var hard=f.pa+f.st+f.la+f.my, clean=f.la+f.my, cond=f.ol+f.li+f.ln+f.ri, bub=f.la+f.my+f.ri, poly=f.li+f.ln;
-      if(hard<29) out.push(["soft","Bar may come out soft","Hardness is "+Math.round(hard)+" (aim 29–54). Add a hard oil (coconut, palm, or a butter) or a little sodium lactate for a firmer bar that unmolds cleanly."]);
+      // hardness matters for every use
+      if(hard<29 && use!=="hair") out.push(["soft","Bar may come out soft","Hardness is "+Math.round(hard)+" (aim 29–54). Add a hard oil (coconut, palm, or a butter) or a little sodium lactate for a firmer bar that unmolds cleanly."]);
       else if(hard>54) out.push(["warn","Very hard blend","Hardness is "+Math.round(hard)+" — bars this hard can turn brittle and crack. Ease back on hard oils/butters."]);
-      if(clean>22) out.push(["warn","May feel drying","Cleansing is "+Math.round(clean)+" (aim 12–22). Raise your superfat or cut coconut / palm-kernel oil."]);
-      if(cond<44) out.push(["soft","Low conditioning","Conditioning is "+Math.round(cond)+" (aim 44–69). Add soft oils like olive, sweet almond, or avocado."]);
-      if(bub<14 && pctOf("castor")<3) out.push(["soft","Light on lather","Bubbly lather is "+Math.round(bub)+". A bit more coconut/palm-kernel, or ~5% castor, boosts the bubbles."]);
+
+      if(use==="dish"){
+        if(clean<28) out.push(["warn","Low cleansing for dish soap","Cleansing is "+Math.round(clean)+" — dish soap needs strong grease-cutting. Add coconut or palm-kernel oil."]);
+        if(sf>2) out.push(["warn","Superfat too high for dishes","Superfat is "+sf+"% — for dish soap aim ~0–1% so it rinses clean and doesn't leave a greasy film."]);
+        out.push(["tip","Meant to cut grease","A high-cleansing, 'drying' profile is exactly right here — that's what strips grease. Dilute well for hand-washing."]);
+      } else if(use==="laundry"){
+        if(clean<28) out.push(["warn","Low cleansing for laundry","Cleansing is "+Math.round(clean)+" — add coconut (or palm-kernel) for real cleaning power."]);
+        if(sf>1) out.push(["warn","Drop superfat to 0%","Superfat is "+sf+"% — laundry soap should be 0% so no leftover oils deposit on your clothes."]);
+        out.push(["tip","Finishing a laundry bar","Cure hard, grate it, and mix ~1:1:1 with washing soda + borax. A high-cleansing, no-superfat bar is the goal."]);
+      } else {
+        // skin-contact uses (body / face / hair / shave)
+        var cleanCap = use==="face" ? 18 : (use==="hair" ? 20 : 22);
+        if(clean>cleanCap) out.push(["warn", use==="hair"?"May strip hair":"May feel drying",
+          "Cleansing is "+Math.round(clean)+" — "+(use==="hair"?"soap-shampoo this cleansing can leave hair squeaky/frizzy. Add conditioning oils":"raise your superfat or cut coconut / palm-kernel oil")+"."]);
+        if(cond<44) out.push(["soft","Low conditioning","Conditioning is "+Math.round(cond)+" (aim 44–69). Add soft oils like olive, sweet almond, or avocado."]);
+        if(bub<14 && pctOf("castor")<3) out.push(["soft","Light on lather","Bubbly lather is "+Math.round(bub)+". A bit more coconut/palm-kernel, or ~5% castor, boosts the bubbles."]);
+        if(use==="shave" && (f.pa+f.st+f.ri)<30) out.push(["soft","Thin shaving lather","Creamy lather is low ("+Math.round(f.pa+f.st+f.ri)+"). Add stearic acid or a butter — plus a little clay — for a slick, dense brush lather."]);
+        if(use==="face" && sf<6) out.push(["tip","Facial bars love a higher superfat","Consider ~6–8% superfat for a gentler, more moisturizing face bar."]);
+        if(use==="hair") out.push(["tip","Soap-based shampoo","It's high-pH — finish with a diluted apple-cider-vinegar rinse to smooth the hair cuticle."]);
+      }
       if(poly>18) out.push(["warn","Watch for rancidity (DOS)","This blend is "+Math.round(poly)+"% polyunsaturated (linoleic+linolenic). Those oils go rancid faster — use fresh oils, keep superfat modest, and consider an antioxidant like ROE."]);
     }
     if(pctOf("castor")>10) out.push(["warn","High castor","Castor is "+Math.round(pctOf("castor"))+"% — wonderful for lather but it can make soap soft and sticky. 5–8% is usually plenty."]);
@@ -707,12 +730,18 @@
     if(fbId!==currentId){ fbId=currentId; lastGoal=null; }          // reset when the recipe changes
     if(state.oils.filter(oilInfo).length<2){ box.className="shape-fb hide"; box.textContent=""; return; }
     var f=blendFA().fa;
+    var use=state.use||"body";
     var hard=f.pa+f.st+f.la+f.my, clean=f.la+f.my, cond=f.ol+f.li+f.ln+f.ri, bub=f.la+f.my+f.ri, poly=f.li+f.ln;
     var w=[];
-    if(clean>22) w.push("cleansing is "+Math.round(clean)+" — the bar may feel drying. Add a conditioning oil (olive, sweet almond, avocado) or raise superfat.");
-    if(hard<29) w.push("it's soft (hardness "+Math.round(hard)+") and slow to unmould — add a hard oil (coconut/palm), a butter, or a little sodium lactate.");
+    if(use==="dish"||use==="laundry"){
+      if(clean<28) w.push("cleansing is "+Math.round(clean)+" — for a "+(use==="dish"?"dish":"laundry")+" soap you want a high-cleansing, coconut-heavy blend to cut grease. Add coconut or palm-kernel oil.");
+    } else {
+      var cap = use==="face" ? 18 : (use==="hair" ? 20 : 22);
+      if(clean>cap) w.push("cleansing is "+Math.round(clean)+" — the "+(use==="hair"?"blend may strip hair":"bar may feel drying")+". Add a conditioning oil (olive, sweet almond, avocado) or raise superfat.");
+      if(cond<44) w.push("low conditioning ("+Math.round(cond)+") — add soft oils like olive, sweet almond, or avocado.");
+    }
+    if(hard<29 && use!=="hair") w.push("it's soft (hardness "+Math.round(hard)+") and slow to unmould — add a hard oil (coconut/palm), a butter, or a little sodium lactate.");
     if(hard>54) w.push("very hard (hardness "+Math.round(hard)+") — can turn brittle and crack; add a splash of a soft oil.");
-    if(cond<44) w.push("low conditioning ("+Math.round(cond)+") — add soft oils like olive, sweet almond, or avocado.");
     if(bub<14 && oilPct("castor")<3) w.push("light lather (bubbly "+Math.round(bub)+") — add ~5% castor or a little coconut.");
     if(poly>18) w.push("high in polyunsaturated oils ("+Math.round(poly)+"%) — prone to rancid spots (DOS); use fresh oils and keep them modest.");
     if(oilPct("castor")>8) w.push("castor is "+Math.round(oilPct("castor"))+"% — above ~8% it can make the bar soft and sticky.");
@@ -781,6 +810,15 @@
     if(!obj) return [];
     return Object.keys(obj).map(function(k){ return {name:db[k]?db[k].name:k, key:db[k]?k:null, g:obj[k]}; });
   }
+  function exUse(ex){
+    if(ex.cat==="Dish") return "dish";
+    if(ex.cat==="Laundry") return "laundry";
+    var n=(ex.name||"").toLowerCase();
+    if(n.indexOf("shampoo")>=0) return "hair";
+    if(n.indexOf("shav")>=0) return "shave";
+    if(n.indexOf("facial")>=0||n.indexOf("face")>=0) return "face";
+    return "body";
+  }
   function loadExample(ex){
     syncCurrent();
     var cur=libById(currentId), target;
@@ -796,6 +834,7 @@
     target.superfat = clamp(ex.sf,5,0,15);
     target.waterPct = clamp(ex.water,38,25,50);
     target.kohPurity = clamp(ex.koh,90,85,100);
+    target.use = exUse(ex);
     loadRecipeIntoState(target); scaleDirty=false; lastGoal=null; save(); render();
   }
   function openExamples(){
@@ -1251,8 +1290,9 @@
   /* ---------- recipe library ---------- */
   function uid(){ return "r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
   function libById(id){ for(var i=0;i<library.length;i++) if(library[i].id===id) return library[i]; return null; }
+  function validUse(u){ for(var i=0;i<USES.length;i++) if(USES[i][0]===u) return true; return false; }
   function blankRecipe(name){ return { id:uid(), name:name, oils:[], additives:[], aromas:[],
-    lyeType:"naoh", superfat:5, waterPct:38, kohPurity:90, madeOn:"", cureWeeks:4, checklist:{} }; }
+    lyeType:"naoh", superfat:5, waterPct:38, kohPurity:90, madeOn:"", cureWeeks:4, checklist:{}, use:"body" }; }
   function cloneItem(it){ return {name:it.name,key:it.key,g:it.g}; }
   function stateFromRecipe(r,view){
     return { unit:UNITS[view.unit]?view.unit:"g",
@@ -1264,17 +1304,17 @@
       prices:(view.prices&&typeof view.prices==="object"?view.prices:{}),
       oils:r.oils, additives:r.additives, aromas:r.aromas,
       lyeType:r.lyeType, superfat:r.superfat, waterPct:r.waterPct, kohPurity:r.kohPurity,
-      madeOn:r.madeOn||"", cureWeeks:(r.cureWeeks>=1?r.cureWeeks:4), checklist:r.checklist||{} };
+      madeOn:r.madeOn||"", cureWeeks:(r.cureWeeks>=1?r.cureWeeks:4), checklist:r.checklist||{}, use:(validUse(r.use)?r.use:"body") };
   }
   function loadRecipeIntoState(r){
     state.oils=r.oils; state.additives=r.additives; state.aromas=r.aromas;
     state.lyeType=r.lyeType; state.superfat=r.superfat; state.waterPct=r.waterPct; state.kohPurity=r.kohPurity;
-    state.madeOn=r.madeOn||""; state.cureWeeks=(r.cureWeeks>=1?r.cureWeeks:4); state.checklist=r.checklist||{};
+    state.madeOn=r.madeOn||""; state.cureWeeks=(r.cureWeeks>=1?r.cureWeeks:4); state.checklist=r.checklist||{}; state.use=validUse(r.use)?r.use:"body";
   }
   function syncCurrent(){ var r=libById(currentId); if(!r) return;
     r.oils=state.oils; r.additives=state.additives; r.aromas=state.aromas;
     r.lyeType=state.lyeType; r.superfat=state.superfat; r.waterPct=state.waterPct; r.kohPurity=state.kohPurity;
-    r.madeOn=state.madeOn; r.cureWeeks=state.cureWeeks; r.checklist=state.checklist; }
+    r.madeOn=state.madeOn; r.cureWeeks=state.cureWeeks; r.checklist=state.checklist; r.use=state.use; }
 
   function switchRecipe(id){ if(id===currentId){ rebuildRecipeSelect(); return; } syncCurrent();
     var r=libById(id); if(!r) return; currentId=id; loadRecipeIntoState(r); scaleDirty=false; save(); render(); }
@@ -1317,7 +1357,7 @@
       lyeType:(r.lyeType==="koh")?"koh":"naoh", superfat:clamp(r.superfat,5,0,15),
       waterPct:clamp(r.waterPct,38,25,50), kohPurity:clamp(r.kohPurity,90,85,100),
       madeOn:(typeof r.madeOn==="string")?r.madeOn:"", cureWeeks:clamp(r.cureWeeks,4,1,12),
-      checklist:(r.checklist&&typeof r.checklist==="object")?r.checklist:{} }; }
+      checklist:(r.checklist&&typeof r.checklist==="object")?r.checklist:{}, use:(validUse(r.use)?r.use:"body") }; }
   function save(){ syncCurrent();
     try{ localStorage.setItem(STORE_KEY,JSON.stringify({
       unit:state.unit, lastWeightUnit:state.lastWeightUnit, tab:state.tab, scaleMode:state.scaleMode,
