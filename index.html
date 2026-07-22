@@ -104,8 +104,20 @@
         <input type="range" id="sf" min="0" max="15" step="1" value="5">
       </div>
       <div class="ctrl">
-        <div class="lbl"><span>Water (as % of oils)</span><b><span id="waterVal">38</span>%</b></div>
+        <div class="lbl"><span>Water</span></div>
+        <div class="seg sub" id="waterMode">
+          <button type="button" data-w="oils" class="active">% of oils</button>
+          <button type="button" data-w="conc">Lye concentration</button>
+        </div>
+      </div>
+      <div class="ctrl" id="waterOilsCtrl">
+        <div class="lbl"><span>Water as % of oils</span><b><span id="waterVal">38</span>%</b></div>
         <input type="range" id="water" min="25" max="50" step="1" value="38">
+      </div>
+      <div class="ctrl hide" id="waterConcCtrl">
+        <div class="lbl"><span>Lye concentration</span><b><span id="concVal">33</span>%</b></div>
+        <input type="range" id="lyeConc" min="25" max="50" step="1" value="33">
+        <div class="subinfo">Water is sized from the lye (and your superfat) — higher % = less water, faster trace &amp; a firmer bar sooner.</div>
       </div>
       <div class="ctrl hide" id="purityCtrl">
         <div class="lbl"><span>KOH purity</span><b><span id="purVal">90</span>%</b></div>
@@ -117,6 +129,7 @@
         <div class="result"><div class="k">Total batch</div><div class="v"><span id="batchOut">0</span><span class="u" id="batchUnit">g</span></div></div>
       </div>
       <div class="subinfo" id="lyeInfo"></div>
+      <button type="button" class="recalc" id="recalcBtn">↻ Recalculate everything</button>
       <div class="safety">⚠️ Lye is caustic — wear gloves &amp; eye protection. SAP values are references and vary by supplier; double-check before making a batch.</div>
     </div>
 

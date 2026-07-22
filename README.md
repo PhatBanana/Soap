@@ -36,8 +36,17 @@ phone in the kitchen or on a desktop.
 ### Lye, superfat & water
 - Lye computed **per oil** from its SAP value, reduced by your **superfat**, for
   **NaOH** (bars) or **KOH** (liquid soap, with purity).
-- Water as a % of oils, with the resulting **lye concentration** and **total
-  batch weight**.
+- **Water, two ways** — set it as a **% of oils** (the traditional way, default
+  38%) or by **lye concentration** (the modern way, default 33%), where the water
+  is sized *from the lye* — so your superfat, which lowers the lye, lowers the
+  water too. The panel always shows the other number (concentration ↔ water-of-oils)
+  plus the **total batch weight**. Water doesn't stay in the bar — most evaporates
+  during cure — so this is really a **choice of how concentrated the lye is**: more
+  water = thinner trace and more working time; less = faster trace and a firmer bar
+  sooner.
+- A **↻ Recalculate everything** button re-runs the whole calculation on demand
+  (the app already recomputes live on every change — this is a one-tap "make sure
+  every number is current").
 
 ### Soap profile & shaping
 - Hardness, Cleansing, Conditioning, Bubbly & Creamy lather, plus Iodine and INS,
@@ -116,7 +125,9 @@ Open the live URL and:
 ## How the numbers work
 - **Lye (NaOH):** `Σ(oil weight × oil SAP) × (1 − superfat%)`; KOH scales by 1.4027
   and divides by purity.
-- **Water:** a % of total oil weight (default 38%).
+- **Water:** either a % of total oil weight (default 38%), or derived from the lye
+  by **lye concentration** — `water = lye × (1 − c) / c` for concentration `c`
+  (default 33%), so a higher superfat (less lye) also means less water.
 - **Qualities:** weighted blend fatty-acid percentages (e.g. Hardness = palmitic +
   stearic + lauric + myristic).
 
