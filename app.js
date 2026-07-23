@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v13", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v14", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   var library=[];      // [{ id, name, oils, additives, aromas, lyeType, superfat, waterPct, kohPurity }]
@@ -1322,7 +1322,23 @@
   $("toastUndo").addEventListener("click",doUndo);
 
   /* ---------- PWA ---------- */
-  if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); }); }
+  if("serviceWorker" in navigator){
+    var hadController = !!navigator.serviceWorker.controller, refreshing=false;
+    // When a newly-deployed SW takes control, reload once to run the fresh files.
+    // (Skip on the very first install, and guard against reload loops. Recipes are
+    //  in localStorage, so a reload never loses work.)
+    navigator.serviceWorker.addEventListener("controllerchange",function(){
+      if(refreshing) return; refreshing=true;
+      if(hadController) location.reload();
+    });
+    window.addEventListener("load",function(){
+      navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(function(reg){
+        reg.update();
+        // Re-check for a new version each time the app is brought to the foreground.
+        document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="visible") reg.update(); });
+      }).catch(function(){});
+    });
+  }
   var deferredPrompt=null;
   var standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
   function showInstall(){ if(!standalone) $("sheetInstall").classList.remove("hide"); }
