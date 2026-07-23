@@ -68,9 +68,13 @@ phone in the kitchen or on a desktop.
 - A **Safety Check** card turns the numbers into a plain **pass / review / stop**
   verdict, all computed **on-device** (works on every phone, offline, instantly):
   it flags a missing lye cushion (0% superfat on a skin bar), custom oils the lye
-  math can't see, a too-high superfat (soft/rancid), a strong lye solution, any
-  scent over its skin-safe max, a heavy overall scent load, and rancidity-prone
-  (DOS) blends.
+  math can't see, a too-high superfat (soft/rancid), a strong **or** over-diluted
+  lye solution, any scent over its skin-safe max, a heavy overall scent load, and
+  rancidity-prone (DOS) blends. It also catches classic beginner traps: a
+  **very high coconut/lauric bar** that'll be harsh without a big superfat, a
+  **salt bar** that needs a high superfat and to be cut warm, a **fast-tracing**
+  recipe (beeswax, stearic, spice oils) that can seize, and **skin-irritant
+  essential oils** (cinnamon, clove, lemongrass) to keep low and patch-test.
 - **Optional AI explainer** — where your browser has a built-in on-device model
   (e.g. Chrome's Prompt API / Gemini Nano), a **✨ Explain in plain language**
   button rephrases the findings into a friendly summary. It runs entirely on your
