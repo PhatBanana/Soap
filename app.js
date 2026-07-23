@@ -138,7 +138,7 @@
   $("clearOils").addEventListener("click",clearRecipe);
   $("useSelect").addEventListener("change",function(){ state.use=$("useSelect").value; save(); render(); });
   $("madeOn").addEventListener("change",function(){ state.madeOn=$("madeOn").value; save(); updateReady(); });
-  $("cureWeeks").addEventListener("input",function(){ state.cureWeeks=parseInt($("cureWeeks").value,10)||4; $("cureWeeksVal").textContent=state.cureWeeks; save(); updateReady(); });
+  $("cureWeeks").addEventListener("input",function(){ state.cureWeeks=parseInt($("cureWeeks").value,10)||4; $("cureWeeksVal").textContent=state.cureWeeks; save(); updateCureSuggest(); updateReady(); });
   $("resetChecklist").addEventListener("click",function(){ if(confirm("Uncheck all steps?")){ state.checklist={}; save(); renderMake(); } });
 
   /* ================= RENDER ================= */
@@ -828,11 +828,43 @@
       lab.appendChild(cb); lab.appendChild(el("span","txt",step)); box.appendChild(lab);
     });
     updateChecklistProgress();
+    updateCureSuggest();
     updateReady();
   }
   function updateChecklistProgress(){
     var done=CHECK_STEPS.filter(function(_,i){ return state.checklist["s"+i]; }).length;
     $("checkProgress").textContent = done+" of "+CHECK_STEPS.length+" steps done";
+  }
+  function suggestedCure(){
+    var B=blendFA(); if(B.tot<=0) return null;
+    var f=B.fa, hard=f.pa+f.st+f.la+f.my, soft=f.ol+f.li+f.ln;
+    var min,max,reason;
+    if(hard>=48){ min=3; max=4; reason="a hard, quick-curing blend (lots of coconut, palm, tallow or butters)"; }
+    else if(hard>=38){ min=4; max=6; reason="a firm, well-balanced blend"; }
+    else if(hard>=30){ min=5; max=7; reason="a softer blend, higher in olive/oleic oils"; }
+    else if(hard>=22){ min=6; max=8; reason="a soft, olive/oleic-heavy blend"; }
+    else { min=8; max=12; reason="a very soft, castile-style blend (mostly olive & soft oils)"; }
+    // water content: more water = more to evaporate = a bit longer
+    var L=computeLye(), waterOfOils = L.oilG>0 ? L.waterG/L.oilG*100 : 38, note="";
+    if(waterOfOils>=44){ max+=1; note=" Your high water content adds a little time."; }
+    else if(waterOfOils<=30){ note=" Your low water content helps it firm up a touch faster."; }
+    if(soft>=82 && hard<22){ note+=" A true castile is usable at "+max+" weeks but keeps improving for several months."; }
+    return {min:min, max:max, reason:reason, note:note, hard:Math.round(hard)};
+  }
+  function updateCureSuggest(){
+    var box=$("cureSuggest"); if(!box) return;
+    var s=suggestedCure();
+    if(!s){ box.classList.add("hide"); box.innerHTML=""; return; }
+    box.classList.remove("hide");
+    var applied = state.cureWeeks>=s.min && state.cureWeeks<=s.max;
+    box.innerHTML='<div class="cs-head"><b>Suggested cure: '+s.min+'–'+s.max+' weeks</b>'+
+      (applied?'<span class="cs-ok">✓ matches your setting</span>':'')+'</div>'+
+      '<div class="cs-why">Based on your oils — '+escapeHtml(s.reason)+'.'+escapeHtml(s.note)+'</div>';
+    if(!applied){
+      var btn=el("button","cs-apply","Use "+s.max+" weeks"); btn.type="button";
+      btn.addEventListener("click",function(){ state.cureWeeks=s.max; save(); renderMake(); });
+      box.appendChild(btn);
+    }
   }
   function updateReady(){
     var base = state.madeOn ? new Date(state.madeOn+"T00:00:00") : new Date();
@@ -1504,7 +1536,7 @@
       lyeType:(r.lyeType==="koh")?"koh":"naoh", superfat:clamp(r.superfat,5,0,15),
       waterPct:clamp(r.waterPct,38,25,50), waterMode:(r.waterMode==="conc"?"conc":"oils"), lyeConc:clamp(r.lyeConc,33,25,50),
       kohPurity:clamp(r.kohPurity,90,85,100),
-      madeOn:(typeof r.madeOn==="string")?r.madeOn:"", cureWeeks:clamp(r.cureWeeks,4,1,12),
+      madeOn:(typeof r.madeOn==="string")?r.madeOn:"", cureWeeks:clamp(r.cureWeeks,4,1,16),
       checklist:(r.checklist&&typeof r.checklist==="object")?r.checklist:{}, use:(validUse(r.use)?r.use:"body") }; }
   function save(){ syncCurrent();
     try{ localStorage.setItem(STORE_KEY,JSON.stringify({
