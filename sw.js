@@ -3,7 +3,7 @@
    latest version (no need to clear the cache to see an update); the cache is
    only used as an offline fallback. This never touches localStorage, so your
    saved recipes are unaffected by any cache update or clear. */
-var CACHE = "soapcalc-v13";
+var CACHE = "soapcalc-v14";
 var SHELL = [
   "./",
   "./index.html",
@@ -38,9 +38,10 @@ self.addEventListener("fetch", function (e) {
   // Only handle same-origin requests; let the CDN (Tesseract OCR) go straight to network.
   if (url.origin !== self.location.origin) return;
 
-  // Network-first: fresh when online, cached copy when offline.
+  // Network-first, and bypass the browser's HTTP cache so "network" means the
+  // real server, not a stale max-age copy of app.js/app.css from GitHub Pages.
   e.respondWith(
-    fetch(req).then(function (res) {
+    fetch(req, { cache: "no-store" }).then(function (res) {
       if (res && res.status === 200 && res.type === "basic") {
         var copy = res.clone();
         caches.open(CACHE).then(function (c) { c.put(req, copy); });
