@@ -74,7 +74,11 @@ phone in the kitchen or on a desktop.
   **very high coconut/lauric bar** that'll be harsh without a big superfat, a
   **salt bar** that needs a high superfat and to be cut warm, a **fast-tracing**
   recipe (beeswax, stearic, spice oils) that can seize, and **skin-irritant
-  essential oils** (cinnamon, clove, lemongrass) to keep low and patch-test.
+  essential oils** (cinnamon, clove, lemongrass) to keep low and patch-test. It
+  also sanity-checks the **scale**: a batch too small to weigh the lye safely or
+  too large to handle, a **nearly single-oil** recipe that looks like a missed oil
+  or mistyped amount, and an **additive dosed like an oil** (a common grams-vs-
+  teaspoons slip).
 - **Optional AI explainer** — where your browser has a built-in on-device model
   (e.g. Chrome's Prompt API / Gemini Nano), a **✨ Explain in plain language**
   button rephrases the findings into a friendly summary. It runs entirely on your
@@ -143,6 +147,9 @@ phone in the kitchen or on a desktop.
 - **Updates are automatic** — the service worker is network-first, so when you're
   online you always get the latest version (no need to clear the cache), and the
   cache is only an offline fallback. Cache updates never touch your saved recipes.
+  A small **version + build date** at the very bottom of the page tells you which
+  release you're looking at; **tap it** to drop the offline cache and reload the
+  freshest copy if you ever suspect a stale one.
 - **Your data is protected** — the app requests *persistent storage* so recipes
   aren't auto-evicted, and **Back up all data / Restore from backup** (in the
   recipe **⋯** menu) export/import everything as a JSON file — a safety net before

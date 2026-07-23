@@ -24,6 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
+  var APP_VERSION = "v13", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   var library=[];      // [{ id, name, oils, additives, aromas, lyeType, superfat, waterPct, kohPurity }]
@@ -555,6 +556,24 @@
       if(sf<12) add("warn","Salt bar needs more superfat","With ~"+Math.round(saltPct)+"% salt, use a high superfat (~15–20%) and plenty of coconut or it'll be drying and crumbly.");
       else add("ok","Salt bar — cut it warm","Salt bars set very hard, very fast. Cut it while still warm (within a few hours) or it will crumble.");
     }
+
+    // batch size sanity — too small to weigh the lye safely, or unwieldy-large for a beginner
+    var wu=weightUnit(), showAmt=function(g){ return fmt(fromG(g,wu),wu==="g"?0:1)+" "+UNITS[wu].label; };
+    if(tot>0 && tot<150) add("warn","Very small batch","Only "+showAmt(tot)+" of oils — at this size the lye is hard to weigh accurately and a tiny scale error becomes a big percentage. Scale up to ~300 g+ of oils for a safer batch.");
+    else if(tot>5000) add("warn","Large batch","About "+showAmt(tot)+" of oils — that's a big, heavy batch that holds heat (overheating risk) and is a lot to handle at once. Fine if you're experienced; otherwise start smaller.");
+
+    // a runaway single oil usually means a missed oil or a mistyped amount
+    if(tot>0){
+      var top=null,topg=0; state.oils.forEach(function(it){ if(it.g>topg){ topg=it.g; top=it; } });
+      if(top && top.key && top.key!=="olive" && top.key!=="coconut" && topg/tot>=0.95)
+        add("warn","Nearly a single-oil recipe","This is about "+Math.round(topg/tot*100)+"% "+top.name+". A one-oil bar is unusual (apart from an olive castile) — double-check you didn't miss an oil or mistype an amount.");
+    }
+
+    // an additive dosed like an oil is a common grams-vs-teaspoons slip (salt & water-replacers excluded)
+    var ADD_CAP={honey:10,sugar:10,sodiumlactate:5,oatmeal:15,kaolin:10,bentonite:10,charcoal:5,glycerin:8,silk:2,vitamine:2,titanium:6,mica:6,coffeegrounds:20};
+    var odose=[];
+    state.additives.forEach(function(it){ var cap=ADD_CAP[it.key]; if(cap && tot>0){ var pct=it.g/tot*100; if(pct>cap+0.5) odose.push(it.name+" (~"+fmt(pct,1)+"% vs ~"+cap+"% usual)"); } });
+    if(odose.length) add("warn","Additive dosed high", odose.join("; ")+". That's well above the usual amount — double-check it isn't a units slip (grams vs teaspoons).");
 
     var scentG=state.aromas.reduce(function(s,it){return s+it.g;},0);
     var scentPct = tot>0 ? scentG/tot*100 : 0, over=[];
@@ -1626,4 +1645,17 @@
   render();
   initCollapsibles();
   detectAI();
+
+  (function initBuildStamp(){
+    var b=$("buildStamp"); if(!b) return;
+    b.textContent="Soap Calc "+APP_VERSION+" · built "+BUILD_DATE;
+    b.addEventListener("click",function(){
+      // force the freshest copy: drop the offline caches, then reload
+      if(window.caches && caches.keys){
+        b.textContent="Refreshing…";
+        caches.keys().then(function(keys){ return Promise.all(keys.map(function(k){ return caches.delete(k); })); })
+          .then(function(){ location.reload(); }).catch(function(){ location.reload(); });
+      } else location.reload();
+    });
+  })();
 })();
