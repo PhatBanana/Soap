@@ -183,6 +183,8 @@ input[type=range]{touch-action:pan-y}
 
 .safety{background:var(--coral-soft);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:.82rem;margin-top:10px;text-align:center;font-weight:600}
 .pctnote{color:var(--muted);font-size:.82rem;text-align:center;margin-top:12px;font-weight:600}
+.build{text-align:center;color:var(--muted);font-size:.72rem;font-weight:700;letter-spacing:.02em;padding:8px 0 4px;opacity:.7;cursor:pointer;user-select:none}
+.build:active{opacity:1}
 
 /* ---------- safety check ---------- */
 .safety-verdict{border-radius:14px;padding:13px 15px;font-weight:800;font-size:1rem;display:flex;align-items:center;gap:6px}
