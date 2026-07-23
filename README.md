@@ -100,6 +100,11 @@ phone in the kitchen or on a desktop.
   saved per recipe.
 - A **cure schedule**: set the date you made the batch and the cure time, and it
   shows the **ready-to-use date** and days remaining.
+- **Suggested cure time from your oils** — softer, olive/oleic-heavy bars cure
+  slower and harder coconut/palm/butter bars cure faster, so the app suggests a
+  week range from the blend's hardness (e.g. a hard bar ~3–4 weeks, a balanced bar
+  ~4–6, a true castile ~8–12 and improving for months), nudged for water content.
+  One tap applies it.
 
 ### Costs
 - Enter each ingredient's **price per kg** (saved and reused across recipes) and
