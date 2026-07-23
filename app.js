@@ -523,6 +523,10 @@
     var skin=(use==="body"||use==="face"||use==="hair"||use==="shave");
     var f=blendFA().fa, poly=f.li+f.ln;
     var conc=(L.lyeG+L.waterG)>0 ? L.lyeG/(L.lyeG+L.waterG)*100 : 0;
+    var tot=totalOilsG();
+    function oilPct(keys){ var g=0; state.oils.forEach(function(it){ if(keys.indexOf(it.key)>=0) g+=it.g; }); return tot>0?g/tot*100:0; }
+    function addPctOf(key){ var g=0; state.additives.forEach(function(it){ if(it.key===key) g+=it.g; }); return tot>0?g/tot*100:0; }
+    var saltPct=addPctOf("salt"), saltBar=saltPct>=20;
     function add(level,title,detail){ items.push({level:level,title:title,detail:detail}); }
 
     if(L.oilG<=0 || L.lyeG<=0){
@@ -532,15 +536,27 @@
       if(sf<=0){
         if(skin) add("warn","No superfat cushion","Superfat is 0% — with no extra oil, a small measuring slip could leave free lye, which is harsh on skin. Use at least 1–2% for a skin bar.");
         else add("ok","0% superfat is intended here","For dish/laundry soap, 0% superfat is correct so no oil is left behind.");
-      } else if(sf>12){
+      } else if(sf>12 && !saltBar){
         add("warn","Very high superfat","Superfat is "+sf+"% — that's a lot of unsaponified oil, so the bar stays soft and can go rancid sooner. 5–8% is typical for skin.");
       } else {
-        add("ok","Lye is balanced","Superfat "+sf+"% leaves a little extra oil so no free lye is left over — this is the safe zone.");
+        add("ok","Lye is balanced","Superfat "+sf+"% leaves a little extra oil so no free lye is left over — this is the safe zone"+(saltBar?" (a high superfat is right for a salt bar)":"")+".");
       }
       if(conc>=43) add("warn","Strong lye solution","Lye concentration is about "+Math.round(conc)+"% — it heats up fast and is harsher to handle. Mix slowly and watch the temperature.");
+      else if(conc>0 && conc<25) add("warn","Very dilute lye","Lye concentration is only about "+Math.round(conc)+"% — that's a lot of water. The bar will be soft, slow to set and may weep; use less water (or a higher lye concentration).");
     }
 
-    var tot=totalOilsG(), scentG=state.aromas.reduce(function(s,it){return s+it.g;},0);
+    // the classic "100% coconut" trap: very cleansing lauric oils need a big superfat on skin
+    var lauric=oilPct(["coconut","palmkernel","babassu"]);
+    if(skin && lauric>=80 && sf<15)
+      add("warn","Very high coconut / lauric oil","This is "+Math.round(lauric)+"% coconut/palm-kernel — famously harsh and drying on skin at a normal superfat. Either treat it as a salt or laundry bar, or push superfat up to ~15–20%.");
+
+    // salt bars behave differently
+    if(saltBar){
+      if(sf<12) add("warn","Salt bar needs more superfat","With ~"+Math.round(saltPct)+"% salt, use a high superfat (~15–20%) and plenty of coconut or it'll be drying and crumbly.");
+      else add("ok","Salt bar — cut it warm","Salt bars set very hard, very fast. Cut it while still warm (within a few hours) or it will crumble.");
+    }
+
+    var scentG=state.aromas.reduce(function(s,it){return s+it.g;},0);
     var scentPct = tot>0 ? scentG/tot*100 : 0, over=[];
     state.aromas.forEach(function(it){ var d=it.key?AROMAS[it.key]:null;
       if(d && tot>0){ var pct=it.g/tot*100; if(pct > d.rate[2]+0.05) over.push(it.name+" (~"+fmt(pct,1)+"% vs "+d.rate[2]+"% max)"); } });
@@ -548,6 +564,18 @@
     if(skin && scentPct>6) add("warn","Heavy scent load","Total scent is about "+fmt(scentPct,1)+"% of oils — above ~5–6% can irritate skin. Ease it back.");
 
     if(poly>18) add("warn","Prone to rancid spots (DOS)","This blend is about "+Math.round(poly)+"% polyunsaturated oil, which spoils faster. Use fresh oils, keep superfat modest, and consider vitamin E / ROE.");
+
+    // fast trace: seizes the batch if you're not ready
+    var accel=[];
+    if(state.oils.some(function(it){return it.key==="beeswax"&&it.g>0;})) accel.push("beeswax");
+    if(state.oils.some(function(it){return it.key==="stearic"&&it.g>0;})) accel.push("stearic acid");
+    state.aromas.forEach(function(it){ var d=it.key?AROMAS[it.key]:null; if(d&&d.accel&&it.g>0) accel.push(d.name); });
+    if(accel.length) add("warn","Fast trace ahead","Contains "+accel.join(", ")+" — these speed up trace and can seize the batch. Soap at a cool temperature, ease off the stick blender once it thickens, and have your mold ready before you start.");
+
+    // skin-irritant essential oils
+    var irritants=[];
+    state.aromas.forEach(function(it){ var d=it.key?AROMAS[it.key]:null; if(d&&d.irritant&&it.g>0) irritants.push(d.name); });
+    if(irritants.length) add("warn","Skin-irritant scents","Contains "+irritants.join(", ")+" — these can irritate skin. Keep them at the low end of their range and patch-test a small bar before making a full batch.");
 
     var fail=items.some(function(i){return i.level==="fail";});
     var warn=items.some(function(i){return i.level==="warn";});
