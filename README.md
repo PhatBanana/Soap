@@ -140,6 +140,9 @@ phone in the kitchen or on a desktop.
   internet once; after that it's cached.)
 - 📄 **Import / export CSV** — `section,name,amount,unit`; import accepts mixed
   units (incl. tsp/tbsp/cup/drop) and matches names to the database.
+- 🔗 **Share by link** — turn a recipe into a link you can text or paste. The whole
+  recipe rides *inside* the link (nothing is uploaded); opening it adds the recipe
+  to the other person's library. Works offline, no account.
 
 ### App & privacy
 - 📱 **Installable PWA** — add to your home screen; works fully offline.
