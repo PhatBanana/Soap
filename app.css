@@ -268,6 +268,17 @@ input[type=range]{touch-action:pan-y}
 .inci-box{background:var(--bg-2);border:2px solid var(--line);border-radius:14px;padding:14px 16px;font-size:.95rem;line-height:1.6;color:var(--ink);word-break:break-word;-webkit-user-select:all;user-select:all}
 .inci-warn{color:var(--amber);font-weight:700;font-size:.84rem;margin-top:10px}
 .share-url{width:100%;font-size:.82rem;line-height:1.5;padding:12px 14px;border:2px solid var(--line);border-radius:14px;background:var(--bg-2);color:var(--ink);resize:none;word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.ts-filter{width:100%;font-size:1rem;padding:12px 14px;border:2px solid var(--line);border-radius:14px;background:var(--bg-2);color:var(--ink);margin-bottom:6px}
+.ts-group{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800;margin:16px 0 6px}
+.ts-item{border:2px solid var(--line);border-radius:12px;margin-top:8px;background:var(--card);overflow:hidden}
+.ts-item summary{padding:12px 14px;font-weight:800;font-size:.92rem;cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px}
+.ts-item summary::-webkit-details-marker{display:none}
+.ts-item summary::before{content:"›";color:var(--coral);font-weight:800;transition:transform .15s;display:inline-block}
+.ts-item[open] summary::before{transform:rotate(90deg)}
+.ts-item[open] summary{border-bottom:2px solid var(--line)}
+.ts-body{padding:10px 14px 4px}
+.ts-body p{margin:0 0 8px;font-size:.86rem;line-height:1.5;color:var(--ink)}
+.ts-body b{color:var(--coral-d)}
 .ocr-status{text-align:center;color:var(--muted);font-size:.92rem;padding:18px 0;font-weight:600}
 .ocr-preview{max-width:100%;border-radius:14px;margin:0 auto 12px;display:block;max-height:180px}
 .spin{display:inline-block;width:16px;height:16px;border:3px solid var(--line);border-top-color:var(--coral);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-3px;margin-right:7px}

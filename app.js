@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v20", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v21", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -1084,6 +1084,7 @@
       case "card": openCard(); break;
       case "label": openLabel(); break;
       case "share": openShare(); break;
+      case "trouble": openTrouble(); break;
       case "examples": openExamples(); break;
       case "scan": $("photoInput").click(); break;
       case "import": $("csvInput").click(); break;
@@ -1570,6 +1571,39 @@
     var cp=el("button","ghost","📋 Copy link"); cp.addEventListener("click",function(){ copyText(url,cp); }); foot.appendChild(cp);
     var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl);
     md.m.appendChild(foot);
+  }
+  /* ---------- "why did my soap do X?" troubleshooting reference ---------- */
+  function openTrouble(){
+    var md=makeModal();
+    md.m.appendChild(el("h3",null,"Troubleshooting"));
+    md.m.appendChild(el("p","sub","Something go sideways? Find the symptom, why it happened, and what to do."));
+    var filter=document.createElement("input"); filter.className="ts-filter"; filter.type="search";
+    filter.placeholder="Search symptoms (soft, ash, lather…)"; md.m.appendChild(filter);
+    var wrap=el("div","ts-wrap"); md.m.appendChild(wrap);
+    var groups=[];
+    (window.TROUBLESHOOTING||[]).forEach(function(t){
+      var g=null; groups.forEach(function(x){ if(x.when===t.when) g=x; });
+      if(!g){ g={when:t.when,items:[]}; groups.push(g); } g.items.push(t);
+    });
+    function draw(q){
+      q=(q||"").toLowerCase().trim(); wrap.innerHTML="";
+      groups.forEach(function(g){
+        var hits=g.items.filter(function(t){ return !q || (t.q+" "+t.why+" "+t.fix).toLowerCase().indexOf(q)>=0; });
+        if(!hits.length) return;
+        wrap.appendChild(el("div","ts-group",escapeHtml(g.when)));
+        hits.forEach(function(t){
+          var d=document.createElement("details"); d.className="ts-item"; if(q) d.open=true;
+          var s=document.createElement("summary"); s.textContent=t.q; d.appendChild(s);
+          d.appendChild(el("div","ts-body","<p><b>Why:</b> "+escapeHtml(t.why)+"</p><p><b>Fix:</b> "+escapeHtml(t.fix)+"</p>"));
+          wrap.appendChild(d);
+        });
+      });
+      if(!wrap.children.length) wrap.appendChild(el("p","sub","No match — try another word (e.g. “soft”, “ash”, “lather”)."));
+    }
+    filter.addEventListener("input",function(){ draw(filter.value); });
+    draw("");
+    var foot=el("div","mfoot"); var cl=el("button","primary","Close");
+    cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
   }
   function nz(list){ return list.filter(function(it){ return it.g>0; }); }
   function cardHTML(r,s,wunit,ul){
