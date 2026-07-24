@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v14", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v15", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   var library=[];      // [{ id, name, oils, additives, aromas, lyeType, superfat, waterPct, kohPurity }]
@@ -37,6 +37,8 @@
   function fromG(g,u){ return g/UNITS[u].toG; }
   function fmt(n,dp){ if(!isFinite(n)) return "0"; var s=n.toFixed(dp); if(s.indexOf(".")>-1) s=s.replace(/\.?0+$/,""); return s; }
   function weightUnit(){ return state.unit==="pct" ? (UNITS[state.lastWeightUnit]&&state.lastWeightUnit!=="pct" ? state.lastWeightUnit : "g") : state.unit; }
+  // the scale target has its own unit so you can ask for "10 lb" without switching the whole app
+  function scaleUnit(){ return (UNITS[state.scaleUnit]&&state.scaleUnit!=="pct") ? state.scaleUnit : weightUnit(); }
   function totalOilsG(){ return state.oils.reduce(function(s,it){return s+it.g;},0); }
   function oilInfo(it){ return it.key ? OILS[it.key] : null; }
 
@@ -116,6 +118,7 @@
   });
   $("scaleTarget").addEventListener("input",function(){ scaleDirty=true; updateScaleHint(); });
   $("scaleTarget").addEventListener("focus",function(){ scaleDirty=true; });
+  $("scaleUnit").addEventListener("change",function(){ state.scaleUnit=$("scaleUnit").value; save(); updateScaleCard(); });
   $("scaleApply").addEventListener("click",applyWeightScale);
   ["mL","mW","mH"].forEach(function(id){ $(id).addEventListener("input",updateMoldHint); });
   $("mUnit").addEventListener("change",updateMoldHint);
@@ -689,13 +692,13 @@
     save(); render();
   }
   function applyWeightScale(){
-    var wunit=weightUnit(), raw=parseFloat($("scaleTarget").value);
+    var wunit=scaleUnit(), raw=parseFloat($("scaleTarget").value);
     if(!(raw>0)) return;
     var targetG=raw*UNITS[wunit].toG;
     var cur = state.scaleMode==="oils" ? totalOilsG() : currentBatchG();
     if(cur<=0) return;
     scaleDirty=false; $("scaleTarget").value="";
-    pushUndo(); scaleAll(targetG/cur); showToast("Recipe scaled");
+    pushUndo(); scaleAll(targetG/cur); showToast("Recipe scaled to "+fmt(raw,UNITS[wunit].dp)+" "+UNITS[wunit].label+(state.scaleMode==="oils"?" of oils":" wet"));
   }
   function applyMold(){
     var target=moldOilsG(); if(target<=0) return;
@@ -707,10 +710,12 @@
     $("scaleCard").hidden=false;
     Array.prototype.forEach.call($("scaleMode").children,function(b){ b.classList.toggle("active",b.dataset.m===state.scaleMode); });
     var isMold=state.scaleMode==="mold", wunit=weightUnit(), ul=UNITS[wunit].label;
+    var sunit=scaleUnit(), sul=UNITS[sunit].label;
     $("scaleWeight").classList.toggle("hide",isMold);
     $("scaleMoldWrap").classList.toggle("hide",!isMold);
-    $("scaleUnit").textContent=ul;
-    $("scaleTarget").placeholder = state.scaleMode==="oils" ? "Target oils in "+ul : "Target batch in "+ul;
+    if(!$("scaleUnit").options.length){ var uh=""; ["g","oz","lb","kg"].forEach(function(u){ uh+='<option value="'+u+'">'+UNITS[u].label+'</option>'; }); $("scaleUnit").innerHTML=uh; }
+    $("scaleUnit").value=sunit;
+    $("scaleTarget").placeholder = state.scaleMode==="oils" ? "Target oils" : "Target wet weight";
     var oilsG=totalOilsG(), batchG=currentBatchG();
 
     // expected yield readout
@@ -720,26 +725,26 @@
     $("yieldBars").textContent="≈ "+bars+" bar"+(bars===1?"":"s")+" (~"+barG()+" g each) · "+fmt(fromG(oilsG,wunit),1)+" "+ul+" of oils";
     if($("barW")!==document.activeElement) $("barW").value=state.barWeight;
 
-    // reuse the target field to also show the current amount (until the user edits it)
+    // reuse the target field to also show the current amount (in the target's unit) until edited
     if(!isMold && !scaleDirty && document.activeElement!==$("scaleTarget")){
       var curShown = state.scaleMode==="oils" ? oilsG : batchG;
-      $("scaleTarget").value = curShown>0 ? fmt(fromG(curShown,wunit),UNITS[wunit].dp) : "";
+      $("scaleTarget").value = curShown>0 ? fmt(fromG(curShown,sunit),UNITS[sunit].dp) : "";
     }
     updateScaleHint(); updateMoldHint();
   }
   function updateScaleHint(){
-    var wunit=weightUnit(), ul=UNITS[wunit].label, raw=parseFloat($("scaleTarget").value);
+    var wunit=weightUnit(), ul=UNITS[wunit].label, sunit=scaleUnit(), sul=UNITS[sunit].label, raw=parseFloat($("scaleTarget").value);
     if(!scaleDirty || !(raw>0)){
       $("scaleHint").textContent = state.scaleMode==="oils"
-        ? "Currently shows your total oils — type a new target and tap Scale."
-        : "Currently shows your batch — type a desired amount of soap and tap Scale.";
+        ? "Shows your current total oils — type a new target and tap Scale."
+        : "Shows your current wet (poured) weight — type how much soap you want and tap Scale.";
       return;
     }
-    var targetG=raw*UNITS[wunit].toG;
+    var targetG=raw*UNITS[sunit].toG;
     var cur = state.scaleMode==="oils" ? totalOilsG() : currentBatchG();
     if(cur<=0){ $("scaleHint").textContent=""; return; }
     var f=targetG/cur;
-    $("scaleHint").textContent="× "+fmt(f,3)+" → oils "+fmt(fromG(totalOilsG()*f,wunit),1)+" "+ul+" · batch "+fmt(fromG(currentBatchG()*f,wunit),1)+" "+ul;
+    $("scaleHint").textContent="× "+fmt(f,3)+" → oils "+fmt(fromG(totalOilsG()*f,sunit),1)+" "+sul+" · wet "+fmt(fromG(currentBatchG()*f,sunit),1)+" "+sul;
   }
   function updateMoldHint(){
     var wunit=weightUnit(), ul=UNITS[wunit].label, t=moldOilsG();
@@ -1536,6 +1541,7 @@
       lastWeightUnit:(UNITS[view.lastWeightUnit]&&view.lastWeightUnit!=="pct"?view.lastWeightUnit:(UNITS[view.unit]&&view.unit!=="pct"?view.unit:"g")),
       tab:(["base","scents","make"].indexOf(view.tab)>=0?view.tab:"base"),
       scaleMode:(["batch","oils","mold"].indexOf(view.scaleMode)>=0?view.scaleMode:"batch"),
+      scaleUnit:(UNITS[view.scaleUnit]&&view.scaleUnit!=="pct"?view.scaleUnit:null),
       barWeight:(view.barWeight>0?view.barWeight:110),
       currency:(typeof view.currency==="string"&&view.currency?view.currency:"$"),
       prices:(view.prices&&typeof view.prices==="object"?view.prices:{}),
@@ -1603,7 +1609,7 @@
       checklist:(r.checklist&&typeof r.checklist==="object")?r.checklist:{}, use:(validUse(r.use)?r.use:"body") }; }
   function save(){ syncCurrent();
     try{ localStorage.setItem(STORE_KEY,JSON.stringify({
-      unit:state.unit, lastWeightUnit:state.lastWeightUnit, tab:state.tab, scaleMode:state.scaleMode,
+      unit:state.unit, lastWeightUnit:state.lastWeightUnit, tab:state.tab, scaleMode:state.scaleMode, scaleUnit:state.scaleUnit,
       barWeight:state.barWeight, currency:state.currency, prices:state.prices, collapsed:state.collapsed,
       currentId:currentId, recipes:library
     })); }catch(e){} }
@@ -1614,7 +1620,7 @@
         var recipes=o.recipes.map(sanitizeRecipe).filter(Boolean);
         if(recipes.length===0) throw 0;
         return { recipes:recipes, currentId:o.currentId, view:{unit:o.unit,lastWeightUnit:o.lastWeightUnit,tab:o.tab,scaleMode:o.scaleMode,
-          barWeight:o.barWeight, currency:o.currency, prices:o.prices, collapsed:o.collapsed} }; }
+          barWeight:o.barWeight, currency:o.currency, prices:o.prices, collapsed:o.collapsed, scaleUnit:o.scaleUnit} }; }
       // migrate a single v3 recipe, if present
       var v3=localStorage.getItem("soapcalc.v3");
       if(v3){ var o3=JSON.parse(v3); if(o3){

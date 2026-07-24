@@ -89,8 +89,10 @@ phone in the kitchen or on a desktop.
 ### Batch yield & scaling
 - **Expected yield** readout for the current ingredients (batch weight + approx.
   bar count), with an **adjustable bar weight**.
-- **Scale** the whole recipe (keeping every ratio) to hit a target **total batch**,
-  **total oils**, or a **mold size** (rectangular L×W×H).
+- **Scale** the whole recipe (keeping every ratio) to hit a target **wet (poured)
+  batch weight**, **total oils**, or a **mold size** (rectangular L×W×H). The scale
+  target has its **own unit picker** (g / oz / lb / kg), so you can say "make 10 lb"
+  even while the rest of the app is in grams — type 10, pick lb, tap Scale.
 
 ### Scents
 - A separate list & receipt for **fragrance / essential oils**, dosed by usage
