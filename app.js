@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v18", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v19", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -62,6 +62,7 @@
 
   var library=[];      // [{ id, name } + the RECIPE_FIELDS above]
   var currentId=null;
+  var sharedImportName=null;   // set by initState when a recipe arrives via a #r= share link
   var state = initState();
 
   /* ---------- small helpers ---------- */
@@ -1057,6 +1058,7 @@
       case "costs": openCosts(); break;
       case "card": openCard(); break;
       case "label": openLabel(); break;
+      case "share": openShare(); break;
       case "examples": openExamples(); break;
       case "scan": $("photoInput").click(); break;
       case "import": $("csvInput").click(); break;
@@ -1513,6 +1515,37 @@
     var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); });
     foot.appendChild(cl); md.m.appendChild(foot);
   }
+  /* ---------- share a recipe by link (the recipe rides in the URL, nothing uploaded) ---------- */
+  function b64urlEnc(str){ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+  function b64urlDec(s){ s=s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4) s+="="; return decodeURIComponent(escape(atob(s))); }
+  function shareItems(list){ return list.map(function(it){ return {name:it.name,key:it.key,g:Math.round(it.g*100)/100}; }); }
+  function recipeShareURL(r){
+    var payload={ name:r.name, oils:shareItems(r.oils), additives:shareItems(r.additives), aromas:shareItems(r.aromas),
+      lyeType:r.lyeType, superfat:r.superfat, waterPct:r.waterPct, waterMode:r.waterMode,
+      lyeConc:r.lyeConc, kohPurity:r.kohPurity, cureWeeks:r.cureWeeks, use:r.use };
+    return location.origin+location.pathname+"#r="+b64urlEnc(JSON.stringify(payload));
+  }
+  function importSharedFromHash(){
+    var m=(location.hash||"").match(/[#&]r=([^&]+)/); if(!m) return null;
+    try{ var r=sanitizeRecipe(JSON.parse(b64urlDec(m[1])));
+      history.replaceState(null,"",location.pathname+location.search);   // so a refresh doesn't re-import
+      return r;
+    }catch(e){ return null; }
+  }
+  function openShare(){
+    syncCurrent(); var r=libById(currentId); if(!r) return;
+    var url=recipeShareURL(r), md=makeModal();
+    md.m.appendChild(el("h3",null,"Share this recipe"));
+    md.m.appendChild(el("p","sub","Anyone who opens this link gets “"+escapeHtml(r.name)+"” added to their Soap Calc. The recipe travels inside the link itself — nothing is uploaded."));
+    var ta=document.createElement("textarea"); ta.className="share-url"; ta.readOnly=true; ta.rows=3; ta.value=url;
+    ta.addEventListener("focus",function(){ ta.select(); }); md.m.appendChild(ta);
+    var foot=el("div","mfoot");
+    if(navigator.share){ var sh=el("button","ghost","📤 Share…");
+      sh.addEventListener("click",function(){ navigator.share({title:r.name,text:"Soap recipe: "+r.name,url:url}).catch(function(){}); }); foot.appendChild(sh); }
+    var cp=el("button","ghost","📋 Copy link"); cp.addEventListener("click",function(){ copyText(url,cp); }); foot.appendChild(cp);
+    var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl);
+    md.m.appendChild(foot);
+  }
   function nz(list){ return list.filter(function(it){ return it.g>0; }); }
   function cardHTML(r,s,wunit,ul){
     var d=new Date().toLocaleDateString();
@@ -1664,11 +1697,14 @@
 
   /* ---------- persistence ---------- */
   function initState(){
-    var loaded=load();
-    if(loaded){ library=loaded.recipes; currentId=loaded.currentId;
-      var r=libById(currentId)||library[0]; currentId=r.id; return stateFromRecipe(r,loaded.view); }
-    var r0=blankRecipe("My recipe"); library=[r0]; currentId=r0.id;
-    return stateFromRecipe(r0,{unit:"g",tab:"base",scaleMode:"batch"});
+    var loaded=load(), shared=importSharedFromHash();
+    if(loaded){ library=loaded.recipes; currentId=loaded.currentId; if(shared){ library.push(shared); currentId=shared.id; } }
+    else if(shared){ library=[shared]; currentId=shared.id; }              // fresh recipient: just the shared recipe
+    else { var r0=blankRecipe("My recipe"); library=[r0]; currentId=r0.id; }
+    if(shared) sharedImportName=shared.name;
+    var view=loaded?loaded.view:{unit:"g",tab:"base",scaleMode:"batch"};
+    var r=libById(currentId)||library[0]; currentId=r.id;
+    return stateFromRecipe(r,view);
   }
   function sanitizeRecipe(r){ if(!r||typeof r!=="object") return null;
     var out={ id:(typeof r.id==="string"&&r.id)?r.id:uid(),
@@ -1733,6 +1769,7 @@
   render();
   initCollapsibles();
   detectAI();
+  if(sharedImportName){ save(); showToast('Added “'+sharedImportName+'” from a shared link',true); }
 
   (function initBuildStamp(){
     var b=$("buildStamp"); if(!b) return;

@@ -337,6 +337,54 @@ async function addOil(p, key, g) {
   await p.close();
 }
 
+/* =======================================================================
+   SHARE BY LINK (recipe rides in the URL)
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ id:"r1", name:"Lavender Dream",
+    oils:[OIL("olive",400),OIL("coconut",300),{name:"Mystery oil",key:null,g:50}],
+    additives:[{name:"Honey",key:"honey",g:10}], aromas:[{name:"Lavender EO",key:"lavender",g:20}],
+    lyeType:"koh", superfat:8, waterMode:"conc", lyeConc:35, kohPurity:92, cureWeeks:9, checklist:{s0:true}, use:"hair" }));
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="share"]').click(); });
+  await p.waitForTimeout(120);
+  const url = await p.evaluate(() => document.querySelector(".share-url").value);
+  ok("Share URL carries the recipe in #r=", /#r=[A-Za-z0-9_-]+$/.test(url));
+
+  // open the link in a fresh context (no prior storage)
+  const ctx = await browser.newContext();
+  const rp = await ctx.newPage();
+  rp.on("pageerror", (e) => pageErrors.push("PE(share): " + e.message));
+  await rp.goto(url);
+  await rp.waitForTimeout(400);
+  const imp = await rp.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("soapcalc.v4"));
+    const r = s.recipes.find((x) => x.name === "Lavender Dream");
+    return { count: s.recipes.length, current: s.recipes.find((x) => x.id === s.currentId).name,
+      lyeType: r.lyeType, superfat: r.superfat, waterMode: r.waterMode, lyeConc: r.lyeConc, use: r.use, cureWeeks: r.cureWeeks,
+      oils: r.oils.length, customName: (r.oils.find((o) => o.key === null) || {}).name,
+      checklist: JSON.stringify(r.checklist), freshId: r.id !== "r1" };
+  });
+  eq("Shared recipe imported (fresh recipient = 1 recipe)", imp.count, 1);
+  eq("Import becomes current", imp.current, "Lavender Dream");
+  eq("Import preserves lyeType", imp.lyeType, "koh");
+  eq("Import preserves superfat", imp.superfat, 8);
+  eq("Import preserves waterMode", imp.waterMode, "conc");
+  eq("Import preserves use", imp.use, "hair");
+  eq("Import preserves cureWeeks", imp.cureWeeks, 9);
+  eq("Import keeps all oils incl. custom", imp.oils, 3);
+  eq("Import preserves custom oil name", imp.customName, "Mystery oil");
+  eq("Import gets a fresh checklist (not the sharer's)", imp.checklist, "{}");
+  ok("Import gets a fresh id", imp.freshId);
+  const hashCleared = await rp.evaluate(() => !location.hash.includes("r="));
+  ok("Hash cleared after import", hashCleared);
+  await rp.reload(); await rp.waitForTimeout(250);
+  const dupes = await rp.evaluate(() => JSON.parse(localStorage.getItem("soapcalc.v4")).recipes.filter((r) => r.name === "Lavender Dream").length);
+  eq("Reload does not re-import", dupes, 1);
+  await ctx.close();
+  await p.close();
+}
+
 /* ---------- report ---------- */
 ok("No console/page errors during tests", pageErrors.length === 0, pageErrors.join(" | "));
 
