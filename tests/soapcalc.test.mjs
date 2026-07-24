@@ -1,0 +1,317 @@
+/* Soap Calc — behavior test suite.
+ *
+ * The app is a single closured IIFE with no exports, so we test real behavior
+ * through a headless browser: inject a saved state, reload, and assert on the
+ * computed numbers / DOM / persisted localStorage. Self-contained — it starts
+ * its own static server and needs only `playwright` + a Chromium build.
+ *
+ *   npm test          (see package.json)
+ *   node tests/soapcalc.test.mjs
+ *
+ * Exits non-zero if any assertion fails.
+ */
+import { createRequire } from "module";
+import http from "http";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const require = createRequire(import.meta.url);
+const { chromium } = require("playwright");
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+/* ---------- tiny static file server (serves the repo root) ---------- */
+const MIME = { ".html":"text/html", ".js":"text/javascript", ".css":"text/css",
+  ".json":"application/json", ".webmanifest":"application/manifest+json",
+  ".png":"image/png", ".svg":"image/svg+xml", ".ico":"image/x-icon" };
+const server = http.createServer((req, res) => {
+  let rel = decodeURIComponent(req.url.split("?")[0]);
+  if (rel === "/") rel = "/index.html";
+  const file = path.join(ROOT, path.normalize(rel).replace(/^(\.\.[/\\])+/, ""));
+  fs.readFile(file, (err, buf) => {
+    if (err) { res.statusCode = 404; res.end("not found"); return; }
+    res.setHeader("Content-Type", MIME[path.extname(file)] || "application/octet-stream");
+    res.end(buf);
+  });
+});
+const base = await new Promise((resolve) =>
+  server.listen(0, "127.0.0.1", () => resolve(`http://127.0.0.1:${server.address().port}`)));
+
+/* ---------- launch Chromium (pre-installed here; default resolution in CI) ---------- */
+const preinstalled = process.env.PLAYWRIGHT_CHROMIUM_PATH || "/opt/pw-browsers/chromium";
+const launchOpts = fs.existsSync(preinstalled) ? { executablePath: preinstalled } : {};
+const browser = await chromium.launch(launchOpts);
+
+/* ---------- assertion harness ---------- */
+let pass = 0; const fails = [];
+function ok(name, cond, detail) { if (cond) pass++; else fails.push(name + (detail ? ` — ${detail}` : "")); }
+function eq(name, got, want) { ok(name, got === want, `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); }
+function near(name, got, want, tol = 0.5) { ok(name, Math.abs(got - want) <= tol, `got ${got}, want ${want}±${tol}`); }
+function has(name, hay, needle) { ok(name, String(hay).includes(needle), `${JSON.stringify(String(hay).slice(0,80))} lacks ${JSON.stringify(needle)}`); }
+
+/* ---------- fixtures & page helpers ---------- */
+const OIL = (key, g) => ({ name: key, key, g });
+function recipe(o = {}) {
+  return Object.assign({ id:"r1", name:"Test", oils:[], additives:[], aromas:[],
+    lyeType:"naoh", superfat:5, waterPct:38, waterMode:"oils", lyeConc:33, kohPurity:90,
+    madeOn:"", cureWeeks:4, checklist:{}, use:"body" }, o);
+}
+function store(recOverrides = {}, view = {}) {
+  return Object.assign({ unit:"g", tab:"base", scaleMode:"batch", currentId:"r1",
+    recipes:[recipe(recOverrides)] }, view);
+}
+const pageErrors = [];
+async function newPage() {
+  const p = await browser.newPage();
+  p.on("pageerror", (e) => pageErrors.push("PE: " + e.message));
+  p.on("console", (m) => { if (m.type() === "error") pageErrors.push("CE: " + m.text()); });
+  return p;
+}
+async function open(p, storeObj) {
+  await p.goto(base + "/index.html");
+  await p.evaluate((s) => localStorage.setItem("soapcalc.v4", JSON.stringify(s)), storeObj);
+  await p.reload();
+  await p.waitForTimeout(200);
+}
+const LS = (p) => p.evaluate(() => JSON.parse(localStorage.getItem("soapcalc.v4")));
+const txt = (p, sel) => p.evaluate((s) => { const e = document.querySelector(s); return e ? e.textContent : null; }, sel);
+const num = async (p, sel) => parseFloat(await txt(p, sel));
+// add one oil through the form (the simplest way to trigger the app's first save())
+async function addOil(p, key, g) {
+  await p.selectOption("#baseSelect", "oil:" + key);
+  await p.fill("#amtIn", String(g));
+  await p.click("#addForm button[type=submit]");
+  await p.waitForTimeout(150);
+}
+
+/* =======================================================================
+   LYE, WATER & QUALITIES
+======================================================================= */
+{
+  const p = await newPage();
+  // Classic bar: 400 olive / 300 coconut / 250 palm / 20 shea / 30 castor, superfat 5
+  await open(p, store({ oils:[OIL("olive",400),OIL("coconut",300),OIL("palm",250),OIL("shea",20),OIL("castor",30)] }));
+  near("NaOH lye (classic bar)", await num(p, "#lyeVal"), 141.23, 0.1);
+  near("Water 38% of oils", await num(p, "#waterOut"), 380, 0.5);
+  const bars = await p.$$eval("#bars .qbar b", (bs) => bs.map((b) => b.textContent).join(","));
+  eq("Quality bars H,Cl,Co,Bu,Cr", bars, "44,20,52,23,26");
+
+  // KOH switches the lye kind and scales by the KOH factor
+  await open(p, store({ oils:[OIL("coconut",1000)], lyeType:"koh", kohPurity:90 }));
+  has("KOH lye label", await txt(p, "#lyeK"), "KOH");
+  near("KOH lye (1000 coconut, sf5, 90% purity)", await num(p, "#lyeVal"), 1000*0.178*0.95*1.40274/0.90, 0.5);
+
+  // Lye-concentration water mode: water is derived from the lye
+  await open(p, store({ oils:[OIL("coconut",1000)], waterMode:"conc", lyeConc:33 }));
+  const lye = await num(p, "#lyeVal");
+  near("Water from 33% lye concentration", await num(p, "#waterOut"), lye * (1 - 0.33) / 0.33, 0.5);
+  await p.close();
+}
+
+/* =======================================================================
+   SAFETY CHECK
+======================================================================= */
+{
+  const p = await newPage();
+  const verdictClass = () => p.evaluate(() => document.getElementById("safetyVerdict").className);
+  const items = () => p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
+
+  await open(p, store({ oils:[OIL("olive",500),OIL("coconut",300),OIL("palm",200)] }));
+  has("Balanced bar → ok verdict", await verdictClass(), "ok");
+
+  await open(p, store({ oils:[OIL("coconut",1000)], superfat:0 }));
+  ok("0% superfat skin → warns no cushion", (await items()).includes("No superfat cushion"));
+
+  await open(p, store({ oils:[OIL("coconut",1000)], superfat:0, use:"laundry" }));
+  has("0% superfat laundry → ok verdict", await verdictClass(), "ok");
+
+  await open(p, store({ oils:[OIL("olive",500), { name:"Mystery", key:null, g:500 }] }));
+  ok("Custom oil → warns not in lye math", (await items()).includes("Custom oils aren't in the lye math"));
+
+  await open(p, store({ oils:[OIL("coconut",1000)], superfat:5 }));
+  ok("100% coconut skin → lauric warning", (await items()).includes("Very high coconut / lauric oil"));
+
+  await open(p, store({ oils:[OIL("coconut",1000)], additives:[{name:"Salt",key:"salt",g:500}], superfat:5 }));
+  ok("Salt bar low superfat → warns", (await items()).includes("Salt bar needs more superfat"));
+
+  await open(p, store({ oils:[OIL("olive",600),OIL("coconut",400)], waterPct:50 }));
+  ok("High water → very dilute lye warning", (await items()).includes("Very dilute lye"));
+
+  await open(p, store({ oils:[OIL("olive",600),OIL("coconut",370),OIL("beeswax",30)], aromas:[{name:"Cinnamon",key:"cinnamon",g:8}] }));
+  const fastItems = await items();
+  ok("Beeswax/cinnamon → fast-trace warning", fastItems.includes("Fast trace ahead"));
+  ok("Cinnamon → skin-irritant warning", fastItems.includes("Skin-irritant scents"));
+
+  await open(p, store({ oils:[OIL("olive",36),OIL("coconut",24)] })); // 60 g oils
+  ok("Tiny batch → small-batch warning", (await items()).includes("Very small batch"));
+
+  await open(p, store({ oils:[OIL("palm",1000)] }));
+  ok("100% palm → single-oil typo warning", (await items()).includes("Nearly a single-oil recipe"));
+  await open(p, store({ oils:[OIL("olive",1000)] }));
+  ok("100% olive (castile) → NOT flagged single-oil", !(await items()).includes("Nearly a single-oil recipe"));
+  await p.close();
+}
+
+/* =======================================================================
+   CONTEXT-AWARE NOTES (by intended use)
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ oils:[OIL("coconut",1000)], use:"body" }));
+  has("Body 100% coconut → 'drying'", await txt(p, "#recipeNotes"), "drying");
+  await open(p, store({ oils:[OIL("coconut",1000)], use:"dish" }));
+  has("Dish soap → 'cut grease' (not drying)", await txt(p, "#recipeNotes"), "cut grease");
+  ok("Dish soap → no 'drying' warning", !String(await txt(p, "#recipeNotes")).includes("feel drying"));
+  await p.close();
+}
+
+/* =======================================================================
+   SCALING (wet weight, own unit)
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ oils:[OIL("olive",400),OIL("coconut",300),OIL("palm",300)] }, { scaleUnit:"lb" }));
+  await p.selectOption("#scaleUnit", "lb");
+  await p.fill("#scaleTarget", "10");
+  await p.click("#scaleApply");
+  await p.waitForTimeout(200);
+  near("Scale to 10 lb wet = 4535.9 g", await num(p, "#yieldVal"), 4535.9, 1);
+  const pcts = await p.evaluate(() => { const r = JSON.parse(localStorage.getItem("soapcalc.v4")).recipes[0];
+    const t = r.oils.reduce((s,o)=>s+o.g,0); return r.oils.map((o)=>Math.round(o.g/t*100)).join("/"); });
+  eq("Ratios preserved after scale", pcts, "40/30/30");
+  await p.close();
+}
+
+/* =======================================================================
+   CURE SUGGESTION (from the oil blend)
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ oils:[OIL("olive",1000)], use:"body" }, { tab:"make" }));
+  has("Castile → long cure suggested", await txt(p, "#cureSuggest"), "8–12 weeks");
+  await open(p, store({ oils:[OIL("coconut",1000)] }, { tab:"make" }));
+  has("Coconut-heavy → short cure suggested", await txt(p, "#cureSuggest"), "3–4 weeks");
+  await p.close();
+}
+
+/* =======================================================================
+   PERSISTENCE (schema round-trip, sanitize, duplicate, clear)
+======================================================================= */
+{
+  const p = await newPage();
+  p.on("dialog", (d) => d.accept(d.type() === "prompt" ? "Second" : undefined));
+
+  // fresh defaults (add an oil to trigger the first save)
+  await p.goto(base + "/index.html");
+  await p.evaluate(() => localStorage.clear());
+  await p.reload(); await p.waitForTimeout(150);
+  await addOil(p, "olive", 500);
+  const fresh = (await LS(p)).recipes[0];
+  eq("Fresh default use", fresh.use, "body");
+  eq("Fresh default superfat", fresh.superfat, 5);
+  eq("Fresh default waterMode", fresh.waterMode, "oils");
+  eq("Fresh default lyeConc", fresh.lyeConc, 33);
+
+  // full round-trip: every field non-default + view prefs
+  await open(p, store({ id:"rF", name:"Full", oils:[OIL("olive",600),OIL("coconut",400)],
+    additives:[{name:"Honey",key:"honey",g:10}], aromas:[{name:"Lavender",key:"lavender",g:20}],
+    lyeType:"koh", superfat:8, waterPct:42, waterMode:"conc", lyeConc:35, kohPurity:92,
+    madeOn:"2026-07-01", cureWeeks:9, checklist:{s0:true}, use:"hair" },
+    { unit:"oz", scaleMode:"oils", scaleUnit:"lb", barWeight:120, currency:"€", prices:{coconut:5}, collapsed:{lyeCard:true}, currentId:"rF" }));
+  const s = await LS(p), r = s.recipes[0];
+  eq("RT lyeType", r.lyeType, "koh"); eq("RT superfat", r.superfat, 8); eq("RT waterMode", r.waterMode, "conc");
+  eq("RT lyeConc", r.lyeConc, 35); eq("RT cureWeeks", r.cureWeeks, 9); eq("RT use", r.use, "hair");
+  eq("RT checklist", JSON.stringify(r.checklist), '{"s0":true}');
+  eq("RT view unit", s.unit, "oz"); eq("RT view scaleUnit", s.scaleUnit, "lb");
+  eq("RT view currency", s.currency, "€"); eq("RT view collapsed", JSON.stringify(s.collapsed), '{"lyeCard":true}');
+
+  // sanitize hostile input (read after a save forces the coerced state back to disk)
+  await open(p, { unit:"bogus", scaleUnit:"pct", currentId:"rB",
+    recipes:[{ id:"rB", name:"  ", oils:"notarray", additives:[{name:"x",g:"NaN"}],
+      lyeType:"weird", superfat:99, waterPct:5, lyeConc:80, cureWeeks:50, use:"spaceship" }] });
+  await addOil(p, "coconut", 100);
+  const san = await LS(p), sr = san.recipes[0];
+  eq("Sanitize name", sr.name, "Untitled"); eq("Sanitize lyeType", sr.lyeType, "naoh");
+  eq("Sanitize superfat clamp", sr.superfat, 15); eq("Sanitize waterPct clamp", sr.waterPct, 25);
+  eq("Sanitize lyeConc clamp", sr.lyeConc, 50); eq("Sanitize cureWeeks clamp", sr.cureWeeks, 16);
+  eq("Sanitize use", sr.use, "body"); ok("Sanitize oils→array", Array.isArray(sr.oils));
+  eq("Sanitize drops bad additive", sr.additives.length, 0);
+  eq("Sanitize view unit", san.unit, "g"); eq("Sanitize view scaleUnit", san.scaleUnit, null);
+
+  // duplicate: deep-copied lists, fresh checklist, "… copy" name
+  await open(p, store({ id:"rD", name:"Orig", oils:[OIL("olive",500)], checklist:{s0:true} }, { currentId:"rD" }));
+  const dup = await p.evaluate(() => {
+    document.getElementById("menuBtn").click();
+    document.querySelector('[data-a="dup"]').click();
+    const s = JSON.parse(localStorage.getItem("soapcalc.v4"));
+    const orig = s.recipes.find((r) => r.name === "Orig");
+    const copy = s.recipes.find((r) => r.name === "Orig copy");
+    return { count: s.recipes.length, copyChecklist: JSON.stringify(copy.checklist),
+      origChecklist: JSON.stringify(orig.checklist), sharedArray: orig.oils === copy.oils, copyOils: copy.oils.length };
+  });
+  eq("Duplicate count", dup.count, 2);
+  eq("Duplicate fresh checklist", dup.copyChecklist, "{}");
+  eq("Duplicate keeps original checklist", dup.origChecklist, '{"s0":true}');
+  ok("Duplicate deep-copies list", !dup.sharedArray);
+  eq("Duplicate copies oils", dup.copyOils, 1);
+
+  // clear the only recipe → all fields reset to defaults, id & name kept
+  await open(p, store({ id:"rC", name:"Keeper", oils:[OIL("olive",500)],
+    lyeType:"koh", superfat:12, waterMode:"conc", lyeConc:40, cureWeeks:10, checklist:{s0:true}, use:"dish" }, { currentId:"rC" }));
+  const cleared = await p.evaluate(() => {
+    document.getElementById("menuBtn").click();
+    document.querySelector('[data-a="delete"]').click();
+    return JSON.parse(localStorage.getItem("soapcalc.v4")).recipes[0];
+  });
+  eq("Clear keeps id", cleared.id, "rC"); eq("Clear keeps name", cleared.name, "Keeper");
+  eq("Clear resets oils", cleared.oils.length, 0); eq("Clear resets lyeType", cleared.lyeType, "naoh");
+  eq("Clear resets use", cleared.use, "body"); eq("Clear resets cureWeeks", cleared.cureWeeks, 4);
+  eq("Clear resets checklist", JSON.stringify(cleared.checklist), "{}");
+
+  // save shape unchanged (backup/restore compatibility)
+  const keys = Object.keys(await LS(p)).sort().join(",");
+  eq("Save shape keys", keys, "barWeight,collapsed,currency,currentId,lastWeightUnit,prices,recipes,scaleMode,scaleUnit,tab,unit");
+  await p.close();
+}
+
+/* =======================================================================
+   CSV IMPORT (headered + positional)
+======================================================================= */
+{
+  const p = await newPage();
+  async function importCSV(text) {
+    await p.goto(base + "/index.html"); await p.waitForTimeout(150);
+    await p.evaluate((t) => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([t], "r.csv", { type: "text/csv" }));
+      const inp = document.getElementById("csvInput");
+      inp.files = dt.files;
+      inp.dispatchEvent(new Event("change", { bubbles: true }));
+    }, text);
+    await p.waitForTimeout(200);
+    return p.$$eval(".modal .prow", (prows) => prows.map((pr) => {
+      const ins = pr.querySelectorAll("input"); return ins[0].value + "|" + ins[1].value;
+    }));
+  }
+  eq("CSV headered", (await importCSV("section,name,amount,unit\noil,Olive oil,400,g\noil,Coconut oil,300,g")).join(";"),
+     "Olive oil|400;Coconut oil|300");
+  eq("CSV positional (no header keywords)", (await importCSV("Lard,400\nTallow,300")).join(";"),
+     "Lard|400;Tallow|300");
+  await p.close();
+}
+
+/* ---------- report ---------- */
+ok("No console/page errors during tests", pageErrors.length === 0, pageErrors.join(" | "));
+
+await browser.close();
+server.close();
+
+const total = pass + fails.length;
+console.log(`\n${pass}/${total} assertions passed`);
+if (fails.length) {
+  console.log("\nFAILURES:");
+  fails.forEach((f) => console.log("  ✗ " + f));
+  process.exit(1);
+}
+console.log("✓ all green");
