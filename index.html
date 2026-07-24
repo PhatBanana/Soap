@@ -80,13 +80,31 @@
         <div class="subinfo" id="scaleHint"></div>
       </div>
       <div id="scaleMoldWrap" class="hide">
-        <div class="mold-grid">
+        <div class="seg sub" id="moldShape">
+          <button type="button" data-ms="loaf" class="active">Loaf / box</button>
+          <button type="button" data-ms="round">Round</button>
+          <button type="button" data-ms="cavity">Cavity</button>
+        </div>
+        <div class="mold-grid" id="moldLoaf">
           <input id="mL" type="number" step="any" min="0" inputmode="decimal" placeholder="Length">
           <span class="x">×</span>
           <input id="mW" type="number" step="any" min="0" inputmode="decimal" placeholder="Width">
           <span class="x">×</span>
           <input id="mH" type="number" step="any" min="0" inputmode="decimal" placeholder="Height">
-          <select id="mUnit"><option value="in">in</option><option value="cm">cm</option></select>
+        </div>
+        <div class="mold-grid hide" id="moldRound">
+          <input id="mD" type="number" step="any" min="0" inputmode="decimal" placeholder="Diameter">
+          <span class="x">×</span>
+          <input id="mRH" type="number" step="any" min="0" inputmode="decimal" placeholder="Height">
+        </div>
+        <div class="mold-grid hide" id="moldCavity">
+          <input id="mCount" type="number" step="1" min="0" inputmode="numeric" placeholder="Cavities">
+          <span class="x">×</span>
+          <input id="mCavVol" type="number" step="any" min="0" inputmode="decimal" placeholder="mL each">
+          <span class="x">mL</span>
+        </div>
+        <div class="mold-unit" id="moldUnitRow">
+          Measured in <select id="mUnit"><option value="in">inches</option><option value="cm">cm</option></select>
         </div>
         <div class="subinfo" id="moldHint"></div>
         <button type="button" class="addbtn" id="moldApply" style="width:100%;margin-top:10px;padding:11px">Scale to fit mold</button>

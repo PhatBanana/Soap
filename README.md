@@ -90,9 +90,12 @@ phone in the kitchen or on a desktop.
 - **Expected yield** readout for the current ingredients (batch weight + approx.
   bar count), with an **adjustable bar weight**.
 - **Scale** the whole recipe (keeping every ratio) to hit a target **wet (poured)
-  batch weight**, **total oils**, or a **mold size** (rectangular L×W×H). The scale
-  target has its **own unit picker** (g / oz / lb / kg), so you can say "make 10 lb"
-  even while the rest of the app is in grams — type 10, pick lb, tap Scale.
+  batch weight**, **total oils**, or a **mold size**. The scale target has its **own
+  unit picker** (g / oz / lb / kg), so you can say "make 10 lb" even while the rest
+  of the app is in grams — type 10, pick lb, tap Scale.
+- **Mold shapes:** size to a **loaf / box** (L×W×H), a **round / column** mold
+  (diameter × height), or a **cavity** mold (number of cavities × mL each) — in
+  inches or cm — and it estimates the oils that mold holds and scales to fit.
 
 ### Scents
 - A separate list & receipt for **fragrance / essential oils**, dosed by usage
@@ -210,5 +213,4 @@ on any failure — handy to run before pushing a change to the lye math, safety
 rules, or persistence.
 
 ## Ideas for later
-- Round / cylinder / cavity mold shapes for the scaler (rectangular for now).
 - Optional cloud sync so recipes follow you across devices.
