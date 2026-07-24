@@ -24,10 +24,43 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v16", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v17", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
-  var library=[];      // [{ id, name, oils, additives, aromas, lyeType, superfat, waterPct, kohPurity }]
+  /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
+     validation lives in exactly one place. Adding a field = one row here, nothing else.
+       def    — default (a function for fresh arrays/objects); also what coerce() returns for bad input
+       coerce — validate a raw value to a safe one (scalar fields)
+       list   — this is an ingredient list; validated/copied via cleanList / cloneItem instead      */
+  function defOf(fld){ return typeof fld.def==="function" ? fld.def() : fld.def; }
+  var RECIPE_FIELDS=[
+    {k:"oils",      list:OILS,      def:function(){return [];}},
+    {k:"additives", list:ADDITIVES, def:function(){return [];}},
+    {k:"aromas",    list:AROMAS,    def:function(){return [];}},
+    {k:"lyeType",   def:"naoh", coerce:function(v){return v==="koh"?"koh":"naoh";}},
+    {k:"superfat",  def:5,      coerce:function(v){return clamp(v,5,0,15);}},
+    {k:"waterPct",  def:38,     coerce:function(v){return clamp(v,38,25,50);}},
+    {k:"waterMode", def:"oils", coerce:function(v){return v==="conc"?"conc":"oils";}},
+    {k:"lyeConc",   def:33,     coerce:function(v){return clamp(v,33,25,50);}},
+    {k:"kohPurity", def:90,     coerce:function(v){return clamp(v,90,85,100);}},
+    {k:"madeOn",    def:"",     coerce:function(v){return typeof v==="string"?v:"";}},
+    {k:"cureWeeks", def:4,      coerce:function(v){return clamp(v,4,1,16);}},
+    {k:"checklist", def:function(){return {};}, coerce:function(v){return (v&&typeof v==="object")?v:{};}},
+    {k:"use",       def:"body", coerce:function(v){return validUse(v)?v:"body";}}
+  ];
+  var VIEW_FIELDS=[
+    {k:"unit",           coerce:function(v){return UNITS[v]?v:"g";}},
+    {k:"lastWeightUnit", coerce:function(v,view){return (UNITS[v]&&v!=="pct")?v:((UNITS[view.unit]&&view.unit!=="pct")?view.unit:"g");}},
+    {k:"tab",            coerce:function(v){return ["base","scents","make"].indexOf(v)>=0?v:"base";}},
+    {k:"scaleMode",      coerce:function(v){return ["batch","oils","mold"].indexOf(v)>=0?v:"batch";}},
+    {k:"scaleUnit",      coerce:function(v){return (UNITS[v]&&v!=="pct")?v:null;}},
+    {k:"barWeight",      coerce:function(v){return v>0?v:110;}},
+    {k:"currency",       coerce:function(v){return (typeof v==="string"&&v)?v:"$";}},
+    {k:"prices",         coerce:function(v){return (v&&typeof v==="object")?v:{};}},
+    {k:"collapsed",      coerce:function(v){return (v&&typeof v==="object")?v:null;}}
+  ];
+
+  var library=[];      // [{ id, name } + the RECIPE_FIELDS above]
   var currentId=null;
   var state = initState();
 
@@ -1538,35 +1571,20 @@
   function uid(){ return "r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
   function libById(id){ for(var i=0;i<library.length;i++) if(library[i].id===id) return library[i]; return null; }
   function validUse(u){ for(var i=0;i<USES.length;i++) if(USES[i][0]===u) return true; return false; }
-  function blankRecipe(name){ return { id:uid(), name:name, oils:[], additives:[], aromas:[],
-    lyeType:"naoh", superfat:5, waterPct:38, waterMode:"oils", lyeConc:33, kohPurity:90, madeOn:"", cureWeeks:4, checklist:{}, use:"body" }; }
+  function blankRecipe(name){ var r={id:uid(), name:name};
+    RECIPE_FIELDS.forEach(function(fld){ r[fld.k]=defOf(fld); }); return r; }
   function cloneItem(it){ return {name:it.name,key:it.key,g:it.g}; }
+  // recipes reaching here are already sanitized (from load) or freshly built, so fields are copied
+  // as-is — arrays by reference, so state and the live library recipe stay the same objects.
   function stateFromRecipe(r,view){
-    return { unit:UNITS[view.unit]?view.unit:"g",
-      lastWeightUnit:(UNITS[view.lastWeightUnit]&&view.lastWeightUnit!=="pct"?view.lastWeightUnit:(UNITS[view.unit]&&view.unit!=="pct"?view.unit:"g")),
-      tab:(["base","scents","make"].indexOf(view.tab)>=0?view.tab:"base"),
-      scaleMode:(["batch","oils","mold"].indexOf(view.scaleMode)>=0?view.scaleMode:"batch"),
-      scaleUnit:(UNITS[view.scaleUnit]&&view.scaleUnit!=="pct"?view.scaleUnit:null),
-      barWeight:(view.barWeight>0?view.barWeight:110),
-      currency:(typeof view.currency==="string"&&view.currency?view.currency:"$"),
-      prices:(view.prices&&typeof view.prices==="object"?view.prices:{}),
-      collapsed:(view.collapsed&&typeof view.collapsed==="object"?view.collapsed:null),
-      oils:r.oils, additives:r.additives, aromas:r.aromas,
-      lyeType:r.lyeType, superfat:r.superfat, waterPct:r.waterPct, kohPurity:r.kohPurity,
-      waterMode:(r.waterMode==="conc"?"conc":"oils"), lyeConc:(r.lyeConc>=25&&r.lyeConc<=50?r.lyeConc:33),
-      madeOn:r.madeOn||"", cureWeeks:(r.cureWeeks>=1?r.cureWeeks:4), checklist:r.checklist||{}, use:(validUse(r.use)?r.use:"body") };
+    var st={};
+    VIEW_FIELDS.forEach(function(fld){ st[fld.k]=fld.coerce(view[fld.k],view); });
+    RECIPE_FIELDS.forEach(function(fld){ st[fld.k]=r[fld.k]; });
+    return st;
   }
-  function loadRecipeIntoState(r){
-    state.oils=r.oils; state.additives=r.additives; state.aromas=r.aromas;
-    state.lyeType=r.lyeType; state.superfat=r.superfat; state.waterPct=r.waterPct; state.kohPurity=r.kohPurity;
-    state.waterMode=(r.waterMode==="conc"?"conc":"oils"); state.lyeConc=(r.lyeConc>=25&&r.lyeConc<=50?r.lyeConc:33);
-    state.madeOn=r.madeOn||""; state.cureWeeks=(r.cureWeeks>=1?r.cureWeeks:4); state.checklist=r.checklist||{}; state.use=validUse(r.use)?r.use:"body";
-  }
+  function loadRecipeIntoState(r){ RECIPE_FIELDS.forEach(function(fld){ state[fld.k]=r[fld.k]; }); }
   function syncCurrent(){ var r=libById(currentId); if(!r) return;
-    r.oils=state.oils; r.additives=state.additives; r.aromas=state.aromas;
-    r.lyeType=state.lyeType; r.superfat=state.superfat; r.waterPct=state.waterPct; r.kohPurity=state.kohPurity;
-    r.waterMode=state.waterMode; r.lyeConc=state.lyeConc;
-    r.madeOn=state.madeOn; r.cureWeeks=state.cureWeeks; r.checklist=state.checklist; r.use=state.use; }
+    RECIPE_FIELDS.forEach(function(fld){ r[fld.k]=state[fld.k]; }); }
 
   function switchRecipe(id){ if(id===currentId){ rebuildRecipeSelect(); return; } syncCurrent();
     var r=libById(id); if(!r) return; currentId=id; loadRecipeIntoState(r); scaleDirty=false; save(); render(); }
@@ -1576,15 +1594,18 @@
     var r=blankRecipe(name); library.push(r); currentId=r.id; loadRecipeIntoState(r); scaleDirty=false; save(); render();
   }
   function duplicateRecipe(){ syncCurrent(); var c=libById(currentId); if(!c) return;
-    var r={ id:uid(), name:c.name+" copy", oils:c.oils.map(cloneItem), additives:c.additives.map(cloneItem),
-      aromas:c.aromas.map(cloneItem), lyeType:c.lyeType, superfat:c.superfat, waterPct:c.waterPct, kohPurity:c.kohPurity,
-      waterMode:c.waterMode, lyeConc:c.lyeConc, madeOn:c.madeOn, cureWeeks:c.cureWeeks, checklist:{}, use:c.use };
+    var r={ id:uid(), name:c.name+" copy" };
+    RECIPE_FIELDS.forEach(function(fld){
+      r[fld.k] = fld.k==="checklist" ? {}                 // the copy starts with a fresh make-checklist
+               : fld.list ? c[fld.k].map(cloneItem)        // deep-copy ingredient lists
+               : c[fld.k];
+    });
     library.push(r); currentId=r.id; loadRecipeIntoState(r); scaleDirty=false; save(); render(); }
   function renameRecipe(){ var c=libById(currentId); if(!c) return;
     var name=(prompt("Rename recipe:",c.name)||"").trim(); if(name==="") return; c.name=name; save(); rebuildRecipeSelect(); }
   function deleteRecipe(){ var c=libById(currentId); if(!c) return;
     if(library.length<=1){ if(!confirm("This is your only recipe — clear its ingredients?")) return;
-      c.oils=[]; c.additives=[]; c.aromas=[]; c.lyeType="naoh"; c.superfat=5; c.waterPct=38; c.kohPurity=90;
+      RECIPE_FIELDS.forEach(function(fld){ c[fld.k]=defOf(fld); });   // reset every field to its default, keep id & name
       loadRecipeIntoState(c); scaleDirty=false; save(); render(); return; }
     if(!confirm("Delete \""+c.name+"\"? This can't be undone.")) return;
     library=library.filter(function(x){return x.id!==currentId;});
@@ -1604,28 +1625,22 @@
     return stateFromRecipe(r0,{unit:"g",tab:"base",scaleMode:"batch"});
   }
   function sanitizeRecipe(r){ if(!r||typeof r!=="object") return null;
-    return { id:(typeof r.id==="string"&&r.id)?r.id:uid(),
-      name:(typeof r.name==="string"&&r.name.trim())?r.name:"Untitled",
-      oils:cleanList(r.oils,OILS), additives:cleanList(r.additives,ADDITIVES), aromas:cleanList(r.aromas,AROMAS),
-      lyeType:(r.lyeType==="koh")?"koh":"naoh", superfat:clamp(r.superfat,5,0,15),
-      waterPct:clamp(r.waterPct,38,25,50), waterMode:(r.waterMode==="conc"?"conc":"oils"), lyeConc:clamp(r.lyeConc,33,25,50),
-      kohPurity:clamp(r.kohPurity,90,85,100),
-      madeOn:(typeof r.madeOn==="string")?r.madeOn:"", cureWeeks:clamp(r.cureWeeks,4,1,16),
-      checklist:(r.checklist&&typeof r.checklist==="object")?r.checklist:{}, use:(validUse(r.use)?r.use:"body") }; }
+    var out={ id:(typeof r.id==="string"&&r.id)?r.id:uid(),
+              name:(typeof r.name==="string"&&r.name.trim())?r.name:"Untitled" };
+    RECIPE_FIELDS.forEach(function(fld){ out[fld.k]= fld.list ? cleanList(r[fld.k],fld.list) : fld.coerce(r[fld.k]); });
+    return out; }
   function save(){ syncCurrent();
-    try{ localStorage.setItem(STORE_KEY,JSON.stringify({
-      unit:state.unit, lastWeightUnit:state.lastWeightUnit, tab:state.tab, scaleMode:state.scaleMode, scaleUnit:state.scaleUnit,
-      barWeight:state.barWeight, currency:state.currency, prices:state.prices, collapsed:state.collapsed,
-      currentId:currentId, recipes:library
-    })); }catch(e){} }
+    try{ var o={ currentId:currentId, recipes:library };
+      VIEW_FIELDS.forEach(function(fld){ o[fld.k]=state[fld.k]; });
+      localStorage.setItem(STORE_KEY,JSON.stringify(o)); }catch(e){} }
   function load(){
     try{
       var raw=localStorage.getItem(STORE_KEY);
       if(raw){ var o=JSON.parse(raw); if(!o||!Array.isArray(o.recipes)||o.recipes.length===0) throw 0;
         var recipes=o.recipes.map(sanitizeRecipe).filter(Boolean);
         if(recipes.length===0) throw 0;
-        return { recipes:recipes, currentId:o.currentId, view:{unit:o.unit,lastWeightUnit:o.lastWeightUnit,tab:o.tab,scaleMode:o.scaleMode,
-          barWeight:o.barWeight, currency:o.currency, prices:o.prices, collapsed:o.collapsed, scaleUnit:o.scaleUnit} }; }
+        var view={}; VIEW_FIELDS.forEach(function(fld){ view[fld.k]=o[fld.k]; });
+        return { recipes:recipes, currentId:o.currentId, view:view }; }
       // migrate a single v3 recipe, if present
       var v3=localStorage.getItem("soapcalc.v3");
       if(v3){ var o3=JSON.parse(v3); if(o3){
