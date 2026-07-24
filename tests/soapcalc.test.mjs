@@ -373,6 +373,39 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   TROUBLESHOOTING REFERENCE
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ oils:[OIL("olive",500)] }));
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="trouble"]').click(); });
+  await p.waitForTimeout(120);
+  const groups = await p.$$eval(".ts-group", (es) => es.map((e) => e.textContent));
+  eq("Troubleshooting groups", groups.join(","), "In the pot,In the mold,Curing & storing,Using the bar");
+  ok("Troubleshooting lists entries", (await p.$$(".ts-item")).length >= 12);
+
+  await p.fill(".ts-filter", "soda ash");
+  await p.waitForTimeout(100);
+  const filtered = await p.$$eval(".ts-item", (es) => ({ n: es.length, allOpen: es.every((e) => e.open), first: es[0] ? es[0].querySelector("summary").textContent : "" }));
+  ok("Filter narrows the list", filtered.n >= 1 && filtered.n <= 3);
+  ok("Filter auto-expands matches", filtered.allOpen);
+  has("Filter finds the soda-ash entry", filtered.first, "soda ash");
+
+  await p.fill(".ts-filter", "zzznope");
+  await p.waitForTimeout(100);
+  eq("No-match hides all items", (await p.$$(".ts-item")).length, 0);
+  ok("No-match shows a message", !!(await p.$(".ts-wrap .sub")));
+
+  await p.fill(".ts-filter", "");
+  await p.waitForTimeout(80);
+  await p.click(".ts-item summary");
+  const body = await p.evaluate(() => { const d = document.querySelector(".ts-item[open] .ts-body"); return d ? d.textContent : ""; });
+  has("Entry shows a Why", body, "Why:");
+  has("Entry shows a Fix", body, "Fix:");
+  await p.close();
+}
+
+/* =======================================================================
    SHARE BY LINK (recipe rides in the URL)
 ======================================================================= */
 {

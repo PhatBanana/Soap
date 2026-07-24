@@ -113,6 +113,10 @@ phone in the kitchen or on a desktop.
   saved per recipe.
 - A **cure schedule**: set the date you made the batch and the cure time, and it
   shows the **ready-to-use date** and days remaining.
+- **Troubleshooting reference** — a searchable "why did my soap do X?" guide grouped
+  by stage (in the pot / in the mold / curing & storing / using the bar): seizing,
+  soda ash, overheating, DOS, soft or crumbly bars, poor lather, and more — each with
+  the likely cause and the fix.
 - **Suggested cure time from your oils** — softer, olive/oleic-heavy bars cure
   slower and harder coconut/palm/butter bars cure faster, so the app suggests a
   week range from the blend's hardness (e.g. a hard bar ~3–4 weeks, a balanced bar

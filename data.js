@@ -227,6 +227,63 @@
     { h:"Respect skin-safe limits", t:"Some EOs (cinnamon, clove, lemongrass) irritate skin above low rates. Always stay within IFRA / supplier maximums." }
   ];
 
+  /* "Why did my soap do X?" — common cold-process problems, grouped by stage.
+     when: stage · q: symptom · why: cause · fix: what to do / avoid next time. */
+  g.TROUBLESHOOTING = [
+    // ---- In the pot ----
+    { when:"In the pot", q:"It seized — went thick, lumpy or 'ricey' fast",
+      why:"Usually a fragrance or essential oil that accelerates trace (spices like clove & cinnamon, some FOs), or soaping too hot.",
+      fix:"Work fast — glop it into the mold and press it down; it'll still be soap. Next time soap cooler (~90–100°F/32–38°C), hand-stir once the scent is in, and add accelerating scents last." },
+    { when:"In the pot", q:"It won't come to trace — stays liquid",
+      why:"A soft, olive-heavy blend traces slowly; temps may be too low; or it's just under-blended.",
+      fix:"Pulse the stick blender in short bursts (don't run it constantly), warm the batter slightly, and double-check you weighed the lye and oils correctly." },
+    { when:"In the pot", q:"It separated — an oily layer or pooling",
+      why:"A 'false trace' (it looked thick but hadn't emulsified), or the lye water wasn't fully mixed in.",
+      fix:"If you catch it right away, blend it back together to a true trace. If it's already set that way, rebatch it (grate, melt with a splash of water, re-mold)." },
+    // ---- In the mold ----
+    { when:"In the mold", q:"Volcano or cracked, cratered top",
+      why:"It overheated during gel — often from honey, milk or sugar, a hot fragrance, or too much insulation.",
+      fix:"Don't insulate; move it somewhere cool or into the fridge/freezer. Next time soap at a lower temperature and skip the blanket." },
+    { when:"In the mold", q:"White powdery film on top (soda ash)",
+      why:"Surface lye reacting with air before the bar set. Harmless and cosmetic.",
+      fix:"Spritz 91%+ alcohol right after pouring, or cover the mold; force gel. On a cured bar, steam it, or rinse/rub it off." },
+    { when:"In the mold", q:"Translucent crackly streaks (glycerin rivers)",
+      why:"Overheating, usually with titanium dioxide and/or a lot of water.",
+      fix:"Soap cooler, use a water discount (higher lye concentration), and don't over-insulate." },
+    { when:"In the mold", q:"White chalky spots or pockets inside",
+      why:"Could be unmelted hard oil — or unmixed lye, which is caustic. Take it seriously.",
+      fix:"Zap-test a spot (a battery-like zing = active lye). If it zaps or feels lye-heavy, rebatch. Blend more thoroughly and fully melt hard oils next time." },
+    { when:"In the mold", q:"Air bubbles or holes in the bars",
+      why:"The stick blender whipped in air, or you poured at a thick trace.",
+      fix:"Keep the blender head fully submerged, tap the mold firmly on the counter after pouring, and pour at a thinner trace." },
+    // ---- Curing & storing ----
+    { when:"Curing & storing", q:"Bar is soft, dents, or won't release",
+      why:"Too much soft oil, too much water, a high superfat — or it just isn't cured yet.",
+      fix:"Give it the full cure first. Next batch: add hard oils/butters, use a water discount, or a little sodium lactate in the lye water." },
+    { when:"Curing & storing", q:"Crumbly, brittle, or cracks when cut",
+      why:"Too much hard oil or a lye-heavy batch, too little water, or a salt bar cut cold.",
+      fix:"Cut salt bars while still warm (within a few hours). Add a soft oil for the next batch, and check your superfat isn't at 0%." },
+    { when:"Curing & storing", q:"Orange or brown spots, rancid smell (DOS)",
+      why:"'Dreaded orange spots' — oils past their prime, high-linoleic oils, or too much superfat going rancid.",
+      fix:"Use fresh oils, add vitamin E or ROE, keep superfat modest, and store bars cool, dry and airy." },
+    { when:"Curing & storing", q:"Bar sweats or beads with liquid",
+      why:"Glycerin in the soap is pulling moisture out of humid air.",
+      fix:"Cure and store somewhere dry with airflow; only wrap bars after a full cure." },
+    { when:"Curing & storing", q:"It discolored — turned tan or brown",
+      why:"Vanillin in the fragrance, or spice oils. Expected, not a fault.",
+      fix:"Use a vanilla stabilizer, or plan your colors around the browning." },
+    // ---- Using the bar ----
+    { when:"Using the bar", q:"Little or no lather",
+      why:"A soft-oil-heavy blend, not enough coconut/castor, hard water, or using it before it's cured.",
+      fix:"Finish the cure (lather improves a lot). Next batch add coconut and ~5% castor oil." },
+    { when:"Using the bar", q:"Feels drying or squeaky",
+      why:"Cleansing is too high (usually too much coconut) or the superfat is too low.",
+      fix:"Raise superfat to ~5–8% and/or cut back the coconut/palm-kernel oil." },
+    { when:"Using the bar", q:"The scent faded",
+      why:"Top notes (citrus, mint) are volatile and mostly vanish during cure.",
+      fix:"Anchor them with a base note (patchouli, cedarwood) or litsea (may chang) so the scent lasts." }
+  ];
+
   /* Example / starter recipes. Oils sum ~1000 g (easy to rescale). Keys map to
      OILS / ADDITIVES / AROMAS above. Loading one adds it as a saved recipe.     */
   g.EXAMPLES = [
