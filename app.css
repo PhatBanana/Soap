@@ -217,6 +217,7 @@ input[type=range]{touch-action:pan-y}
 .scale-row{display:flex;align-items:center;gap:8px}
 .scale-row input{flex:1;font-size:1rem;padding:12px;border-radius:12px;border:2px solid var(--line);background:var(--bg-2);color:var(--ink);min-width:0}
 .scale-row .u{color:var(--muted);font-size:.85rem;font-weight:700;min-width:20px}
+.scale-row .scale-unit{font-size:1rem;font-weight:800;padding:12px 8px;border-radius:12px;border:2px solid var(--line);background:var(--bg-2);color:var(--ink);flex:0 0 auto}
 .mold-grid{display:flex;align-items:center;gap:6px}
 .mold-grid input{width:100%;min-width:0;font-size:1rem;padding:11px 9px;border-radius:12px;border:2px solid var(--line);background:var(--bg-2);color:var(--ink)}
 .mold-grid .x{color:var(--muted);font-weight:800}

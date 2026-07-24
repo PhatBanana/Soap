@@ -67,14 +67,14 @@
       <div class="barw-row">Bar size <input id="barW" type="number" min="10" step="5" inputmode="decimal"> g each — sets the bar count above</div>
       <div class="subhead">Resize to a target</div>
       <div class="seg" id="scaleMode">
-        <button type="button" data-m="batch" class="active">Total batch</button>
+        <button type="button" data-m="batch" class="active">Batch (wet)</button>
         <button type="button" data-m="oils">Total oils</button>
         <button type="button" data-m="mold">Mold size</button>
       </div>
       <div id="scaleWeight">
         <div class="scale-row">
           <input id="scaleTarget" type="number" step="any" min="0" inputmode="decimal" placeholder="Target">
-          <span class="u" id="scaleUnit">g</span>
+          <select id="scaleUnit" class="scale-unit" aria-label="Target unit"></select>
           <button type="button" class="addbtn" id="scaleApply">Scale</button>
         </div>
         <div class="subinfo" id="scaleHint"></div>
