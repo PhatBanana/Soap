@@ -13,7 +13,7 @@
   var UORDER = ["g","oz","lb","kg","pct"];
   // extra units accepted on import / OCR (approx, oil density ~0.92 g/ml)
   var CONV = { g:1, oz:28.349523125, lb:453.59237, kg:1000, ml:0.92, tsp:4.6, tbsp:13.8, cup:221, drop:0.05 };
-  var IMPORT_UNITS = ["g","oz","lb","kg","ml","tsp","tbsp","cup","drop"];
+  var IMPORT_UNITS = Object.keys(CONV);   // same units CONV can convert
 
   var QUALITIES = [
     { key:"hardness",     label:"Hardness",     scale:70, lo:29, hi:54, fn:function(f){return f.pa+f.st+f.la+f.my;} },
@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v15", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v16", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   var library=[];      // [{ id, name, oils, additives, aromas, lyeType, superfat, waterPct, kohPurity }]
@@ -39,8 +39,13 @@
   function weightUnit(){ return state.unit==="pct" ? (UNITS[state.lastWeightUnit]&&state.lastWeightUnit!=="pct" ? state.lastWeightUnit : "g") : state.unit; }
   // the scale target has its own unit so you can ask for "10 lb" without switching the whole app
   function scaleUnit(){ return (UNITS[state.scaleUnit]&&state.scaleUnit!=="pct") ? state.scaleUnit : weightUnit(); }
-  function totalOilsG(){ return state.oils.reduce(function(s,it){return s+it.g;},0); }
+  // mark the button whose data-<attr> equals val as ".active" within a segmented control
+  function setActive(container, attr, val){ Array.prototype.forEach.call(container.children,function(b){ b.classList.toggle("active", b.dataset[attr]===val); }); }
+  function sumG(list){ return list.reduce(function(s,it){return s+it.g;},0); }
+  function totalOilsG(){ return sumG(state.oils); }
   function oilInfo(it){ return it.key ? OILS[it.key] : null; }
+  // cleansing tolerance depends on how gentle the intended use must be
+  function cleansingCap(use){ return use==="face" ? 18 : (use==="hair" ? 20 : 22); }
 
   /* ---------- build static controls ---------- */
   var unitsEl=$("units"), oilList=$("oilList"), addList=$("addList"), aromaList=$("aromaList");
@@ -148,8 +153,8 @@
   /* ================= RENDER ================= */
   function render(){
     rebuildRecipeSelect();
-    Array.prototype.forEach.call(unitsEl.children,function(b){ b.classList.toggle("active",b.dataset.unit===state.unit); });
-    Array.prototype.forEach.call($("tabs").children,function(b){ b.classList.toggle("active",b.dataset.tab===state.tab); });
+    setActive(unitsEl,"unit",state.unit);
+    setActive($("tabs"),"tab",state.tab);
     $("tab-base").hidden = state.tab!=="base";
     $("tab-scents").hidden = state.tab!=="scents";
     $("tab-make").hidden = state.tab!=="make";
@@ -179,14 +184,14 @@
     state.additives.forEach(function(it,i){ addList.appendChild(buildAddRow(it,i)); });
 
     // lye controls state
-    Array.prototype.forEach.call($("lyeType").children,function(b){ b.classList.toggle("active",b.dataset.t===state.lyeType); });
+    setActive($("lyeType"),"t",state.lyeType);
     $("purityCtrl").classList.toggle("hide",state.lyeType!=="koh");
     $("sf").value=state.superfat; $("sfVal").textContent=state.superfat;
     $("water").value=state.waterPct; $("waterVal").textContent=state.waterPct;
     $("lyeConc").value=state.lyeConc; $("concVal").textContent=state.lyeConc;
     $("purity").value=state.kohPurity; $("purVal").textContent=state.kohPurity;
     var concMode=state.waterMode==="conc";
-    Array.prototype.forEach.call($("waterMode").children,function(b){ b.classList.toggle("active",(b.dataset.w==="conc")===concMode); });
+    setActive($("waterMode"),"w",state.waterMode);
     $("waterOilsCtrl").classList.toggle("hide",concMode);
     $("waterConcCtrl").classList.toggle("hide",!concMode);
 
@@ -324,7 +329,7 @@
   function curRV(){ return { oils:state.oils, additives:state.additives, aromas:state.aromas,
     lyeType:state.lyeType, superfat:state.superfat, waterPct:state.waterPct, kohPurity:state.kohPurity,
     waterMode:state.waterMode, lyeConc:state.lyeConc }; }
-  function oilsGof(rv){ return rv.oils.reduce(function(s,it){return s+it.g;},0); }
+  function oilsGof(rv){ return sumG(rv.oils); }
   function blendFA(rv){
     rv=rv||curRV();
     var tot=0; rv.oils.forEach(function(it){ if(it.key&&OILS[it.key]) tot+=it.g; });
@@ -351,11 +356,12 @@
     }
     return { lyeG:lyeG, waterG:waterG, oilG:oilG, kind:kind, hasCustom:hasCustom };
   }
-  function qualitiesOf(fa){ return { hardness:fa.pa+fa.st+fa.la+fa.my, cleansing:fa.la+fa.my,
-    conditioning:fa.ol+fa.li+fa.ln+fa.ri, bubbly:fa.la+fa.my+fa.ri, creamy:fa.pa+fa.st+fa.ri }; }
+  // single source of truth for the fatty-acid quality formulas: derived from QUALITIES,
+  // plus `poly` (rancidity-prone polyunsaturates) which several advisories use.
+  function qualitiesOf(fa){ var o={}; for(var i=0;i<QUALITIES.length;i++) o[QUALITIES[i].key]=QUALITIES[i].fn(fa); o.poly=fa.li+fa.ln; return o; }
   function statsFor(r){
     var B=blendFA(r), L=computeLye(r), tot=oilsGof(r);
-    var scentG=r.aromas.reduce(function(s,it){return s+it.g;},0);
+    var scentG=sumG(r.aromas);
     return { oilsG:tot, batchG:currentBatchG(r), lyeG:L.lyeG, waterG:L.waterG, kind:L.kind,
       sf:r.superfat, waterPct:r.waterPct, q:qualitiesOf(B.fa), iod:B.iod, ins:B.ins,
       oilPcts:r.oils.map(function(it){ return {name:it.name,key:it.key,pct:tot>0?it.g/tot*100:0}; }),
@@ -427,6 +433,9 @@
     ins:"A rough overall-quality index that blends hardness with other traits (around 160 is often cited as a sweet spot). Treat it as a rule of thumb, not a rule."
   };
   var openHelp=null;
+  // labels for the help panel: the 5 quality labels come straight from QUALITIES, plus the two indices
+  var QUAL_LABELS={iodine:"Iodine",ins:"INS"};
+  QUALITIES.forEach(function(q){ QUAL_LABELS[q.key]=q.label; });
   function helpRange(k){ var r=null; QUALITIES.forEach(function(x){ if(x.key===k) r=x.lo+"–"+x.hi; });
     if(r) return r; if(k==="iodine") return IOD_RANGE[0]+"–"+IOD_RANGE[1]; if(k==="ins") return INS_RANGE[0]+"–"+INS_RANGE[1]; return ""; }
   function toggleHelp(k){ openHelp=(openHelp===k?null:k); updateQuality(); }
@@ -453,9 +462,8 @@
     // explanation panel
     var ex=$("qualExplain");
     if(openHelp && QUAL_HELP[openHelp]){
-      var titles={hardness:"Hardness",cleansing:"Cleansing",conditioning:"Conditioning",bubbly:"Bubbly lather",creamy:"Creamy lather",iodine:"Iodine",ins:"INS"};
       ex.className="qual-explain";
-      ex.innerHTML="<b>"+titles[openHelp]+" <span class='r'>· good range "+helpRange(openHelp)+"</span></b>"+escapeHtml(QUAL_HELP[openHelp]);
+      ex.innerHTML="<b>"+QUAL_LABELS[openHelp]+" <span class='r'>· good range "+helpRange(openHelp)+"</span></b>"+escapeHtml(QUAL_HELP[openHelp]);
     } else { ex.className="qual-explain hide"; ex.textContent=""; }
     $("qualNote").textContent = B.tot>0 ? "Tap the ? on any quality to learn what it means. Green band = typical range; amber = outside it." : "Add oils with profile data to see qualities.";
   }
@@ -478,13 +486,12 @@
     });
   }
   function recipeNotes(){
-    var out=[], B=blendFA(), f=B.fa, total=totalOilsG();
-    function pctOf(key){ var g=0; state.oils.forEach(function(it){ if(it.key===key) g+=it.g; }); return total>0?g/total*100:0; }
+    var out=[], B=blendFA(), f=B.fa;
     function hasOil(key){ return state.oils.some(function(it){ return it.key===key; }); }
     function hasAdd(key){ return state.additives.some(function(it){ return it.key===key; }); }
     var use=state.use||"body", sf=state.superfat;
     if(B.tot>0){
-      var hard=f.pa+f.st+f.la+f.my, clean=f.la+f.my, cond=f.ol+f.li+f.ln+f.ri, bub=f.la+f.my+f.ri, poly=f.li+f.ln;
+      var q=qualitiesOf(f), hard=q.hardness, clean=q.cleansing, cond=q.conditioning, bub=q.bubbly, poly=q.poly;
       // hardness matters for every use
       if(hard<29 && use!=="hair") out.push(["soft","Bar may come out soft","Hardness is "+Math.round(hard)+" (aim 29–54). Add a hard oil (coconut, palm, or a butter) or a little sodium lactate for a firmer bar that unmolds cleanly."]);
       else if(hard>54) out.push(["warn","Very hard blend","Hardness is "+Math.round(hard)+" — bars this hard can turn brittle and crack. Ease back on hard oils/butters."]);
@@ -499,18 +506,18 @@
         out.push(["tip","Finishing a laundry bar","Cure hard, grate it, and mix ~1:1:1 with washing soda + borax. A high-cleansing, no-superfat bar is the goal."]);
       } else {
         // skin-contact uses (body / face / hair / shave)
-        var cleanCap = use==="face" ? 18 : (use==="hair" ? 20 : 22);
+        var cleanCap = cleansingCap(use);
         if(clean>cleanCap) out.push(["warn", use==="hair"?"May strip hair":"May feel drying",
           "Cleansing is "+Math.round(clean)+" — "+(use==="hair"?"soap-shampoo this cleansing can leave hair squeaky/frizzy. Add conditioning oils":"raise your superfat or cut coconut / palm-kernel oil")+"."]);
         if(cond<44) out.push(["soft","Low conditioning","Conditioning is "+Math.round(cond)+" (aim 44–69). Add soft oils like olive, sweet almond, or avocado."]);
-        if(bub<14 && pctOf("castor")<3) out.push(["soft","Light on lather","Bubbly lather is "+Math.round(bub)+". A bit more coconut/palm-kernel, or ~5% castor, boosts the bubbles."]);
-        if(use==="shave" && (f.pa+f.st+f.ri)<30) out.push(["soft","Thin shaving lather","Creamy lather is low ("+Math.round(f.pa+f.st+f.ri)+"). Add stearic acid or a butter — plus a little clay — for a slick, dense brush lather."]);
+        if(bub<14 && oilPct("castor")<3) out.push(["soft","Light on lather","Bubbly lather is "+Math.round(bub)+". A bit more coconut/palm-kernel, or ~5% castor, boosts the bubbles."]);
+        if(use==="shave" && q.creamy<30) out.push(["soft","Thin shaving lather","Creamy lather is low ("+Math.round(q.creamy)+"). Add stearic acid or a butter — plus a little clay — for a slick, dense brush lather."]);
         if(use==="face" && sf<6) out.push(["tip","Facial bars love a higher superfat","Consider ~6–8% superfat for a gentler, more moisturizing face bar."]);
         if(use==="hair") out.push(["tip","Soap-based shampoo","It's high-pH — finish with a diluted apple-cider-vinegar rinse to smooth the hair cuticle."]);
       }
       if(poly>18) out.push(["warn","Watch for rancidity (DOS)","This blend is "+Math.round(poly)+"% polyunsaturated (linoleic+linolenic). Those oils go rancid faster — use fresh oils, keep superfat modest, and consider an antioxidant like ROE."]);
     }
-    if(pctOf("castor")>10) out.push(["warn","High castor","Castor is "+Math.round(pctOf("castor"))+"% — wonderful for lather but it can make soap soft and sticky. 5–8% is usually plenty."]);
+    if(oilPct("castor")>10) out.push(["warn","High castor","Castor is "+Math.round(oilPct("castor"))+"% — wonderful for lather but it can make soap soft and sticky. 5–8% is usually plenty."]);
     if(hasOil("olive") && state.oils.length===1) out.push(["tip","Castile soap","Pure olive oil is beautifully gentle, but trace is slow and it needs a long cure (4–6 weeks or more) to firm up."]);
     if(hasOil("beeswax")) out.push(["tip","Beeswax present","Beeswax firms the bar but speeds up trace and can mute lather — keep it around 1–3%."]);
     if(hasOil("stearic")) out.push(["tip","Stearic acid present","Stearic acid accelerates trace fast — mix and pour quickly."]);
@@ -528,7 +535,6 @@
     var f=blendFA().fa, poly=f.li+f.ln;
     var conc=(L.lyeG+L.waterG)>0 ? L.lyeG/(L.lyeG+L.waterG)*100 : 0;
     var tot=totalOilsG();
-    function oilPct(keys){ var g=0; state.oils.forEach(function(it){ if(keys.indexOf(it.key)>=0) g+=it.g; }); return tot>0?g/tot*100:0; }
     function addPctOf(key){ var g=0; state.additives.forEach(function(it){ if(it.key===key) g+=it.g; }); return tot>0?g/tot*100:0; }
     var saltPct=addPctOf("salt"), saltBar=saltPct>=20;
     function add(level,title,detail){ items.push({level:level,title:title,detail:detail}); }
@@ -578,7 +584,7 @@
     state.additives.forEach(function(it){ var cap=ADD_CAP[it.key]; if(cap && tot>0){ var pct=it.g/tot*100; if(pct>cap+0.5) odose.push(it.name+" (~"+fmt(pct,1)+"% vs ~"+cap+"% usual)"); } });
     if(odose.length) add("warn","Additive dosed high", odose.join("; ")+". That's well above the usual amount — double-check it isn't a units slip (grams vs teaspoons).");
 
-    var scentG=state.aromas.reduce(function(s,it){return s+it.g;},0);
+    var scentG=sumG(state.aromas);
     var scentPct = tot>0 ? scentG/tot*100 : 0, over=[];
     state.aromas.forEach(function(it){ var d=it.key?AROMAS[it.key]:null;
       if(d && tot>0){ var pct=it.g/tot*100; if(pct > d.rate[2]+0.05) over.push(it.name+" (~"+fmt(pct,1)+"% vs "+d.rate[2]+"% max)"); } });
@@ -673,8 +679,8 @@
   function currentBatchG(rv){
     rv=rv||curRV();
     var L=computeLye(rv);
-    var add=rv.additives.reduce(function(s,it){return s+it.g;},0);
-    var ar=rv.aromas.reduce(function(s,it){return s+it.g;},0);
+    var add=sumG(rv.additives);
+    var ar=sumG(rv.aromas);
     return L.oilG + L.lyeG + L.waterG + add + ar;
   }
   function moldOilsG(){
@@ -708,9 +714,9 @@
   function updateScaleCard(){
     if(state.oils.length===0){ $("scaleCard").hidden=true; return; }
     $("scaleCard").hidden=false;
-    Array.prototype.forEach.call($("scaleMode").children,function(b){ b.classList.toggle("active",b.dataset.m===state.scaleMode); });
+    setActive($("scaleMode"),"m",state.scaleMode);
     var isMold=state.scaleMode==="mold", wunit=weightUnit(), ul=UNITS[wunit].label;
-    var sunit=scaleUnit(), sul=UNITS[sunit].label;
+    var sunit=scaleUnit();
     $("scaleWeight").classList.toggle("hide",isMold);
     $("scaleMoldWrap").classList.toggle("hide",!isMold);
     if(!$("scaleUnit").options.length){ var uh=""; ["g","oz","lb","kg"].forEach(function(u){ uh+='<option value="'+u+'">'+UNITS[u].label+'</option>'; }); $("scaleUnit").innerHTML=uh; }
@@ -733,7 +739,7 @@
     updateScaleHint(); updateMoldHint();
   }
   function updateScaleHint(){
-    var wunit=weightUnit(), ul=UNITS[wunit].label, sunit=scaleUnit(), sul=UNITS[sunit].label, raw=parseFloat($("scaleTarget").value);
+    var sunit=scaleUnit(), sul=UNITS[sunit].label, raw=parseFloat($("scaleTarget").value);
     if(!scaleDirty || !(raw>0)){
       $("scaleHint").textContent = state.scaleMode==="oils"
         ? "Shows your current total oils — type a new target and tap Scale."
@@ -755,7 +761,7 @@
 
   function updateScents(active){
     var totalOil=totalOilsG(), wunit=weightUnit();
-    var scentG=state.aromas.reduce(function(s,it){return s+it.g;},0);
+    var scentG=sumG(state.aromas);
     var buckets={top:0,middle:0,base:0};
     state.aromas.forEach(function(it,i){
       var r=aromaRefs[i]; if(!r) return;
@@ -889,7 +895,7 @@
   }
   function suggestedCure(){
     var B=blendFA(); if(B.tot<=0) return null;
-    var f=B.fa, hard=f.pa+f.st+f.la+f.my, soft=f.ol+f.li+f.ln;
+    var f=B.fa, hard=qualitiesOf(f).hardness, soft=f.ol+f.li+f.ln;
     var min,max,reason;
     if(hard>=48){ min=3; max=4; reason="a hard, quick-curing blend (lots of coconut, palm, tallow or butters)"; }
     else if(hard>=38){ min=4; max=6; reason="a firm, well-balanced blend"; }
@@ -936,17 +942,18 @@
     var sfn={ harder:function(f){return f.pa+f.st+f.la+f.my;}, condition:function(f){return f.ol+f.li+f.ln+f.ri;},
               lather:function(f){return f.la+f.my+f.ri;}, gentle:function(f){return -(f.la+f.my);} }[goal];
     if(!sfn) return;
-    var tot=items.reduce(function(s,it){return s+it.g;},0); if(tot<=0) return;
+    var tot=sumG(items); if(tot<=0) return;
     var scored=items.map(function(it){ return {it:it,s:sfn(oilInfo(it).fa)}; });
     var mean=scored.reduce(function(s,x){return s+(x.it.g/tot)*x.s;},0);
     var posW=0,negW=0; scored.forEach(function(x){ var d=x.s-mean; if(d>0)posW+=d; else negW+=-d; });
     if(posW<=0||negW<=0) return;
     var T=0.12*tot;
     scored.forEach(function(x){ var d=x.s-mean; var delta=d>0?T*(d/posW):-T*((-d)/negW); x.it.g=Math.max(0,x.it.g+delta); });
-    var now=items.reduce(function(s,it){return s+it.g;},0); if(now>0){ var k=tot/now; items.forEach(function(it){ it.g*=k; }); }
+    var now=sumG(items); if(now>0){ var k=tot/now; items.forEach(function(it){ it.g*=k; }); }
     lastGoal=goal; save(); render();
   }
-  function oilPct(key){ var g=0,t=totalOilsG(); state.oils.forEach(function(it){ if(it.key===key) g+=it.g; }); return t>0?g/t*100:0; }
+  // percent of total oils made up by one oil key, or the combined total of several keys
+  function oilPct(keys){ keys=[].concat(keys); var g=0,t=totalOilsG(); state.oils.forEach(function(it){ if(keys.indexOf(it.key)>=0) g+=it.g; }); return t>0?g/t*100:0; }
   /* Live balance check for the current blend — updates as you drag the oil
      sliders or tap a goal. Flags any downside and suggests a fix ingredient. */
   function updateShapeFeedback(){
@@ -955,20 +962,20 @@
     if(state.oils.filter(oilInfo).length<2){ box.className="shape-fb hide"; box.textContent=""; return; }
     var f=blendFA().fa;
     var use=state.use||"body";
-    var hard=f.pa+f.st+f.la+f.my, clean=f.la+f.my, cond=f.ol+f.li+f.ln+f.ri, bub=f.la+f.my+f.ri, poly=f.li+f.ln;
+    var q=qualitiesOf(f), hard=q.hardness, clean=q.cleansing, cond=q.conditioning, bub=q.bubbly, poly=q.poly;
+    var castorPct=oilPct("castor");
     var w=[];
     if(use==="dish"||use==="laundry"){
       if(clean<28) w.push("cleansing is "+Math.round(clean)+" — for a "+(use==="dish"?"dish":"laundry")+" soap you want a high-cleansing, coconut-heavy blend to cut grease. Add coconut or palm-kernel oil.");
     } else {
-      var cap = use==="face" ? 18 : (use==="hair" ? 20 : 22);
-      if(clean>cap) w.push("cleansing is "+Math.round(clean)+" — the "+(use==="hair"?"blend may strip hair":"bar may feel drying")+". Add a conditioning oil (olive, sweet almond, avocado) or raise superfat.");
+      if(clean>cleansingCap(use)) w.push("cleansing is "+Math.round(clean)+" — the "+(use==="hair"?"blend may strip hair":"bar may feel drying")+". Add a conditioning oil (olive, sweet almond, avocado) or raise superfat.");
       if(cond<44) w.push("low conditioning ("+Math.round(cond)+") — add soft oils like olive, sweet almond, or avocado.");
     }
     if(hard<29 && use!=="hair") w.push("it's soft (hardness "+Math.round(hard)+") and slow to unmould — add a hard oil (coconut/palm), a butter, or a little sodium lactate.");
     if(hard>54) w.push("very hard (hardness "+Math.round(hard)+") — can turn brittle and crack; add a splash of a soft oil.");
-    if(bub<14 && oilPct("castor")<3) w.push("light lather (bubbly "+Math.round(bub)+") — add ~5% castor or a little coconut.");
+    if(bub<14 && castorPct<3) w.push("light lather (bubbly "+Math.round(bub)+") — add ~5% castor or a little coconut.");
     if(poly>18) w.push("high in polyunsaturated oils ("+Math.round(poly)+"%) — prone to rancid spots (DOS); use fresh oils and keep them modest.");
-    if(oilPct("castor")>8) w.push("castor is "+Math.round(oilPct("castor"))+"% — above ~8% it can make the bar soft and sticky.");
+    if(castorPct>8) w.push("castor is "+Math.round(castorPct)+"% — above ~8% it can make the bar soft and sticky.");
     var label = lastGoal ? ({harder:"Harder",condition:"More moisturizing",lather:"Better lather",gentle:"Gentler"}[lastGoal]+" ✓") : "Balance check";
     box.classList.remove("hide");
     if(w.length){
@@ -1119,11 +1126,9 @@
     var body = looksHeader ? raw.slice(1) : raw;
     var out=[];
     body.forEach(function(r){
-      var name = col.name>=0 ? r[col.name] : r[looksHeader?1:0>=0?0:0];
-      // fallbacks when no header
-      if(!looksHeader){ name=r[0]; }
-      var amount = col.amount>=0 ? r[col.amount] : (looksHeader?"":r[1]);
-      if(!looksHeader){ amount=r[1]; }
+      var name, amount;
+      if(looksHeader){ name = col.name>=0 ? r[col.name] : r[1]; amount = col.amount>=0 ? r[col.amount] : ""; }
+      else { name = r[0]; amount = r[1]; }   // no header: fall back to positional name, amount
       var unit = col.unit>=0 ? r[col.unit] : "";
       var section = col.section>=0 ? r[col.section] : "";
       if(!name || !String(name).trim()) return;
@@ -1261,7 +1266,7 @@
     });
     return out;
   }
-  function normUnit(u){ u=u.toLowerCase().replace(/s$/,""); if(u==="gram")u="g"; if(u==="ounce")u="oz"; if(u==="pound"||u==="lbs")u="lb"; if(u==="tbs")u="tbsp"; if(u==="cup")u="cup"; if(!CONV[u])u="g"; return u; }
+  function normUnit(u){ u=u.toLowerCase().replace(/s$/,""); if(u==="gram")u="g"; if(u==="ounce")u="oz"; if(u==="pound")u="lb"; if(u==="tbs")u="tbsp"; if(!CONV[u])u="g"; return u; }
 
   /* ---------- data safety: persistent storage + backup/restore ---------- */
   // Ask the browser to keep our storage (recipes) from being auto-evicted.
