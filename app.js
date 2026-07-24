@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v19", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v20", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -53,6 +53,7 @@
     {k:"lastWeightUnit", coerce:function(v,view){return (UNITS[v]&&v!=="pct")?v:((UNITS[view.unit]&&view.unit!=="pct")?view.unit:"g");}},
     {k:"tab",            coerce:function(v){return ["base","scents","make"].indexOf(v)>=0?v:"base";}},
     {k:"scaleMode",      coerce:function(v){return ["batch","oils","mold"].indexOf(v)>=0?v:"batch";}},
+    {k:"moldShape",      coerce:function(v){return ["loaf","round","cavity"].indexOf(v)>=0?v:"loaf";}},
     {k:"scaleUnit",      coerce:function(v){return (UNITS[v]&&v!=="pct")?v:null;}},
     {k:"barWeight",      coerce:function(v){return v>0?v:110;}},
     {k:"currency",       coerce:function(v){return (typeof v==="string"&&v)?v:"$";}},
@@ -159,8 +160,11 @@
   $("scaleTarget").addEventListener("focus",function(){ scaleDirty=true; });
   $("scaleUnit").addEventListener("change",function(){ state.scaleUnit=$("scaleUnit").value; save(); updateScaleCard(); });
   $("scaleApply").addEventListener("click",applyWeightScale);
-  ["mL","mW","mH"].forEach(function(id){ $(id).addEventListener("input",updateMoldHint); });
+  ["mL","mW","mH","mD","mRH","mCount","mCavVol"].forEach(function(id){ $(id).addEventListener("input",updateMoldHint); });
   $("mUnit").addEventListener("change",updateMoldHint);
+  Array.prototype.forEach.call($("moldShape").children,function(b){
+    b.addEventListener("click",function(){ state.moldShape=b.dataset.ms; save(); updateScaleCard(); });
+  });
   $("moldApply").addEventListener("click",applyMold);
 
   // recipe selector + single action menu (sheet)
@@ -718,11 +722,22 @@
     return L.oilG + L.lyeG + L.waterG + add + ar;
   }
   function moldOilsG(){
+    var shape=state.moldShape||"loaf";
+    // rule of thumb: ~0.4 oz of oils per in³ (~0.69 g per cm³ / per mL)
+    var perVol = $("mUnit").value==="cm" ? 0.6917 : 0.4*UNITS.oz.toG;
+    if(shape==="round"){
+      var D=parseFloat($("mD").value), RH=parseFloat($("mRH").value);
+      if(!(D>0&&RH>0)) return 0;
+      return Math.PI*Math.pow(D/2,2)*RH*perVol;                 // cylinder volume × oils-per-volume
+    }
+    if(shape==="cavity"){
+      var n=parseFloat($("mCount").value), ml=parseFloat($("mCavVol").value);
+      if(!(n>0&&ml>0)) return 0;
+      return n*ml*0.6917;                                       // mL = cm³, so use the metric factor
+    }
     var L=parseFloat($("mL").value), W=parseFloat($("mW").value), H=parseFloat($("mH").value);
     if(!(L>0&&W>0&&H>0)) return 0;
-    var vol=L*W*H;
-    // rule of thumb: 0.4 oz of oils per cubic inch (~0.69 g per cm³)
-    return $("mUnit").value==="cm" ? vol*0.6917 : vol*0.4*UNITS.oz.toG;
+    return L*W*H*perVol;
   }
   function scaleAll(factor){
     if(!(factor>0)||!isFinite(factor)) return;
@@ -753,6 +768,12 @@
     var sunit=scaleUnit();
     $("scaleWeight").classList.toggle("hide",isMold);
     $("scaleMoldWrap").classList.toggle("hide",!isMold);
+    var ms=state.moldShape||"loaf";
+    setActive($("moldShape"),"ms",ms);
+    $("moldLoaf").classList.toggle("hide",ms!=="loaf");
+    $("moldRound").classList.toggle("hide",ms!=="round");
+    $("moldCavity").classList.toggle("hide",ms!=="cavity");
+    $("moldUnitRow").classList.toggle("hide",ms==="cavity");
     if(!$("scaleUnit").options.length){ var uh=""; ["g","oz","lb","kg"].forEach(function(u){ uh+='<option value="'+u+'">'+UNITS[u].label+'</option>'; }); $("scaleUnit").innerHTML=uh; }
     $("scaleUnit").value=sunit;
     $("scaleTarget").placeholder = state.scaleMode==="oils" ? "Target oils" : "Target wet weight";
@@ -788,7 +809,11 @@
   }
   function updateMoldHint(){
     var wunit=weightUnit(), ul=UNITS[wunit].label, t=moldOilsG();
-    if(t<=0){ $("moldHint").textContent="Enter the inner Length × Width × Height of a rectangular mold to estimate the oils it holds."; return; }
+    if(t<=0){ $("moldHint").textContent = {
+      round:"Enter the inner diameter × height of a round/column mold.",
+      cavity:"Enter how many cavities and how much each one holds (mL).",
+      loaf:"Enter the inner Length × Width × Height of a loaf/box mold."
+    }[state.moldShape||"loaf"]; return; }
     var cur=totalOilsG(), f=cur>0?t/cur:0;
     $("moldHint").textContent="≈ "+fmt(fromG(t,wunit),1)+" "+ul+" of oils for this mold"+(f>0?"  (× "+fmt(f,3)+")":"");
   }

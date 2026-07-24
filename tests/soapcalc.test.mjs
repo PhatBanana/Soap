@@ -271,7 +271,7 @@ async function addOil(p, key, g) {
 
   // save shape unchanged (backup/restore compatibility)
   const keys = Object.keys(await LS(p)).sort().join(",");
-  eq("Save shape keys", keys, "barWeight,collapsed,currency,currentId,lastWeightUnit,prices,recipes,scaleMode,scaleUnit,tab,unit");
+  eq("Save shape keys", keys, "barWeight,collapsed,currency,currentId,lastWeightUnit,moldShape,prices,recipes,scaleMode,scaleUnit,tab,unit");
   await p.close();
 }
 
@@ -298,6 +298,41 @@ async function addOil(p, key, g) {
      "Olive oil|400;Coconut oil|300");
   eq("CSV positional (no header keywords)", (await importCSV("Lard,400\nTallow,300")).join(";"),
      "Lard|400;Tallow|300");
+  await p.close();
+}
+
+/* =======================================================================
+   MOLD SHAPES (loaf / round / cavity → scale to fit)
+======================================================================= */
+{
+  const p = await newPage();
+  const oilsG = () => p.evaluate(() => JSON.parse(localStorage.getItem("soapcalc.v4")).recipes[0].oils.reduce((s, o) => s + o.g, 0));
+  async function moldFixture() {
+    await open(p, store({ oils:[OIL("olive",400),OIL("coconut",300),OIL("palm",300)] }, { scaleMode:"mold" }));
+  }
+  const IN = 0.4 * 28.349523125; // g of oils per in³
+
+  await moldFixture();
+  await p.click('#moldShape button[data-ms="loaf"]');
+  await p.fill("#mL","8"); await p.fill("#mW","3.5"); await p.fill("#mH","2.5"); await p.waitForTimeout(80);
+  await p.click("#moldApply"); await p.waitForTimeout(150);
+  near("Loaf mold 8×3.5×2.5 in → oils", await oilsG(), 8*3.5*2.5*IN, 1);
+
+  await moldFixture();
+  await p.click('#moldShape button[data-ms="round"]');
+  ok("Round selected → round grid shown, loaf hidden", await p.evaluate(() =>
+    !document.getElementById("moldRound").classList.contains("hide") && document.getElementById("moldLoaf").classList.contains("hide")));
+  await p.fill("#mD","3"); await p.fill("#mRH","6"); await p.waitForTimeout(80);
+  await p.click("#moldApply"); await p.waitForTimeout(150);
+  near("Round mold ⌀3×6 in → oils", await oilsG(), Math.PI*1.5*1.5*6*IN, 1);
+
+  await moldFixture();
+  await p.click('#moldShape button[data-ms="cavity"]');
+  ok("Cavity selected → in/cm unit row hidden", await p.evaluate(() => document.getElementById("moldUnitRow").classList.contains("hide")));
+  await p.fill("#mCount","12"); await p.fill("#mCavVol","100"); await p.waitForTimeout(80);
+  await p.click("#moldApply"); await p.waitForTimeout(150);
+  near("Cavity mold 12×100 mL → oils", await oilsG(), 12*100*0.6917, 1);
+  eq("moldShape persisted", (await LS(p)).moldShape, "cavity");
   await p.close();
 }
 
