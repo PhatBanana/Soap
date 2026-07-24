@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v17", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v18", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -1056,6 +1056,7 @@
       case "compare": openCompare(); break;
       case "costs": openCosts(); break;
       case "card": openCard(); break;
+      case "label": openLabel(); break;
       case "examples": openExamples(); break;
       case "scan": $("photoInput").click(); break;
       case "import": $("csvInput").click(); break;
@@ -1466,6 +1467,51 @@
     var cp=el("button","ghost","📋 Copy"); cp.addEventListener("click",function(){ copyText(cardText(r,s,wunit,ul),cp); });
     var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); });
     foot.appendChild(pr); foot.appendChild(cp); foot.appendChild(cl); md.m.appendChild(foot);
+  }
+  // Build the finished-bar INCI ingredient list: saponified oils (Sodium/Potassium …),
+  // water, naturally-occurring glycerin, then additives and fragrance, in descending weight order.
+  function inciLabel(){
+    var L=computeLye(), total=totalOilsG(), salt=(state.lyeType==="koh"?"Potassium ":"Sodium ");
+    var entries=[], missing=[], glyAdd=0;
+    state.oils.forEach(function(it){ if(!(it.g>0)) return;
+      var base=it.key?OIL_INCI[it.key]:null;
+      if(base){ entries.push({name: base.charAt(0)==="=" ? base.slice(1) : salt+base, w:it.g}); }
+      else { entries.push({name:it.name+" (verify INCI)", w:it.g}); missing.push(it.name); }
+    });
+    if(L.waterG>0) entries.push({name:"Aqua (Water)", w:L.waterG});
+    state.additives.forEach(function(it){ if(!(it.g>0)) return;
+      if(it.key==="glycerin"){ glyAdd+=it.g; return; }             // folded into the Glycerin line below
+      var inci=it.key?ADDITIVE_INCI[it.key]:null;
+      if(inci) entries.push({name:inci, w:it.g});
+      else { entries.push({name:it.name+" (verify INCI)", w:it.g}); missing.push(it.name); }
+    });
+    if(total>0||glyAdd>0) entries.push({name:"Glycerin", w:total*0.08+glyAdd});
+    var fragW=0, eoNames=[], hasFO=false;
+    state.aromas.forEach(function(it){ if(!(it.g>0)) return; fragW+=it.g;
+      var d=it.key?AROMAS[it.key]:null;
+      if(d&&d.type==="FO") hasFO=true;
+      else if(d) eoNames.push(d.name.replace(/\s+EO$/,"")); else eoNames.push(it.name); });
+    if(fragW>0) entries.push({name: hasFO ? "Fragrance (Parfum)"
+      : (eoNames.length ? eoNames.join(" & ")+" Essential Oil"+(eoNames.length>1?"s":"") : "Fragrance"), w:fragW});
+    entries.sort(function(a,b){ return b.w-a.w; });
+    return { text:entries.map(function(e){return e.name;}).join(", "), missing:missing, count:entries.length };
+  }
+  function openLabel(){
+    var md=makeModal();
+    md.m.appendChild(el("h3",null,"Ingredient label (INCI)"));
+    md.m.appendChild(el("p","sub","A starting-point label for the finished bar — saponified oils, in descending order by weight."));
+    var lab=inciLabel();
+    var foot=el("div","mfoot");
+    if(!lab.count){
+      md.m.appendChild(el("p","sub","Add oils to build a label."));
+    } else {
+      md.m.appendChild(el("div","inci-box",escapeHtml(lab.text)));
+      if(lab.missing.length) md.m.appendChild(el("div","inci-warn","⚠ No stored INCI name for: "+escapeHtml(lab.missing.join(", "))+" — look these up before using the label."));
+      md.m.appendChild(el("p","sub","INCI names and labelling rules vary by supplier and region — verify before you sell. Naturally-occurring glycerin is included; water is listed as made (most evaporates during cure)."));
+      var cp=el("button","ghost","📋 Copy"); cp.addEventListener("click",function(){ copyText(lab.text,cp); }); foot.appendChild(cp);
+    }
+    var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); });
+    foot.appendChild(cl); md.m.appendChild(foot);
   }
   function nz(list){ return list.filter(function(it){ return it.g>0; }); }
   function cardHTML(r,s,wunit,ul){
