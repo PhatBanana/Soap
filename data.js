@@ -190,6 +190,33 @@
                   tips:"Follow your supplier's max & IFRA rate. Test small — some FOs accelerate trace, discolor, or seize." }
   };
 
+  /* Saponified-oil INCI names for the finished-bar label. The value is the word after
+     "Sodium " (NaOH bars) or "Potassium " (KOH soap) — e.g. olive -> "Sodium Olivate".
+     A leading "=" means use the value literally (no salt prefix), for things that are
+     listed as-is. INCI conventions vary by supplier/region — always verify before sale. */
+  g.OIL_INCI = {
+    olive:"Olivate", coconut:"Cocoate", palm:"Palmate", palmkernel:"Palm Kernelate",
+    castor:"Castorate", shea:"Shea Butterate", cocoa:"Cocoa Butterate", mango:"Mango Butterate",
+    kokum:"Kokum Butterate", almond:"Sweet Almondate", apricot:"Apricot Kernelate", avocado:"Avocadoate",
+    argan:"Arganate", macadamia:"Macadamiate", sunflower:"Sunflowerseedate", canola:"Canolate",
+    grapeseed:"Grapeseedate", ricebran:"Rice Branate", sesame:"Sesameseedate", soybean:"Soyate",
+    corn:"Cornate", peanut:"Peanutate", hemp:"Hempseedate", neem:"Neemate", jojoba:"Jojobate",
+    lard:"Lardate", tallow:"Tallowate", babassu:"Babassuate", beeswax:"=Beeswax (Cera Alba)",
+    stearic:"Stearate", shortening:"Vegetable Shorteningate", vegoil:"Soyate", safflower:"Safflowerate",
+    safflowerho:"Safflowerate", sunflowerho:"Sunflowerseedate", cottonseed:"Cottonseedate",
+    walnut:"Walnutate", flax:"Linseedate", wheatgerm:"Wheat Germate", pumpkinseed:"Pumpkin Seedate",
+    rosehip:"Rosehip Seedate", emu:"Emuate"
+  };
+  /* INCI (label) names for additives that stay in the finished bar. */
+  g.ADDITIVE_INCI = {
+    goatmilk:"Goat Milk", coconutmilk:"Cocos Nucifera (Coconut) Milk", honey:"Honey (Mel)",
+    sodiumlactate:"Sodium Lactate", oatmeal:"Colloidal Oatmeal (Avena Sativa)", kaolin:"Kaolin",
+    charcoal:"Charcoal Powder", glycerin:"Glycerin", aloe:"Aloe Barbadensis Leaf Juice",
+    sugar:"Sucrose", salt:"Sodium Chloride", coffee:"Coffee (Coffea) Extract", coffeegrounds:"Coffee (Coffea) Powder",
+    bentonite:"Bentonite", silk:"Hydrolyzed Silk", vitamine:"Tocopherol (Vitamin E)",
+    titanium:"Titanium Dioxide (CI 77891)", mica:"Mica"
+  };
+
   /* General blending guidance shown in the Scents tab. */
   g.BLEND_TIPS = [
     { h:"Aim for ~3% total scent", t:"For cold-process bars, total fragrance around 3% of oil weight is a safe, strong default (EOs often 2–4%; FOs per supplier/IFRA). This app totals it for you." },

@@ -127,6 +127,12 @@ phone in the kitchen or on a desktop.
   lye, and batch).
 - **Recipe card** — a clean **printable / copyable** summary to take to the bench
   or text to someone.
+- **Ingredient label (INCI)** — generates a finished-bar ingredient list for gifting
+  or selling: oils shown as their **saponified salts** (e.g. *Sodium Olivate, Sodium
+  Cocoate*, or *Potassium …* for liquid soap), plus water, naturally-occurring
+  glycerin, additives and fragrance, in descending order by weight — copyable, with
+  custom oils flagged. (INCI names and labelling rules vary by supplier/region —
+  verify before sale.)
 
 ### Get recipes in & out
 - 📷 **Scan a photo** of a recipe — on-device OCR (Tesseract.js) reads it, then you

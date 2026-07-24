@@ -301,6 +301,42 @@ async function addOil(p, key, g) {
   await p.close();
 }
 
+/* =======================================================================
+   INCI INGREDIENT LABEL
+======================================================================= */
+{
+  const p = await newPage();
+  async function label(rec, view) {
+    await open(p, store(rec, view));
+    await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="label"]').click(); });
+    await p.waitForTimeout(120);
+    const box = await p.evaluate(() => { const e = document.querySelector(".inci-box"); return e ? e.textContent : null; });
+    const warn = await p.evaluate(() => { const e = document.querySelector(".inci-warn"); return e ? e.textContent : null; });
+    await p.evaluate(() => { const bk = document.querySelector(".modal-back"); if (bk) bk.remove(); document.body.style.overflow = ""; });
+    return { box, warn };
+  }
+  const classic = (await label({ oils:[OIL("olive",400),OIL("coconut",300),OIL("palm",250),OIL("shea",20),OIL("castor",30)] })).box;
+  has("Label saponifies olive", classic, "Sodium Olivate");
+  has("Label saponifies castor", classic, "Sodium Castorate");
+  has("Label lists water", classic, "Aqua (Water)");
+  has("Label lists natural glycerin", classic, "Glycerin");
+  ok("Label orders by weight (olive before coconut)", classic.indexOf("Sodium Olivate") < classic.indexOf("Sodium Cocoate"));
+
+  const koh = (await label({ oils:[OIL("coconut",700),OIL("olive",300)], lyeType:"koh" })).box;
+  has("KOH label uses Potassium", koh, "Potassium Cocoate");
+  ok("KOH label has no Sodium salts", !koh.includes("Sodium "));
+
+  const custom = await label({ oils:[OIL("olive",500), { name:"Mystery butter", key:null, g:200 }] });
+  has("Custom oil flagged in label", custom.box, "Mystery butter (verify INCI)");
+  has("Custom oil raises a warning", custom.warn, "Mystery butter");
+
+  const fo = (await label({ oils:[OIL("olive",1000)], aromas:[{name:"Vanilla FO",key:"vanilla",g:30}] })).box;
+  has("Fragrance oil labelled Parfum", fo, "Fragrance (Parfum)");
+  const eo = (await label({ oils:[OIL("olive",1000)], aromas:[{name:"Lavender EO",key:"lavender",g:20}] })).box;
+  has("Essential oil labelled by name", eo, "Lavender Essential Oil");
+  await p.close();
+}
+
 /* ---------- report ---------- */
 ok("No console/page errors during tests", pageErrors.length === 0, pageErrors.join(" | "));
 
