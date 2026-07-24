@@ -180,8 +180,25 @@ batch. Lye is caustic: wear gloves and eye protection.**
 - `data.js` — oil / additive / aroma database
 - `app.js` — logic
 - `manifest.webmanifest`, `sw.js`, `icons/` — PWA (installable + offline)
+- `tests/` — behavior test suite
 
-Hosted free on GitHub Pages from `main`.
+Hosted free on GitHub Pages from `main`. There is **no build step** — the files
+above are what ships.
+
+## Tests
+The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
+localStorage persistence are covered by a headless-browser test suite that drives
+the real app and asserts on the computed numbers and saved state.
+
+```sh
+npm install                       # installs playwright (dev-only)
+npx playwright install chromium   # one-time browser download
+npm test                          # runs tests/soapcalc.test.mjs
+```
+
+The suite is self-contained (it starts its own static server) and exits non-zero
+on any failure — handy to run before pushing a change to the lye math, safety
+rules, or persistence.
 
 ## Ideas for later
 - Round / cylinder / cavity mold shapes for the scaler (rectangular for now).
