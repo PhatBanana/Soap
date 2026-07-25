@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v30", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v31", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -96,7 +96,7 @@
   function cleansingCap(use){ return use==="face" ? 18 : (use==="hair" ? 20 : 22); }
 
   /* ---------- build static controls ---------- */
-  var unitsEl=$("units"), oilList=$("oilList"), addList=$("addList"), aromaList=$("aromaList");
+  var unitsEl=$("unitSelect"), oilList=$("oilList"), addList=$("addList"), aromaList=$("aromaList");
   var oilRefs=[], addRefs=[], aromaRefs=[];
   var activeInput=null;
   var scaleDirty=false; // true once the user edits the scale field (stops auto-prefill)
@@ -104,10 +104,13 @@
   function barG(){ return state.barWeight>0 ? state.barWeight : 110; }
   function barCount(g){ return g>0 ? Math.max(1,Math.round(g/barG())) : 0; }
 
-  UORDER.forEach(function(u){
-    var b=el("button",null,UNITS[u].label); b.type="button"; b.dataset.unit=u;
-    b.addEventListener("click",function(){ state.unit=u; if(u!=="pct") state.lastWeightUnit=u; scaleDirty=false; save(); render(); });
-    unitsEl.appendChild(b);
+  (function(){
+    var h=""; UORDER.forEach(function(u){ h+='<option value="'+u+'">'+UNITS[u].label+'</option>'; });
+    unitsEl.innerHTML=h;
+  })();
+  unitsEl.addEventListener("change",function(){
+    var u=unitsEl.value; state.unit=u; if(u!=="pct") state.lastWeightUnit=u;
+    scaleDirty=false; save(); render();
   });
   Array.prototype.forEach.call($("tabs").children,function(b){
     b.addEventListener("click",function(){ state.tab=b.dataset.tab; save(); render(); });
@@ -219,7 +222,7 @@
   /* ================= RENDER ================= */
   function render(){
     rebuildRecipeSelect();
-    setActive(unitsEl,"unit",state.unit);
+    unitsEl.value=state.unit;
     setActive($("tabs"),"tab",state.tab);
     $("tab-base").hidden = state.tab!=="base";
     $("tab-scents").hidden = state.tab!=="scents";

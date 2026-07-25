@@ -52,9 +52,10 @@ phone in the kitchen or on a desktop.
 ## Features
 
 ### Recipe & units
-- Enter oils/ingredients once and **toggle the whole recipe between g / oz / lb /
-  kg / %** at a tap. The **%** view shows each oil as a share of total oils —
-  unit- and batch-independent, the fairest way to compare recipes.
+- Enter oils/ingredients once and **switch the whole recipe between g / oz / lb /
+  kg / %** from the compact unit picker in the app bar. The **%** view shows each oil
+  as a share of total oils — unit- and batch-independent, the fairest way to compare
+  recipes.
 - **~40 oils, butters & fats** plus **18 additives**, focused on what a normal
   person can actually buy (grocery, pharmacy, craft store, Amazon) — olive,
   coconut, palm, castor, shea/cocoa/mango/kokum butters, sweet almond, avocado,
