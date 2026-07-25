@@ -346,6 +346,20 @@ input[type=range]{touch-action:pan-y}
 .cost-tot{display:flex;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:3px dashed var(--line);font-weight:800}
 .cost-tot .big{font-size:1.35rem;color:var(--coral-d)}
 
+/* shopping list */
+.shop-pick{display:flex;flex-direction:column;gap:2px;margin-bottom:6px}
+.shop-rec{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:2px solid var(--line);cursor:pointer}
+.shop-rec input{width:20px;height:20px;accent-color:var(--coral);flex:0 0 auto}
+.shop-rec .txt{font-weight:700;font-size:.92rem}
+.shop-h{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800;margin:16px 0 6px}
+.shop-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:2px solid var(--line);font-size:.92rem}
+.shop-row .sr-name{overflow-wrap:anywhere}
+.shop-row .sr-amt{white-space:nowrap;font-weight:800;font-variant-numeric:tabular-nums}
+.shop-row .sr-cost{color:var(--muted);font-weight:700;font-size:.82rem}
+.shop-tot{display:flex;justify-content:space-between;align-items:baseline;margin-top:16px;padding-top:14px;border-top:3px dashed var(--line);font-weight:800}
+.shop-tot .big{font-size:1.35rem;color:var(--coral-d)}
+.shop-tot .sub{color:var(--muted);font-weight:600;font-size:.8rem}
+
 /* ---------- wide screens: two columns ---------- */
 @media (min-width:900px){
   .wrap{max-width:1080px}
