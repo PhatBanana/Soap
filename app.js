@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v29", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v30", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -54,7 +54,9 @@
     {k:"lot",       def:"",     coerce:function(v){return typeof v==="string"?v.slice(0,32):"";}},
     // bar size belongs to the recipe's mould, not to the app — it drives bar count,
     // cost per bar, the wrapper's net weight and the "Bars" scale target
-    {k:"barWeight", def:110,    coerce:function(v){return clamp(v,110,10,2000);}}
+    {k:"barWeight", def:110,    coerce:function(v){return clamp(v,110,10,2000);}},
+    {k:"fav",       def:false,  coerce:function(v){return !!v;}},
+    {k:"lastUsed",  def:0,      coerce:function(v){return (typeof v==="number"&&isFinite(v)&&v>0)?v:0;}}
   ];
   var VIEW_FIELDS=[
     {k:"unit",           coerce:function(v){return UNITS[v]?v:"g";}},
@@ -68,7 +70,8 @@
     {k:"collapsed",      coerce:function(v){return (v&&typeof v==="object")?v:null;}},
     // ingredient keys you've added lately, newest first — drives the quick-add chips
     {k:"recent",         coerce:function(v){return Array.isArray(v)?v.filter(function(x){return typeof x==="string";}).slice(0,8):[];}},
-    {k:"theme",          coerce:function(v){return (v==="light"||v==="dark")?v:"auto";}}
+    {k:"theme",          coerce:function(v){return (v==="light"||v==="dark")?v:"auto";}},
+    {k:"librarySort",    coerce:function(v){return ["name","recent","added"].indexOf(v)>=0?v:"name";}}
   ];
 
   var library=[];      // [{ id, name } + the RECIPE_FIELDS above]
@@ -1281,6 +1284,7 @@
       case "dup": duplicateRecipe(); break;
       case "rename": renameRecipe(); break;
       case "delete": deleteRecipe(); break;
+      case "library": openLibrary(); break;
       case "compare": openCompare(); break;
       case "costs": openCosts(); break;
       case "shopping": openShopping(); break;
@@ -1908,6 +1912,58 @@
   /* ---------- costs (price book + cost per bar) ---------- */
   function priceKeyOf(it){ return it.key || ("c:"+it.name.toLowerCase()); }
 
+  /* ---------- recipe library: search, sort, favourites ---------- */
+  function recipeBlurb(r){
+    var n=r.oils.filter(function(it){ return it.g>0; }).length;
+    var bits=[n+" oil"+(n===1?"":"s")];
+    if(r.lyeType==="koh") bits.push("liquid");
+    if(r.method==="hp") bits.push("hot process");
+    if(r.use&&r.use!=="body"){ USES.forEach(function(u){ if(u[0]===r.use) bits.push(u[1].toLowerCase()); }); }
+    if(r.lastUsed>0){
+      var days=Math.floor((Date.now()-r.lastUsed)/86400000);
+      bits.push(days<=0?"opened today":days===1?"opened yesterday":"opened "+days+"d ago");
+    }
+    return bits.join(" · ");
+  }
+  function openLibrary(){
+    syncCurrent();
+    var md=makeModal();
+    md.m.appendChild(el("h3",null,"Recipes"));
+    md.m.appendChild(el("p","sub","Search your library, star the ones you come back to, and tap to open."));
+    var find=document.createElement("input"); find.className="ts-filter"; find.type="search";
+    find.placeholder="Search by name…"; md.m.appendChild(find);
+    var seg=el("div","seg sub");
+    [["name","A–Z"],["recent","Recent"],["added","Added"]].forEach(function(s){
+      var b=el("button",null,s[1]); b.type="button"; b.dataset.ls=s[0];
+      b.addEventListener("click",function(){ state.librarySort=s[0]; save(); draw(); });
+      seg.appendChild(b);
+    });
+    md.m.appendChild(seg);
+    var list=el("div"); md.m.appendChild(list);
+    var foot=el("div","mfoot"); var cl=el("button","primary","Close");
+    cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
+
+    function draw(){
+      setActive(seg,"ls",state.librarySort||"name");
+      var q=find.value.toLowerCase().trim();
+      var rows=sortedLibrary().filter(function(r){ return !q || r.name.toLowerCase().indexOf(q)>=0; });
+      list.innerHTML="";
+      if(!rows.length){ list.appendChild(el("div","ocr-status","No recipe matches “"+escapeHtml(find.value)+"”.")); return; }
+      rows.forEach(function(r){
+        var row=el("div","lib-row"+(r.id===currentId?" on":""));
+        var star=el("button","lib-star"+(r.fav?" on":""), r.fav?"★":"☆"); star.type="button";
+        star.setAttribute("aria-label",(r.fav?"Unstar ":"Star ")+r.name);
+        star.addEventListener("click",function(ev){ ev.stopPropagation(); r.fav=!r.fav; save(); rebuildRecipeSelect(); draw(); });
+        var open=el("button","lib-open"); open.type="button";
+        open.innerHTML="<b>"+escapeHtml(r.name)+"</b><span>"+escapeHtml(recipeBlurb(r))+"</span>";
+        open.addEventListener("click",function(){ closeModal(md.back); switchRecipe(r.id); });
+        row.appendChild(star); row.appendChild(open); list.appendChild(row);
+      });
+    }
+    find.addEventListener("input",draw);
+    draw();
+  }
+
   /* ---------- shopping list: what to buy across a batch plan ---------- */
   function shoppingTotals(recipes){
     var oils={}, adds={}, scents={}, naoh=0, koh=0, water=0;
@@ -2059,7 +2115,7 @@
     RECIPE_FIELDS.forEach(function(fld){ r[fld.k]=state[fld.k]; }); }
 
   function switchRecipe(id){ if(id===currentId){ rebuildRecipeSelect(); return; } syncCurrent();
-    var r=libById(id); if(!r) return; currentId=id; loadRecipeIntoState(r); scaleDirty=false; save(); render(); }
+    var r=libById(id); if(!r) return; currentId=id; touchRecipe(id); loadRecipeIntoState(r); scaleDirty=false; save(); render(); }
   function newRecipe(){
     var name=(prompt("Name this recipe:","Recipe "+(library.length+1))||"").trim();
     if(name==="") return; syncCurrent();
@@ -2082,9 +2138,23 @@
     if(!confirm("Delete \""+c.name+"\"? This can't be undone.")) return;
     library=library.filter(function(x){return x.id!==currentId;});
     currentId=library[0].id; loadRecipeIntoState(library[0]); scaleDirty=false; save(); render(); }
+  // Favourites always float to the top; the rest follow the chosen order.
+  function sortedLibrary(){
+    var mode=state.librarySort||"name", order=library.slice();
+    var index={}; library.forEach(function(r,i){ index[r.id]=i; });
+    return order.sort(function(a,b){
+      if(!!a.fav!==!!b.fav) return a.fav?-1:1;
+      if(mode==="recent"){ var d=(b.lastUsed||0)-(a.lastUsed||0); if(d) return d; }
+      else if(mode==="added"){ return index[a.id]-index[b.id]; }
+      return a.name.localeCompare(b.name);
+    });
+  }
+  function touchRecipe(id){ var r=libById(id); if(r) r.lastUsed=Date.now(); }
   function rebuildRecipeSelect(){
     var sel=$("recipeSelect"); if(!sel) return; var h="";
-    library.forEach(function(r){ h+='<option value="'+r.id+'"'+(r.id===currentId?" selected":"")+">"+escapeHtml(r.name)+"</option>"; });
+    sortedLibrary().forEach(function(r){
+      h+='<option value="'+r.id+'"'+(r.id===currentId?" selected":"")+">"+(r.fav?"★ ":"")+escapeHtml(r.name)+"</option>";
+    });
     sel.innerHTML=h;
   }
 

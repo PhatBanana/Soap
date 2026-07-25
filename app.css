@@ -363,6 +363,18 @@ input[type=range]{touch-action:pan-y}
 .cost-tot{display:flex;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:3px dashed var(--line);font-weight:800}
 .cost-tot .big{font-size:1.35rem;color:var(--coral-d)}
 
+/* recipe library */
+.lib-row{display:flex;align-items:stretch;gap:8px;margin-top:8px}
+.lib-row.on .lib-open{border-color:var(--coral)}
+.lib-star{flex:0 0 auto;width:44px;border:2px solid var(--line);background:var(--bg-2);color:var(--muted);border-radius:12px;font-size:1.1rem;cursor:pointer;line-height:1}
+.lib-star.on{color:var(--amber);border-color:var(--amber)}
+.lib-star:active{transform:translateY(1px)}
+.lib-open{flex:1;min-width:0;text-align:left;border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 12px;cursor:pointer}
+.lib-open:hover{border-color:var(--coral)}
+.lib-open:active{transform:translateY(1px)}
+.lib-open b{display:block;font-weight:800;font-size:.95rem;overflow-wrap:anywhere}
+.lib-open span{display:block;color:var(--muted);font-size:.78rem;margin-top:2px}
+
 /* shopping list */
 .shop-pick{display:flex;flex-direction:column;gap:2px;margin-bottom:6px}
 .shop-rec{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:2px solid var(--line);cursor:pointer}

@@ -262,6 +262,70 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   RECIPE LIBRARY: search · sort · favourites
+======================================================================= */
+{
+  const p = await newPage();
+  const blank = recipe();
+  const now = Date.now();
+  await p.goto(base + "/index.html");
+  await p.evaluate(({ b, now }) => {
+    const mk = (o) => Object.assign({}, b, o);
+    localStorage.setItem("soapcalc.v4", JSON.stringify({
+      unit:"g", tab:"base", scaleMode:"batch", currency:"$", prices:{}, librarySort:"name", currentId:"r1",
+      recipes:[
+        mk({id:"r1", name:"Zesty Lemon Bar",  oils:[{name:"Olive oil",key:"olive",g:500}], lastUsed: now - 86400000*3}),
+        mk({id:"r2", name:"Aloe Facial Bar",  oils:[{name:"Olive oil",key:"olive",g:400}], use:"face", lastUsed: now - 86400000}),
+        mk({id:"r3", name:"Milk & Honey",     oils:[{name:"Olive oil",key:"olive",g:300}], fav:true, lastUsed: now - 86400000*10}),
+        mk({id:"r4", name:"Liquid Hand Soap", oils:[{name:"Coconut oil",key:"coconut",g:600}], lyeType:"koh", lastUsed: now})
+      ]}));
+  }, { b: blank, now });
+  await p.reload(); await p.waitForTimeout(250);
+
+  const opts = await p.$$eval("#recipeSelect option", (os) => os.map((o) => o.textContent));
+  eq("Favourites lead the appbar picker, starred", opts[0], "★ Milk & Honey");
+  eq("Then alphabetical", opts.slice(1).join("|"), "Aloe Facial Bar|Liquid Hand Soap|Zesty Lemon Bar");
+
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="library"]').click(); });
+  await p.waitForTimeout(150);
+  const names = () => p.$$eval(".lib-open b", (bs) => bs.map((b) => b.textContent));
+  eq("Library lists favourites first, then A–Z", (await names()).join("|"), "Milk & Honey|Aloe Facial Bar|Liquid Hand Soap|Zesty Lemon Bar");
+  const blurbs = await p.$$eval(".lib-open span", (ss) => ss.map((s) => s.textContent));
+  has("Blurb notes the intended use", blurbs[1], "facial");
+  has("Blurb notes liquid soap", blurbs[2], "liquid");
+  has("Blurb notes when it was last opened", blurbs[2], "opened today");
+
+  await p.click('.seg.sub button[data-ls="recent"]'); await p.waitForTimeout(150);
+  eq("Recent sort orders by last opened (favourite still first)", (await names()).join("|"),
+     "Milk & Honey|Liquid Hand Soap|Aloe Facial Bar|Zesty Lemon Bar");
+  eq("Sort choice persists", (await LS(p)).librarySort, "recent");
+
+  await p.fill(".ts-filter", "liquid"); await p.waitForTimeout(150);
+  eq("Search filters by name", (await names()).join("|"), "Liquid Hand Soap");
+  await p.fill(".ts-filter", "zzznope"); await p.waitForTimeout(150);
+  eq("No match shows nothing", (await names()).length, 0);
+  ok("No match shows a message", !!(await p.$(".ocr-status")));
+  await p.fill(".ts-filter", ""); await p.waitForTimeout(150);
+
+  await p.evaluate(() => {
+    const row = [...document.querySelectorAll(".lib-row")].find((r) => r.querySelector("b").textContent === "Aloe Facial Bar");
+    row.querySelector(".lib-star").click();
+  });
+  await p.waitForTimeout(200);
+  eq("Starring re-sorts to the top", (await names())[0], "Aloe Facial Bar");
+  eq("Star persists", (await LS(p)).recipes.find((r) => r.id === "r2").fav, true);
+
+  await p.evaluate(() => {
+    const row = [...document.querySelectorAll(".lib-row")].find((r) => r.querySelector("b").textContent === "Liquid Hand Soap");
+    row.querySelector(".lib-open").click();
+  });
+  await p.waitForTimeout(250);
+  const opened = await p.evaluate(() => { const s = JSON.parse(localStorage.getItem("soapcalc.v4")); return s.recipes.find((r) => r.id === s.currentId).name; });
+  eq("Tapping a row opens that recipe", opened, "Liquid Hand Soap");
+  await p.close();
+}
+
+/* =======================================================================
    STICKY MINI-SUMMARY · THEME TOGGLE
 ======================================================================= */
 {
@@ -540,7 +604,7 @@ async function addOil(p, key, g) {
 
   // save shape unchanged (backup/restore compatibility)
   const keys = Object.keys(await LS(p)).sort().join(",");
-  eq("Save shape keys", keys, "collapsed,currency,currentId,lastWeightUnit,moldShape,prices,recent,recipes,scaleMode,scaleUnit,tab,theme,unit");
+  eq("Save shape keys", keys, "collapsed,currency,currentId,lastWeightUnit,librarySort,moldShape,prices,recent,recipes,scaleMode,scaleUnit,tab,theme,unit");
   await p.close();
 }
 
