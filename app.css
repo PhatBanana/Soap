@@ -44,9 +44,9 @@ body{
 
 /* ---------- sticky units + tabs ---------- */
 .sticky{position:sticky;top:0;z-index:20;background:var(--bg);padding-top:6px;margin:0 -16px;padding-left:16px;padding-right:16px}
-.units{display:flex;gap:4px;background:var(--bg-2);padding:5px;border-radius:999px;margin-bottom:8px}
-.units button{flex:1;border:0;background:transparent;color:var(--muted);padding:9px 4px;border-radius:999px;font-size:.95rem;font-weight:800;cursor:pointer;transition:.15s;-webkit-tap-highlight-color:transparent}
-.units button.active{background:var(--card);color:var(--coral-d);box-shadow:var(--shadow-sm)}
+/* units live in the app bar, not a full-width banner — it's a preference you set
+   occasionally, so it shouldn't hold permanent vertical space on a phone */
+.unit-select{flex:0 0 auto;font-weight:800;font-size:1rem;padding:12px 6px 12px 10px;border-radius:14px;border:2px solid var(--line);background:var(--card);color:var(--coral-d);box-shadow:var(--shadow-sm);text-align:center}
 .mini{display:flex;justify-content:space-between;gap:8px;background:var(--bg-2);border-radius:12px;padding:7px 12px;margin:-6px 0 12px;font-size:.78rem;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums;overflow-x:auto}
 .mini span{white-space:nowrap}
 .mini b{color:var(--coral-d);font-size:.86rem}
@@ -392,7 +392,7 @@ input[type=range]{touch-action:pan-y}
 /* ---------- wide screens: two columns ---------- */
 @media (min-width:900px){
   .wrap{max-width:1080px}
-  .appbar,.units,.tabs{max-width:680px;margin-left:auto;margin-right:auto}
+  .appbar,.tabs,.mini{max-width:680px;margin-left:auto;margin-right:auto}
   #tab-base,#tab-scents,#tab-make{column-count:2;column-gap:20px}
   #tab-base>.card,#tab-scents>.card,#tab-make>.card{break-inside:avoid;overflow:hidden}
 }
@@ -403,6 +403,9 @@ input[type=range]{touch-action:pan-y}
   input,select,textarea,.recipe-select{font-size:16px}
   .recipe-select{font-size:1.05rem}
   .tabs button{font-size:.95rem;padding:11px 2px}
+  /* the logo is decoration — give its width to the recipe name instead */
+  .appbar .logo{display:none}
+  .unit-select{padding-left:8px;padding-right:4px}
 }
 
 /* ---------- print (recipe card) ---------- */
