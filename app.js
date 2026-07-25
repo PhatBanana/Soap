@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v27", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v28", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -51,7 +51,10 @@
     {k:"method",    def:"cp",   coerce:function(v){return v==="hp"?"hp":"cp";}},          // cold or hot process
     {k:"dilution",  def:1,      coerce:function(v){return clamp(v,1,0.25,4);}},           // KOH paste : water, by weight
     {k:"waterRatio",def:2,      coerce:function(v){return clamp(v,2,1,4);}},              // water : lye, by weight
-    {k:"lot",       def:"",     coerce:function(v){return typeof v==="string"?v.slice(0,32):"";}}
+    {k:"lot",       def:"",     coerce:function(v){return typeof v==="string"?v.slice(0,32):"";}},
+    // bar size belongs to the recipe's mould, not to the app — it drives bar count,
+    // cost per bar, the wrapper's net weight and the "Bars" scale target
+    {k:"barWeight", def:110,    coerce:function(v){return clamp(v,110,10,2000);}}
   ];
   var VIEW_FIELDS=[
     {k:"unit",           coerce:function(v){return UNITS[v]?v:"g";}},
@@ -60,10 +63,11 @@
     {k:"scaleMode",      coerce:function(v){return ["batch","oils","bars","mold"].indexOf(v)>=0?v:"batch";}},
     {k:"moldShape",      coerce:function(v){return ["loaf","round","cavity"].indexOf(v)>=0?v:"loaf";}},
     {k:"scaleUnit",      coerce:function(v){return (UNITS[v]&&v!=="pct")?v:null;}},
-    {k:"barWeight",      coerce:function(v){return v>0?v:110;}},
     {k:"currency",       coerce:function(v){return (typeof v==="string"&&v)?v:"$";}},
     {k:"prices",         coerce:function(v){return (v&&typeof v==="object")?v:{};}},
-    {k:"collapsed",      coerce:function(v){return (v&&typeof v==="object")?v:null;}}
+    {k:"collapsed",      coerce:function(v){return (v&&typeof v==="object")?v:null;}},
+    // ingredient keys you've added lately, newest first — drives the quick-add chips
+    {k:"recent",         coerce:function(v){return Array.isArray(v)?v.filter(function(x){return typeof x==="string";}).slice(0,8):[];}}
   ];
 
   var library=[];      // [{ id, name } + the RECIPE_FIELDS above]
@@ -262,11 +266,39 @@
     $("lyeCard").hidden=!has; $("safetyCard").hidden=!has; $("qualCard").hidden=!has; $("shapeCard").hidden=!has;
     $("pctNote").hidden=!(isPct&&has);
     $("addHint").textContent = isPct ? "New amounts are read in grams while in % view" : "Amount is in "+UNITS[state.unit].name;
+    renderQuickAdd();
 
     var dataOils=state.oils.filter(oilInfo).length;
     Array.prototype.forEach.call($("shape").children,function(b){ b.disabled=dataOils<2; });
 
     refreshDerived();
+  }
+
+  /* ---------- quick-add chips for the ingredients you actually use ---------- */
+  function rememberPick(sel){
+    if(!Array.isArray(state.recent)) state.recent=[];
+    state.recent=[sel].concat(state.recent.filter(function(x){ return x!==sel; })).slice(0,8);
+  }
+  function pickLabel(sel){
+    if(sel.indexOf("oil:")===0){ var o=OILS[sel.slice(4)]; return o?o.name:null; }
+    if(sel.indexOf("add:")===0){ var a=ADDITIVES[sel.slice(4)]; return a?a.name:null; }
+    return null;
+  }
+  function renderQuickAdd(){
+    var wrap=$("quickAdd"); if(!wrap) return;
+    var picks=(state.recent||[]).filter(pickLabel);
+    wrap.innerHTML=""; wrap.classList.toggle("hide",picks.length===0);
+    if(!picks.length) return;
+    wrap.appendChild(el("span","qa-lbl","Quick add"));
+    picks.forEach(function(sel){
+      var b=el("button","qa-chip",escapeHtml(pickLabel(sel))); b.type="button";
+      b.addEventListener("click",function(){
+        $("baseSelect").value=sel;
+        $("baseSelect").dispatchEvent(new Event("change"));   // shows the description preview
+        var amt=$("amtIn"); amt.focus(); if(amt.select) amt.select();
+      });
+      wrap.appendChild(b);
+    });
   }
 
   function buildOilRow(it,i){
@@ -1189,8 +1221,8 @@
     var unit=state.unit==="pct"?"g":state.unit, grams=raw*UNITS[unit].toG;
     if(sel==="__custom__"){ var nm=$("customName").value.trim(); if(!nm){ $("customName").focus(); return; }
       state.oils.push({name:nm,key:null,g:grams}); }
-    else if(sel.indexOf("oil:")===0){ var k=sel.slice(4); state.oils.push({name:OILS[k].name,key:k,g:grams}); }
-    else if(sel.indexOf("add:")===0){ var ka=sel.slice(4); state.additives.push({name:ADDITIVES[ka].name,key:ka,g:grams}); }
+    else if(sel.indexOf("oil:")===0){ var k=sel.slice(4); state.oils.push({name:OILS[k].name,key:k,g:grams}); rememberPick(sel); }
+    else if(sel.indexOf("add:")===0){ var ka=sel.slice(4); state.additives.push({name:ADDITIVES[ka].name,key:ka,g:grams}); rememberPick(sel); }
     $("baseSelect").value=""; $("amtIn").value=""; $("customName").value=""; $("customName").classList.add("hide");
     $("pickPreview").textContent=""; $("pickPreview").classList.add("hide");
     lastGoal=null; save(); render();
@@ -1514,19 +1546,27 @@
     var kids=$("modalRoot").children; if(kids.length){ kids[kids.length-1].click(); }
   });
 
-  /* ---------- undo (single-level) + toast ---------- */
-  var undoSnap=null, toastTimer=null;
-  function pushUndo(){ undoSnap={ oils:state.oils.map(cloneItem), additives:state.additives.map(cloneItem), aromas:state.aromas.map(cloneItem) }; }
+  /* ---------- undo (multi-level) + toast ---------- */
+  var UNDO_MAX=10, undoStack=[], toastTimer=null;
+  function pushUndo(){
+    undoStack.push({ id:currentId, oils:state.oils.map(cloneItem),
+      additives:state.additives.map(cloneItem), aromas:state.aromas.map(cloneItem) });
+    if(undoStack.length>UNDO_MAX) undoStack.shift();
+  }
   function showToast(msg,noUndo){
     $("toastMsg").textContent=msg;
-    $("toastUndo").classList.toggle("hide",!!noUndo);
+    $("toastUndo").classList.toggle("hide", !!noUndo || undoStack.length===0);
+    $("toastUndo").textContent = undoStack.length>1 ? "Undo ("+undoStack.length+")" : "Undo";
     $("toast").classList.remove("hide");
     clearTimeout(toastTimer); toastTimer=setTimeout(function(){ $("toast").classList.add("hide"); },noUndo?2500:6000);
   }
   function doUndo(){
-    if(!undoSnap) return;
-    state.oils=undoSnap.oils; state.additives=undoSnap.additives; state.aromas=undoSnap.aromas;
-    undoSnap=null; lastGoal=null; $("toast").classList.add("hide"); save(); render();
+    // only step back through edits made to the recipe you're looking at
+    while(undoStack.length && undoStack[undoStack.length-1].id!==currentId) undoStack.pop();
+    var snap=undoStack.pop(); if(!snap) { $("toast").classList.add("hide"); return; }
+    state.oils=snap.oils; state.additives=snap.additives; state.aromas=snap.aromas;
+    lastGoal=null; save(); render();
+    if(undoStack.length) showToast("Undone"); else $("toast").classList.add("hide");
   }
   $("toastUndo").addEventListener("click",doUndo);
 
@@ -2036,6 +2076,8 @@
     try{
       var raw=localStorage.getItem(STORE_KEY);
       if(raw){ var o=JSON.parse(raw); if(!o||!Array.isArray(o.recipes)||o.recipes.length===0) throw 0;
+        // bar weight used to be a single app-wide setting; seed it onto recipes that predate the move
+        if(o.barWeight>0) o.recipes.forEach(function(r){ if(r&&!(r.barWeight>0)) r.barWeight=o.barWeight; });
         var recipes=o.recipes.map(sanitizeRecipe).filter(Boolean);
         if(recipes.length===0) throw 0;
         var view={}; VIEW_FIELDS.forEach(function(fld){ view[fld.k]=o[fld.k]; });

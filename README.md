@@ -63,6 +63,8 @@ phone in the kitchen or on a desktop.
   seed, hemp, rosehip, jojoba, lard, tallow, vegetable shortening, beeswax,
   stearic acid, and more. Custom oils are allowed too (flagged, and left out of
   the lye/quality math).
+- **Quick add** — the ingredients you've been using appear as one-tap chips above the
+  picker, so a repeat oil is a tap and an amount instead of hunting through the list.
 - **Every oil explains itself** — tap the **?** next to any oil for a plain-language
   note on what it brings (hardness / cleansing / conditioning / lather), its standout
   trait, and a typical usage %, so you know whether to use it. The same description
@@ -131,7 +133,9 @@ phone in the kitchen or on a desktop.
 
 ### Batch yield & scaling
 - **Expected yield** readout for the current ingredients (batch weight + approx.
-  bar count), with an **adjustable bar weight** — plus an **after-curing estimate**,
+  bar count), with a **bar weight saved per recipe** (it's a property of your mould,
+  so switching recipes doesn't carry the wrong bar size into the bar count, cost per
+  bar, wrapper net weight or the *Bars* scale target) — plus an **after-curing estimate**,
   since most of the water evaporates and bars come out meaningfully lighter than the
   wet poured weight.
 - **Round to tidy amounts** — scaling leaves you with 793.83 g of olive oil, which
@@ -235,6 +239,9 @@ phone in the kitchen or on a desktop.
 - 📱 **Installable PWA** — add to your home screen; works fully offline.
 - **Responsive** — a compact single column on phones, a two-column layout on
   desktop.
+- **Multi-level undo** — removing an ingredient, scaling, rounding, nudging or
+  clearing can all be stepped back (up to 10 changes), and the Undo button shows how
+  many are left.
 - **Collapsible sections** — tap any card's header to fold or unfold it (the
   chevron shows the state), so a long recipe stays scannable; your choices are
   remembered, and the guidance-heavy cards (Recipe Notes, Shape the Profile) start

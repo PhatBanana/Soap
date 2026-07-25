@@ -206,6 +206,62 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   QUALITY OF LIFE: per-recipe bar weight · multi-level undo · quick add
+======================================================================= */
+{
+  const p = await newPage();
+  const blank = recipe();
+  const seed = (store) => p.evaluate((s) => localStorage.setItem("soapcalc.v4", JSON.stringify(s)), store);
+
+  // bar weight travels with the recipe, not the app
+  await p.goto(base + "/index.html");
+  await seed({ unit:"g", tab:"base", scaleMode:"batch", currency:"$", prices:{}, currentId:"r1", recipes:[
+    Object.assign({}, blank, {id:"r1", name:"Small bars", oils:[OIL("olive",1000)], barWeight:80}),
+    Object.assign({}, blank, {id:"r2", name:"Big bars",   oils:[OIL("olive",1000)], barWeight:150}) ]});
+  await p.reload(); await p.waitForTimeout(250);
+  eq("Recipe 1 keeps its own bar size", await p.evaluate(() => document.getElementById("barW").value), "80");
+  has("Bar count uses recipe 1's size", await txt(p, "#yieldBars"), "~80 g each");
+  await p.selectOption("#recipeSelect", "r2"); await p.waitForTimeout(250);
+  eq("Recipe 2 keeps its own bar size", await p.evaluate(() => document.getElementById("barW").value), "150");
+  has("Bar count uses recipe 2's size", await txt(p, "#yieldBars"), "~150 g each");
+
+  // a pre-existing app-wide bar weight migrates onto recipes that lack one
+  await p.evaluate((b) => {
+    const r = Object.assign({}, b, {id:"rA", name:"Old", oils:[{name:"Olive oil",key:"olive",g:500}]});
+    delete r.barWeight;
+    localStorage.setItem("soapcalc.v4", JSON.stringify({ unit:"g", tab:"base", scaleMode:"batch", barWeight:135, currency:"$", prices:{}, currentId:"rA", recipes:[r] }));
+  }, blank);
+  await p.reload(); await p.waitForTimeout(250);
+  eq("Legacy app-wide bar weight migrates to the recipe", await p.evaluate(() => document.getElementById("barW").value), "135");
+
+  // undo steps back through several edits
+  await open(p, store({ oils:[OIL("olive",400),OIL("coconut",300),OIL("palm",300)] }));
+  await p.evaluate(() => document.querySelectorAll("#oilList .del")[2].click()); await p.waitForTimeout(150);
+  await p.evaluate(() => document.querySelectorAll("#oilList .del")[1].click()); await p.waitForTimeout(150);
+  const count = () => p.evaluate(() => JSON.parse(localStorage.getItem("soapcalc.v4")).recipes[0].oils.length);
+  eq("Two removals leave one oil", await count(), 1);
+  has("Undo button shows the depth", await txt(p, "#toastUndo"), "Undo (2)");
+  await p.click("#toastUndo"); await p.waitForTimeout(200);
+  eq("First undo restores one", await count(), 2);
+  await p.click("#toastUndo"); await p.waitForTimeout(200);
+  eq("Second undo restores the other", await count(), 3);
+
+  // quick-add chips remember what you use
+  await p.evaluate(() => localStorage.clear());
+  await p.reload(); await p.waitForTimeout(200);
+  ok("No chips before anything is added", await p.evaluate(() => document.getElementById("quickAdd").classList.contains("hide")));
+  await addOil(p, "olive", 500);
+  await addOil(p, "coconut", 300);
+  const chips = await p.$$eval(".qa-chip", (cs) => cs.map((c) => c.textContent));
+  eq("Chips list most-recent first", chips.join("|"), "Coconut oil (76°)|Olive oil");
+  eq("Recent picks persist", (await LS(p)).recent.join(","), "oil:coconut,oil:olive");
+  await p.click(".qa-chip"); await p.waitForTimeout(120);
+  eq("Tapping a chip picks that ingredient", await p.evaluate(() => document.getElementById("baseSelect").value), "oil:coconut");
+  eq("…and focuses the amount box", await p.evaluate(() => document.activeElement.id), "amtIn");
+  await p.close();
+}
+
+/* =======================================================================
    SHOPPING LIST (aggregate across recipes)
 ======================================================================= */
 {
@@ -440,7 +496,7 @@ async function addOil(p, key, g) {
 
   // save shape unchanged (backup/restore compatibility)
   const keys = Object.keys(await LS(p)).sort().join(",");
-  eq("Save shape keys", keys, "barWeight,collapsed,currency,currentId,lastWeightUnit,moldShape,prices,recipes,scaleMode,scaleUnit,tab,unit");
+  eq("Save shape keys", keys, "collapsed,currency,currentId,lastWeightUnit,moldShape,prices,recent,recipes,scaleMode,scaleUnit,tab,unit");
   await p.close();
 }
 
