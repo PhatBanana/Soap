@@ -14,6 +14,31 @@ pound of this"), and every oil behaves differently with lye. Soap Calc lets you
 enter your oils once and then convert, calculate, compare, and scale — on your
 phone in the kitchen or on a desktop.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="screenshots/01-recipe.png" width="240" alt="Recipe with oils, sliders and live percentages"><br><sub><b>Build a recipe</b> — oils with live %, per-oil descriptions</sub></td>
+    <td align="center" width="33%"><img src="screenshots/02-profile.png" width="240" alt="Soap profile bars against recommended ranges"><br><sub><b>Soap profile</b> — qualities vs recommended ranges</sub></td>
+    <td align="center" width="33%"><img src="screenshots/03-lye.png" width="240" alt="Lye and water card with two water methods"><br><sub><b>Lye, superfat &amp; water</b> — two water methods</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/04-safety.png" width="240" alt="On-device safety check card"><br><sub><b>Safety Check</b> — on-device pass / review / stop</sub></td>
+    <td align="center"><img src="screenshots/05-scaling.png" width="240" alt="Batch scaling by number of bars"><br><sub><b>Scale</b> — by batch, oils, bars or mold</sub></td>
+    <td align="center"><img src="screenshots/06-scents.png" width="240" alt="Scent blend card"><br><sub><b>Scents</b> — dosed &amp; capped to skin-safe</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/07-temperature.png" width="240" alt="Context-aware soaping temperatures"><br><sub><b>Soaping temps</b> — context-aware, °F &amp; °C</sub></td>
+    <td align="center"><img src="screenshots/08-cure.png" width="240" alt="Cure schedule with suggested time"><br><sub><b>Cure schedule</b> — with a suggested time</sub></td>
+    <td align="center"><img src="screenshots/11-troubleshooting.png" width="240" alt="Searchable troubleshooting guide"><br><sub><b>Troubleshooting</b> — searchable "why did X happen?"</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/09-inci-label.png" width="240" alt="INCI ingredient label"><br><sub><b>INCI label</b> — saponified ingredient list</sub></td>
+    <td align="center"><img src="screenshots/10-wrapper.png" width="240" alt="Printable bar wrapper"><br><sub><b>Bar wrapper</b> — printable label for gifting</sub></td>
+    <td align="center"><img src="screenshots/12-dark-recipe.png" width="240" alt="Dark mode"><br><sub><b>Dark mode</b> — follows your device theme</sub></td>
+  </tr>
+</table>
+
 ## Features
 
 ### Recipe & units
@@ -54,7 +79,8 @@ phone in the kitchen or on a desktop.
 
 ### Soap profile & shaping
 - Hardness, Cleansing, Conditioning, Bubbly & Creamy lather, plus Iodine and INS,
-  computed from each oil's fatty acids and shown against recommended ranges.
+  computed from each oil's fatty acids and shown against recommended ranges — tap the
+  **?** on any quality for a plain-language explanation of what it means.
 - **Shape it:** drag per-oil sliders, or tap **Harder / More moisturizing / Better
   lather / Gentler** to nudge the blend live.
 - **Context-aware Recipe Notes** react to your blend (soft/brittle bars, drying
@@ -136,6 +162,12 @@ phone in the kitchen or on a desktop.
   see the **batch total** and **cost per bar**, in your chosen currency.
 
 ### Recipes
+- **15 built-in example recipes** — one-tap starters across **bars** (Classic Gentle
+  Bar, Pure Castile, Bastille, Luxury Butter Bar, Palm-Free Bar, Old-Fashioned Tallow
+  Bar, Coconut Salt Spa Bar, Shaving Bar), **liquid soap** (Liquid Hand Soap, Liquid
+  Castile, Liquid Shampoo), **dish** (Liquid Dish Soap, Solid Dish Block) and
+  **laundry** (Laundry Bar, Palm-Free Laundry Bar). Loading one adds it as a saved
+  recipe you can tweak.
 - **Saved, named recipes** — keep a library (New / Duplicate / Rename / Delete) and
   switch between them; each is stored separately in your browser.
 - **Compare** any two recipes side by side (oils as % of oils, plus qualities,
@@ -209,6 +241,7 @@ batch. Lye is caustic: wear gloves and eye protection.**
 - `app.js` — logic
 - `manifest.webmanifest`, `sw.js`, `icons/` — PWA (installable + offline)
 - `tests/` — behavior test suite
+- `screenshots/` — images used in this README
 
 Hosted free on GitHub Pages from `main`. There is **no build step** — the files
 above are what ships.
