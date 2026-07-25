@@ -206,6 +206,50 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   WATER:LYE RATIO · CURED WEIGHT · ROUNDING · LOT NUMBER
+======================================================================= */
+{
+  const p = await newPage();
+  const oils = [OIL("olive",400),OIL("coconut",300),OIL("palm",300)];
+
+  // water:lye ratio is the third water notation
+  await open(p, store({ oils, waterMode:"ratio", waterRatio:2 }));
+  ok("Water:lye control shown", await p.evaluate(() => !document.getElementById("waterRatioCtrl").classList.contains("hide")));
+  const lye = await num(p, "#lyeVal");
+  near("2:1 gives water = 2 × lye", await num(p, "#waterOut"), lye * 2, 0.5);
+  has("Info line still shows lye concentration", await txt(p, "#lyeInfo"), "lye conc.");
+  await open(p, store({ oils, waterMode:"ratio", waterRatio:3 }));
+  near("3:1 gives water = 3 × lye", await num(p, "#waterOut"), (await num(p, "#lyeVal")) * 3, 0.5);
+
+  // cured-weight estimate
+  await open(p, store({ oils }));
+  const wet = await num(p, "#yieldVal");
+  const curedLine = await txt(p, "#yieldCured");
+  has("Cured estimate is shown", curedLine, "After curing");
+  const cured = parseFloat(curedLine.match(/([\d.]+)/)[1]);
+  ok("Cured weight is lighter than wet", cured < wet, `cured ${cured} vs wet ${wet}`);
+  ok("Cured weight is a sane fraction of wet", cured > wet * 0.7, `cured ${cured} vs wet ${wet}`);
+
+  // rounding to tidy amounts
+  await open(p, store({ oils:[OIL("olive",793.83),OIL("coconut",412.17),OIL("palm",255.4)] }));
+  await p.click("#roundBtn");
+  await p.waitForTimeout(200);
+  const g = await p.evaluate(() => JSON.parse(localStorage.getItem("soapcalc.v4")).recipes[0].oils.map((o) => o.g));
+  ok("Rounding gives whole grams", g.every((x) => x === Math.round(x)), JSON.stringify(g));
+  eq("Rounding keeps amounts close", g.join(","), "794,412,255");
+
+  // lot number → wrapper
+  await open(p, store({ oils, madeOn:"2026-07-25" }, { tab:"make" }));
+  await p.click("#lotGen");
+  await p.waitForTimeout(150);
+  eq("Lot generated from the made-on date", (await LS(p)).recipes[0].lot, "20260725-A");
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="wrapper"]').click(); });
+  await p.waitForTimeout(120);
+  has("Wrapper prints the lot number", await p.evaluate(() => document.querySelector(".wrapper-card").textContent), "Lot 20260725-A");
+  await p.close();
+}
+
+/* =======================================================================
    HOT PROCESS (method toggle drives steps, cure and temps)
 ======================================================================= */
 {
@@ -513,7 +557,10 @@ async function addOil(p, key, g) {
   await p.waitForTimeout(100);
   const w = await p.evaluate(() => document.querySelector(".wrapper-card").textContent);
   has("Wrapper shows the name", w, "Lavender Bar");
-  has("Wrapper shows net weight", w, "Net wt. 3.5 oz (100 g)");
+  has("Wrapper shows net weight", w, "Net wt.");
+  // net weight is the *cured* bar, so it comes in under the 100 g wet bar size
+  const netG = parseInt(w.match(/Net wt\. [\d.]+ oz \((\d+) g\)/)[1], 10);
+  ok("Net weight is the cured estimate, under the wet bar size", netG > 60 && netG < 100, `got ${netG} g`);
   has("Wrapper lists saponified oils", w, "Sodium Olivate");
   has("Wrapper shows cure dates", w, "Best after");
   has("Wrapper has a caution", w, "For external use only");

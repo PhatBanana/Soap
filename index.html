@@ -63,6 +63,7 @@
         <div class="k">Expected yield · current recipe</div>
         <div class="v"><span id="yieldVal">0</span><span class="u" id="yieldUnit">g</span></div>
         <div class="subinfo" id="yieldBars" style="text-align:left;margin-top:4px"></div>
+        <div class="subinfo" id="yieldCured" style="text-align:left;margin-top:4px"></div>
       </div>
       <div class="barw-row">Bar size <input id="barW" type="number" min="10" step="5" inputmode="decimal"> g each — sets the bar count above</div>
       <div class="subhead">Resize to a target</div>
@@ -80,6 +81,7 @@
           <button type="button" class="addbtn" id="scaleApply">Scale</button>
         </div>
         <div class="subinfo" id="scaleHint"></div>
+        <button type="button" class="recalc" id="roundBtn">⌗ Round to tidy amounts</button>
       </div>
       <div id="scaleMoldWrap" class="hide">
         <div class="seg sub" id="moldShape">
@@ -111,7 +113,7 @@
         <div class="subinfo" id="moldHint"></div>
         <button type="button" class="addbtn" id="moldApply" style="width:100%;margin-top:10px;padding:11px">Scale to fit mold</button>
       </div>
-      <div class="subinfo" style="margin-top:10px">Scaling keeps every ratio the same — only the amounts change. Batch is the wet poured weight; cured bars end up ~5–10% lighter as water evaporates.</div>
+      <div class="subinfo" style="margin-top:10px">Scaling keeps every ratio the same — only the amounts change. Batch is the wet poured weight; the cured figure above estimates what's left once the water dries out (how much depends on your water amount, climate and cure length).</div>
     </div>
 
     <div class="card" id="lyeCard" hidden>
@@ -128,7 +130,8 @@
         <div class="lbl"><span>Water</span></div>
         <div class="seg sub" id="waterMode">
           <button type="button" data-w="oils" class="active">% of oils</button>
-          <button type="button" data-w="conc">Lye concentration</button>
+          <button type="button" data-w="conc">Lye conc.</button>
+          <button type="button" data-w="ratio">Water:lye</button>
         </div>
       </div>
       <div class="ctrl" id="waterOilsCtrl">
@@ -139,6 +142,11 @@
         <div class="lbl"><span>Lye concentration</span><b><span id="concVal">33</span>%</b></div>
         <input type="range" id="lyeConc" min="25" max="50" step="1" value="33">
         <div class="subinfo">Water is sized from the lye (and your superfat) — higher % = less water, faster trace &amp; a firmer bar sooner.</div>
+      </div>
+      <div class="ctrl hide" id="waterRatioCtrl">
+        <div class="lbl"><span>Water : lye</span><b><span id="ratioVal">2</span> : 1</b></div>
+        <input type="range" id="waterRatio" min="1" max="4" step="0.1" value="2">
+        <div class="subinfo">The old-school notation — this many parts water per part lye, by weight. 2:1 is the classic "full water".</div>
       </div>
       <div class="ctrl hide" id="purityCtrl">
         <div class="lbl"><span>KOH purity</span><b><span id="purVal">90</span>%</b></div>
@@ -286,6 +294,11 @@
     </div>
     <div class="card" id="notesLogCard">
       <h2>Batch Notes</h2>
+      <div class="lot-row">
+        <label for="lotField">Lot #</label>
+        <input id="lotField" type="text" maxlength="32" placeholder="e.g. 20260725-A">
+        <button type="button" class="lot-gen" id="lotGen">from date</button>
+      </div>
       <textarea id="notesField" class="notes-field" rows="4" placeholder="How did it go? Jot down tweaks and results — traced fast, great lather, use less water next time…"></textarea>
       <div class="subinfo">Saved with this recipe (private — not included when you share a link).</div>
     </div>
