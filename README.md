@@ -37,6 +37,11 @@ phone in the kitchen or on a desktop.
     <td align="center"><img src="screenshots/10-wrapper.png" width="240" alt="Printable bar wrapper"><br><sub><b>Bar wrapper</b> — printable label for gifting</sub></td>
     <td align="center"><img src="screenshots/12-dark-recipe.png" width="240" alt="Dark mode"><br><sub><b>Dark mode</b> — follows your device theme</sub></td>
   </tr>
+  <tr>
+    <td align="center"><img src="screenshots/15-method.png" width="240" alt="Cold process / hot process method toggle"><br><sub><b>Method</b> — cold or hot process</sub></td>
+    <td align="center"><img src="screenshots/13-hot-process.png" width="240" alt="Hot process checklist"><br><sub><b>Hot process</b> — its own checklist &amp; temps</sub></td>
+    <td align="center"><img src="screenshots/14-dilution.png" width="240" alt="Liquid soap paste dilution calculator"><br><sub><b>Dilution</b> — KOH paste → liquid soap</sub></td>
+  </tr>
 </table>
 
 ## Features
@@ -73,6 +78,12 @@ phone in the kitchen or on a desktop.
   during cure — so this is really a **choice of how concentrated the lye is**: more
   water = thinner trace and more working time; less = faster trace and a firmer bar
   sooner.
+- **Liquid soap dilution** — KOH soap is cooked to a paste and then thinned with
+  water, so for a KOH recipe a **Dilute the Paste** card works out how much water to
+  add: set how many parts water per part paste (0.25×–4×) and it shows the **paste
+  weight**, the **water to add**, and the **finished volume of liquid soap**, with a
+  hint on what that thickness feels like and the usual range for hand soap vs dish or
+  shampoo.
 - A **↻ Recalculate everything** button re-runs the whole calculation on demand
   (the app already recomputes live on every change — this is a one-tap "make sure
   every number is current").
@@ -135,8 +146,15 @@ phone in the kitchen or on a desktop.
   anchoring advice, trace accelerators, discoloration, and skin-safety cautions.
 
 ### Make it (process & cure)
+- **Cold process or hot process** — pick the **Method** and the whole tab retunes.
+  *Cold process* mixes at low temperature and saponifies in the mould. *Hot process*
+  cooks the batter in a slow cooker: the checklist becomes the HP one (cook until it
+  folds like mashed potato → zap-test → **scent in after the cook** → spoon and press
+  into the mould), the temperature guide switches to cook temperatures, and the cure
+  suggestion compresses to about **1–2 weeks** because saponification already finished
+  in the pot.
 - A **Make** tab with a **step-by-step checklist** (suit up → measure → mix lye →
-  combine at temp → add scent at trace → pour → unmold → cure), with your progress
+  combine at temp → add scent → pour → unmold → cure), with your progress
   saved per recipe.
 - A **cure schedule**: set the date you made the batch and the cure time, and it
   shows the **ready-to-use date** and days remaining.

@@ -206,6 +206,62 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   HOT PROCESS (method toggle drives steps, cure and temps)
+======================================================================= */
+{
+  const p = await newPage();
+  const oils = [OIL("olive",500),OIL("coconut",300),OIL("palm",200)];
+  const steps = () => p.$$eval("#checklist .txt", (es) => es.map((e) => e.textContent));
+
+  await open(p, store({ oils, method:"cp" }, { tab:"make" }));
+  const cp = await steps();
+  eq("CP has 10 steps", cp.length, 10);
+  has("CP pours at trace", cp[5], "blend to a light trace");
+  has("CP adds scent at trace", cp[6], "at trace");
+  has("CP cure ~4–6 weeks", await txt(p, "#cureSuggest"), "4–6 weeks");
+  ok("CP reference list shown", await p.evaluate(() => !document.getElementById("tempRefCP").classList.contains("hide")));
+
+  await open(p, store({ oils, method:"hp" }, { tab:"make" }));
+  const hp = await steps();
+  eq("HP has 10 steps", hp.length, 10);
+  has("HP cooks the batter", hp[5], "cook on low");
+  has("HP zap-tests the cook", hp[6], "zap-test");
+  has("HP adds scent after the cook", hp[7], "AFTER the cook");
+  has("HP cure compresses to ~1–2 weeks", await txt(p, "#cureSuggest"), "1–2 weeks");
+  has("HP temp advice mentions the cook", await txt(p, "#tempSuggest"), "cook on low");
+  ok("HP reference list swapped in", await p.evaluate(() =>
+    !document.getElementById("tempRefHP").classList.contains("hide") && document.getElementById("tempRefCP").classList.contains("hide")));
+  has("Method note describes HP", await txt(p, "#methodNote"), "slow cooker");
+
+  await p.click('#methodSeg button[data-mt="cp"]');
+  await p.waitForTimeout(150);
+  eq("Method toggle persists", (await LS(p)).recipes[0].method, "cp");
+  await p.close();
+}
+
+/* =======================================================================
+   LIQUID SOAP DILUTION (KOH paste → finished soap)
+======================================================================= */
+{
+  const p = await newPage();
+  const oils = [OIL("coconut",700),OIL("olive",300)];
+  await open(p, store({ oils, lyeType:"naoh" }));
+  ok("Dilution card hidden for NaOH bars", await p.evaluate(() => document.getElementById("diluteCard").hidden));
+
+  await open(p, store({ oils, lyeType:"koh", dilution:1 }));
+  ok("Dilution card shown for KOH", await p.evaluate(() => !document.getElementById("diluteCard").hidden));
+  const paste = await num(p, "#pasteOut"), water = await num(p, "#dilWaterOut"), out = await num(p, "#dilYieldOut");
+  near("At 1× the water equals the paste", water, paste, 0.5);
+  near("Yield is paste + water", out, paste + water, 0.5);
+
+  await p.evaluate(() => { const s = document.getElementById("dilution"); s.value = "3"; s.dispatchEvent(new Event("input", { bubbles: true })); });
+  await p.waitForTimeout(150);
+  near("At 3× the water is triple the paste", await num(p, "#dilWaterOut"), paste * 3, 1);
+  eq("Dilution ratio persists", (await LS(p)).recipes[0].dilution, 3);
+  await p.close();
+}
+
+/* =======================================================================
    SOAPING-TEMPERATURE GUIDE (context-aware)
 ======================================================================= */
 {

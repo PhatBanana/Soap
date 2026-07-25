@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v24", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v25", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -47,7 +47,9 @@
     {k:"cureWeeks", def:4,      coerce:function(v){return clamp(v,4,1,16);}},
     {k:"checklist", def:function(){return {};}, coerce:function(v){return (v&&typeof v==="object")?v:{};}},
     {k:"use",       def:"body", coerce:function(v){return validUse(v)?v:"body";}},
-    {k:"notes",     def:"",     coerce:function(v){return typeof v==="string"?v:"";}}
+    {k:"notes",     def:"",     coerce:function(v){return typeof v==="string"?v:"";}},
+    {k:"method",    def:"cp",   coerce:function(v){return v==="hp"?"hp":"cp";}},          // cold or hot process
+    {k:"dilution",  def:1,      coerce:function(v){return clamp(v,1,0.25,4);}}            // KOH paste : water, by weight
   ];
   var VIEW_FIELDS=[
     {k:"unit",           coerce:function(v){return UNITS[v]?v:"g";}},
@@ -185,6 +187,13 @@
   $("scentSuggest").addEventListener("click",suggestScents);
   $("clearOils").addEventListener("click",clearRecipe);
   $("useSelect").addEventListener("change",function(){ state.use=$("useSelect").value; save(); render(); });
+  Array.prototype.forEach.call($("methodSeg").children,function(b){
+    b.addEventListener("click",function(){ state.method=b.dataset.mt; save(); render(); });
+  });
+  $("dilution").addEventListener("input",function(){
+    state.dilution=parseFloat($("dilution").value)||1; $("dilVal").textContent=fmt(state.dilution,2);
+    updateDilutePanel(); save();
+  });
   $("notesField").addEventListener("input",function(){ state.notes=$("notesField").value; save(); });
   $("madeOn").addEventListener("change",function(){ state.madeOn=$("madeOn").value; save(); updateReady(); });
   $("cureWeeks").addEventListener("input",function(){ state.cureWeeks=parseInt($("cureWeeks").value,10)||4; $("cureWeeksVal").textContent=state.cureWeeks; save(); updateCureSuggest(); updateReady(); });
@@ -436,8 +445,8 @@
       } else $("total").hidden=true;
 
       updateScaleCard();
-      if(state.oils.length>0){ updateLyePanel(); updateSafety(); updateQuality(); updateNotes(); updateShapeFeedback(); }
-      else { $("notesCard").hidden=true; var sfb=$("shapeFeedback"); if(sfb){ sfb.className="shape-fb hide"; sfb.textContent=""; } }
+      if(state.oils.length>0){ updateLyePanel(); updateDilutePanel(); updateSafety(); updateQuality(); updateNotes(); updateShapeFeedback(); }
+      else { $("diluteCard").hidden=true; $("notesCard").hidden=true; var sfb=$("shapeFeedback"); if(sfb){ sfb.className="shape-fb hide"; sfb.textContent=""; } }
     }
 
     if(state.tab==="scents") updateScents(active);
@@ -461,6 +470,27 @@
     var liquidAdd=state.additives.some(function(it){ return it.key&&ADDITIVES[it.key].kind==="liquid"&&it.g>0; });
     if(liquidAdd) info+=" · liquid additives replace part of the water";
     $("lyeInfo").textContent=info;
+  }
+
+  // KOH soap is cooked to a paste, then thinned with water. Sizes that dilution.
+  function updateDilutePanel(){
+    var card=$("diluteCard"); if(!card) return;
+    var isKOH = state.lyeType==="koh" && state.oils.length>0;
+    card.hidden=!isKOH; if(!isKOH) return;
+    var wunit=weightUnit(), ul=UNITS[wunit].label;
+    var ratio=state.dilution>0?state.dilution:1;
+    var paste=currentBatchG(), water=paste*ratio, yieldG=paste+water;
+    $("dilution").value=ratio; $("dilVal").textContent=fmt(ratio,2);
+    $("pasteOut").textContent=fmt(fromG(paste,wunit),1);   $("pasteUnit").textContent=ul;
+    $("dilWaterOut").textContent=fmt(fromG(water,wunit),1); $("dilWaterUnit").textContent=ul;
+    $("dilYieldOut").textContent=fmt(fromG(yieldG,wunit),1);$("dilYieldUnit").textContent=ul;
+    var use=state.use||"body", target =
+      use==="dish" ? "Dish soap is usually thinner — around 2–3× water." :
+      use==="hair" ? "Shampoo is usually thin — around 2–3× water." :
+      "Hand and body soap is usually around 1–2× water.";
+    var feel = ratio<=0.75 ? "Thick, almost gel-like." : ratio<=1.5 ? "A classic pourable hand soap." :
+               ratio<=2.5 ? "Thin and fast-rinsing." : "Very thin — closer to a foamer refill.";
+    $("dilHint").textContent = feel+" "+target+" Start thicker: you can always add more water, but you can't take it out.";
   }
 
   var QUAL_HELP={
@@ -926,7 +956,7 @@
   }
 
   /* ---------- make tab: checklist + cure date ---------- */
-  var CHECK_STEPS=[
+  var CP_STEPS=[
     "Suit up: gloves + eye protection, apron, good ventilation.",
     "Weigh your oils; melt the hard oils/butters and combine with the liquid oils.",
     "Weigh the water (or milk) and the lye separately.",
@@ -938,12 +968,25 @@
     "Unmold and cut into bars after 1–2 days.",
     "Cure the bars on a rack until the ready date, turning occasionally."
   ];
+  var HP_STEPS=[
+    "Suit up: gloves + eye protection, apron, good ventilation.",
+    "Weigh your oils and melt them together in the slow cooker on low.",
+    "Weigh the water and the lye separately.",
+    "Add the lye TO the water (never the reverse), stir until clear.",
+    "Pour the lye water into the warm oils and blend to a light trace.",
+    "Cover and cook on low ~45–60 min, stirring now and then, until it folds over like thick mashed potato / vaseline.",
+    "Check the cook is done (zap-test a cooled dab — no zing) before going further.",
+    "Let it cool a few minutes, then stir in fragrance, additives and colour — scent goes in AFTER the cook.",
+    "Spoon into the mould and press down firmly; HP batter is thick, so work it into the corners to avoid air pockets.",
+    "Unmould and cut once firm (a few hours to a day). It's usable in about a week — a short rest still improves it."
+  ];
+  function checkSteps(){ return state.method==="hp" ? HP_STEPS : CP_STEPS; }
   function todayISO(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
   function renderMake(){
     $("madeOn").value = state.madeOn || "";
     $("cureWeeks").value = state.cureWeeks; $("cureWeeksVal").textContent = state.cureWeeks;
     var box=$("checklist"); box.innerHTML="";
-    CHECK_STEPS.forEach(function(step,i){
+    checkSteps().forEach(function(step,i){
       var id="s"+i, on=!!state.checklist[id];
       var lab=el("label","chk"+(on?" done":""));
       var cb=document.createElement("input"); cb.type="checkbox"; cb.checked=on;
@@ -955,14 +998,24 @@
       lab.appendChild(cb); lab.appendChild(el("span","txt",step)); box.appendChild(lab);
     });
     if($("notesField")!==document.activeElement) $("notesField").value = state.notes || "";
+    var hp=state.method==="hp";
+    $("tempRefCP").classList.toggle("hide",hp);
+    $("tempRefHP").classList.toggle("hide",!hp);
+    updateMethodNote();
     updateChecklistProgress();
     updateCureSuggest();
     updateTempSuggest();
     updateReady();
   }
+  function updateMethodNote(){
+    setActive($("methodSeg"),"mt",state.method||"cp");
+    $("methodNote").textContent = state.method==="hp"
+      ? "Cook the batter in a slow cooker until saponification finishes, then mould it. Scent goes in after the cook, and it's usable in about a week."
+      : "Mix at low temperature, pour at trace, and let the bars saponify in the mould. Smoother tops and better swirls, but it needs a full cure.";
+  }
   function updateChecklistProgress(){
-    var done=CHECK_STEPS.filter(function(_,i){ return state.checklist["s"+i]; }).length;
-    $("checkProgress").textContent = done+" of "+CHECK_STEPS.length+" steps done";
+    var steps=checkSteps(), done=steps.filter(function(_,i){ return state.checklist["s"+i]; }).length;
+    $("checkProgress").textContent = done+" of "+steps.length+" steps done";
   }
   function suggestedCure(){
     var B=blendFA(); if(B.tot<=0) return null;
@@ -978,6 +1031,14 @@
     if(waterOfOils>=44){ max+=1; note=" Your high water content adds a little time."; }
     else if(waterOfOils<=30){ note=" Your low water content helps it firm up a touch faster."; }
     if(soft>=82 && hard<22){ note+=" A true castile is usable at "+max+" weeks but keeps improving for several months."; }
+    if(state.method==="hp"){
+      // The cook finishes saponification, so HP is safe to use once firm — the rest is
+      // just drying out for hardness and longevity. Compress the range accordingly.
+      max=Math.max(2,Math.round(max/3)); min=1;
+      return { min:min, max:max, hard:Math.round(hard),
+        reason:"hot process — the cook already finished saponification, so this is really just drying time",
+        note:" It's safe to use as soon as it's firm; a week or two of drying still makes it harder and longer-lasting." };
+    }
     return {min:min, max:max, reason:reason, note:note, hard:Math.round(hard)};
   }
   function updateCureSuggest(){
@@ -997,6 +1058,12 @@
   }
   function updateTempSuggest(){
     var box=$("tempSuggest"); if(!box) return;
+    if(state.method==="hp"){
+      var hasScent=state.aromas.some(function(it){return it.g>0;});
+      box.textContent="Hot process: combine around ~120–140°F / 49–60°C, then cook on low (~160–180°F / 71–82°C) until it folds like thick mashed potato."+
+        (hasScent?" Let it cool to about 150°F / 65°C before stirring in your fragrance, or the heat will burn much of it off.":" Scent and additives go in after the cook, not at trace.");
+      return;
+    }
     var warm=[], cool=[];
     if(state.oils.some(function(it){return it.key==="beeswax"&&it.g>0;})) warm.push("beeswax");
     if(state.oils.some(function(it){return it.key==="stearic"&&it.g>0;})) warm.push("stearic acid");
