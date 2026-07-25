@@ -180,6 +180,16 @@ async function addOil(p, key, g) {
   const pcts = await p.evaluate(() => { const r = JSON.parse(localStorage.getItem("soapcalc.v4")).recipes[0];
     const t = r.oils.reduce((s,o)=>s+o.g,0); return r.oils.map((o)=>Math.round(o.g/t*100)).join("/"); });
   eq("Ratios preserved after scale", pcts, "40/30/30");
+
+  // scale by number of bars
+  await open(p, store({ oils:[OIL("olive",400),OIL("coconut",300),OIL("palm",300)] }, { scaleMode:"bars", barWeight:100 }));
+  ok("Bars mode shows the 'bars' unit, hides weight unit", await p.evaluate(() =>
+    !document.getElementById("scaleBarsUnit").classList.contains("hide") && document.getElementById("scaleUnit").classList.contains("hide")));
+  await p.fill("#scaleTarget", "24");
+  await p.click("#scaleApply");
+  await p.waitForTimeout(200);
+  near("Scale to 24 bars @100 g → 2400 g wet", await num(p, "#yieldVal"), 2400, 2);
+  has("Yield now reads 24 bars", await txt(p, "#yieldBars"), "≈ 24 bars");
   await p.close();
 }
 

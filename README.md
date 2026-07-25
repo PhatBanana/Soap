@@ -90,9 +90,10 @@ phone in the kitchen or on a desktop.
 - **Expected yield** readout for the current ingredients (batch weight + approx.
   bar count), with an **adjustable bar weight**.
 - **Scale** the whole recipe (keeping every ratio) to hit a target **wet (poured)
-  batch weight**, **total oils**, or a **mold size**. The scale target has its **own
-  unit picker** (g / oz / lb / kg), so you can say "make 10 lb" even while the rest
-  of the app is in grams — type 10, pick lb, tap Scale.
+  batch weight**, **total oils**, a **number of bars**, or a **mold size**. The
+  weight target has its **own unit picker** (g / oz / lb / kg), so you can say "make
+  10 lb" even while the rest of the app is in grams; or switch to **Bars** and say
+  "make 24 bars" and it sizes the batch to that many bars at your bar weight.
 - **Mold shapes:** size to a **loaf / box** (L×W×H), a **round / column** mold
   (diameter × height), or a **cavity** mold (number of cavities × mL each) — in
   inches or cm — and it estimates the oils that mold holds and scales to fit.
