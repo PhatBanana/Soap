@@ -206,6 +206,51 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   SHOPPING LIST (aggregate across recipes)
+======================================================================= */
+{
+  const p = await newPage();
+  const blank = recipe();
+  await p.goto(base + "/index.html");
+  await p.evaluate((b) => {
+    const mk = (o) => Object.assign({}, b, o);
+    localStorage.setItem("soapcalc.v4", JSON.stringify({
+      unit:"g", tab:"base", scaleMode:"batch", barWeight:100, currency:"$",
+      prices:{ olive:8, coconut:5 }, currentId:"r1",
+      recipes:[
+        mk({id:"r1",name:"Bar A",oils:[{name:"Olive oil",key:"olive",g:400},{name:"Coconut oil",key:"coconut",g:300}]}),
+        mk({id:"r2",name:"Bar B",oils:[{name:"Olive oil",key:"olive",g:600},{name:"Palm oil",key:"palm",g:200}],aromas:[{name:"Lavender EO",key:"lavender",g:20}]}),
+        mk({id:"r3",name:"Liquid C",lyeType:"koh",oils:[{name:"Coconut oil",key:"coconut",g:500}]})
+      ]}));
+  }, blank);
+  await p.reload(); await p.waitForTimeout(250);
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="shopping"]').click(); });
+  await p.waitForTimeout(150);
+
+  eq("Shopping list offers every recipe", (await p.$$(".shop-rec")).length, 3);
+  eq("Only the current recipe starts ticked", (await p.$$(".shop-rec input:checked")).length, 1);
+
+  await p.click(".modal .link");           // select all
+  await p.waitForTimeout(150);
+  eq("Select-all ticks every recipe", (await p.$$(".shop-rec input:checked")).length, 3);
+  const rows = (await p.$$eval(".shop-row", (rs) => rs.map((r) => r.textContent))).join("|");
+  has("Olive is summed across recipes (400+600)", rows, "Olive oil1000 g");
+  has("Coconut is summed across recipes (300+500)", rows, "Coconut oil800 g");
+  has("Unpriced oils still listed", rows, "Palm oil200 g");
+  has("Scents aggregated", rows, "Lavender EO20 g");
+  has("NaOH totalled separately", rows, "Sodium hydroxide (NaOH)");
+  has("KOH totalled separately", rows, "Potassium hydroxide (KOH)");
+  has("Water totalled", rows, "Distilled water");
+  has("Priced lines show cost", rows, "$8");
+  has("Total reflects priced items only", await txt(p, ".shop-tot"), "$12");
+
+  await p.click(".modal .link");           // clear
+  await p.waitForTimeout(150);
+  eq("Second click clears the selection", (await p.$$(".shop-rec input:checked")).length, 0);
+  await p.close();
+}
+
+/* =======================================================================
    WATER:LYE RATIO · CURED WEIGHT · ROUNDING · LOT NUMBER
 ======================================================================= */
 {

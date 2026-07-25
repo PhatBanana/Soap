@@ -42,6 +42,11 @@ phone in the kitchen or on a desktop.
     <td align="center"><img src="screenshots/13-hot-process.png" width="240" alt="Hot process checklist"><br><sub><b>Hot process</b> — its own checklist &amp; temps</sub></td>
     <td align="center"><img src="screenshots/14-dilution.png" width="240" alt="Liquid soap paste dilution calculator"><br><sub><b>Dilution</b> — KOH paste → liquid soap</sub></td>
   </tr>
+  <tr>
+    <td align="center"><img src="screenshots/16-shopping-list.png" width="240" alt="Shopping list totalling ingredients across recipes"><br><sub><b>Shopping list</b> — totals across several recipes</sub></td>
+    <td></td>
+    <td></td>
+  </tr>
 </table>
 
 ## Features
@@ -181,9 +186,14 @@ phone in the kitchen or on a desktop.
   ~4–6, a true castile ~8–12 and improving for months), nudged for water content.
   One tap applies it.
 
-### Costs
+### Costs & shopping
 - Enter each ingredient's **price per kg** (saved and reused across recipes) and
   see the **batch total** and **cost per bar**, in your chosen currency.
+- 🛒 **Shopping list** — tick the recipes you plan to make and it totals everything
+  you need to buy: each oil, additive and scent **summed across all of them**, plus
+  the **NaOH and KOH kept separate** (they're different chemicals) and the total
+  distilled water. Priced ingredients show a line cost and an **estimated total**, and
+  the whole list is copyable to take to the shop.
 
 ### Recipes
 - **15 built-in example recipes** — one-tap starters across **bars** (Classic Gentle
@@ -289,3 +299,5 @@ rules, or persistence.
 
 ## Ideas for later
 - Optional cloud sync so recipes follow you across devices.
+- Ingredient inventory, so the shopping list can subtract what's already in the
+  cupboard.

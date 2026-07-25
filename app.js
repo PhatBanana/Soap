@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v26", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v27", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -1216,6 +1216,7 @@
       case "delete": deleteRecipe(); break;
       case "compare": openCompare(); break;
       case "costs": openCosts(); break;
+      case "shopping": openShopping(); break;
       case "card": openCard(); break;
       case "label": openLabel(); break;
       case "wrapper": openWrapper(); break;
@@ -1830,6 +1831,88 @@
 
   /* ---------- costs (price book + cost per bar) ---------- */
   function priceKeyOf(it){ return it.key || ("c:"+it.name.toLowerCase()); }
+
+  /* ---------- shopping list: what to buy across a batch plan ---------- */
+  function shoppingTotals(recipes){
+    var oils={}, adds={}, scents={}, naoh=0, koh=0, water=0;
+    function bump(map,it){ var k=priceKeyOf(it);
+      if(!map[k]) map[k]={name:it.name, key:it.key, g:0};
+      map[k].g+=it.g; }
+    recipes.forEach(function(r){
+      r.oils.forEach(function(it){ if(it.g>0) bump(oils,it); });
+      r.additives.forEach(function(it){ if(it.g>0) bump(adds,it); });
+      r.aromas.forEach(function(it){ if(it.g>0) bump(scents,it); });
+      var L=computeLye(r);                       // a library recipe already has every field computeLye needs
+      if(r.lyeType==="koh") koh+=L.lyeG; else naoh+=L.lyeG;
+      water+=L.waterG;
+    });
+    function sorted(map){ return Object.keys(map).map(function(k){ return map[k]; })
+      .sort(function(a,b){ return b.g-a.g; }); }
+    return { oils:sorted(oils), adds:sorted(adds), scents:sorted(scents), naoh:naoh, koh:koh, water:water };
+  }
+  function openShopping(){
+    syncCurrent();
+    var md=makeModal(), picked={}; picked[currentId]=true;
+    md.m.appendChild(el("h3",null,"Shopping list"));
+    md.m.appendChild(el("p","sub","Tick the recipes you plan to make and it totals up everything you need to buy."));
+    var pick=el("div","shop-pick"); md.m.appendChild(pick);
+    library.forEach(function(r){
+      var lab=el("label","shop-rec");
+      var cb=document.createElement("input"); cb.type="checkbox"; cb.checked=!!picked[r.id];
+      cb.addEventListener("change",function(){ if(cb.checked) picked[r.id]=true; else delete picked[r.id]; draw(); });
+      lab.appendChild(cb); lab.appendChild(el("span","txt",escapeHtml(r.name))); pick.appendChild(lab);
+    });
+    var all=el("button","link","select all / none"); all.type="button";
+    all.addEventListener("click",function(){
+      var allOn=library.every(function(r){ return picked[r.id]; });   // select all first, clear only once everything is on
+      picked={}; if(!allOn) library.forEach(function(r){ picked[r.id]=true; });
+      Array.prototype.forEach.call(pick.querySelectorAll("input"),function(cb,i){ cb.checked=!!picked[library[i].id]; });
+      draw();
+    });
+    md.m.appendChild(all);
+    var out=el("div"); md.m.appendChild(out);
+    var foot=el("div","mfoot");
+    var cp=el("button","ghost","📋 Copy"); foot.appendChild(cp);
+    var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl);
+    md.m.appendChild(foot);
+
+    function draw(){
+      var chosen=library.filter(function(r){ return picked[r.id]; });
+      out.innerHTML="";
+      if(!chosen.length){ out.appendChild(el("div","ocr-status","Tick at least one recipe.")); cp.disabled=true; return; }
+      cp.disabled=false;
+      var T=shoppingTotals(chosen), wunit=weightUnit(), ul=UNITS[wunit].label, cur=state.currency||"$", total=0, lines=[];
+      function section(title,items){
+        if(!items.length) return;
+        out.appendChild(el("div","shop-h",title));
+        lines.push(title.toUpperCase());
+        items.forEach(function(x){
+          var row=el("div","shop-row");
+          var amt=fmt(fromG(x.g,wunit),UNITS[wunit].dp)+" "+ul;
+          var price=state.prices[priceKeyOf(x)], cost=price>0 ? x.g/1000*price : 0; total+=cost;
+          row.innerHTML="<span class='sr-name'>"+escapeHtml(x.name)+"</span><span class='sr-amt'>"+amt+
+            (cost>0?" <span class='sr-cost'>"+cur+fmt(cost,2)+"</span>":"")+"</span>";
+          out.appendChild(row);
+          lines.push("  "+x.name+": "+amt+(cost>0?"  ("+cur+fmt(cost,2)+")":""));
+        });
+      }
+      section("Oils & fats",T.oils);
+      section("Additives",T.adds);
+      section("Scents",T.scents);
+      var lye=[];
+      if(T.naoh>0) lye.push({name:"Sodium hydroxide (NaOH)",key:null,g:T.naoh});
+      if(T.koh>0)  lye.push({name:"Potassium hydroxide (KOH)",key:null,g:T.koh});
+      if(T.water>0) lye.push({name:"Distilled water",key:null,g:T.water});
+      section("Lye & water",lye);
+      var foot2=el("div","shop-tot");
+      foot2.innerHTML="<span>"+chosen.length+" recipe"+(chosen.length===1?"":"s")+"</span>"+
+        (total>0?"<span class='big'>"+cur+fmt(total,2)+"</span>":"<span class='sub'>add prices in Costs for a total</span>");
+      out.appendChild(foot2);
+      if(total>0) lines.push("", "Estimated total: "+cur+fmt(total,2)+" (priced items only)");
+      cp.onclick=function(){ copyText("Shopping list — "+chosen.map(function(r){return r.name;}).join(", ")+"\n\n"+lines.join("\n"),cp); };
+    }
+    draw();
+  }
   function openCosts(){
     syncCurrent();
     var md=makeModal();
