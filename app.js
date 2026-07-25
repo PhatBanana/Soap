@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v23", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v24", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -46,7 +46,8 @@
     {k:"madeOn",    def:"",     coerce:function(v){return typeof v==="string"?v:"";}},
     {k:"cureWeeks", def:4,      coerce:function(v){return clamp(v,4,1,16);}},
     {k:"checklist", def:function(){return {};}, coerce:function(v){return (v&&typeof v==="object")?v:{};}},
-    {k:"use",       def:"body", coerce:function(v){return validUse(v)?v:"body";}}
+    {k:"use",       def:"body", coerce:function(v){return validUse(v)?v:"body";}},
+    {k:"notes",     def:"",     coerce:function(v){return typeof v==="string"?v:"";}}
   ];
   var VIEW_FIELDS=[
     {k:"unit",           coerce:function(v){return UNITS[v]?v:"g";}},
@@ -184,6 +185,7 @@
   $("scentSuggest").addEventListener("click",suggestScents);
   $("clearOils").addEventListener("click",clearRecipe);
   $("useSelect").addEventListener("change",function(){ state.use=$("useSelect").value; save(); render(); });
+  $("notesField").addEventListener("input",function(){ state.notes=$("notesField").value; save(); });
   $("madeOn").addEventListener("change",function(){ state.madeOn=$("madeOn").value; save(); updateReady(); });
   $("cureWeeks").addEventListener("input",function(){ state.cureWeeks=parseInt($("cureWeeks").value,10)||4; $("cureWeeksVal").textContent=state.cureWeeks; save(); updateCureSuggest(); updateReady(); });
   $("resetChecklist").addEventListener("click",function(){ if(confirm("Uncheck all steps?")){ state.checklist={}; save(); renderMake(); } });
@@ -952,6 +954,7 @@
       });
       lab.appendChild(cb); lab.appendChild(el("span","txt",step)); box.appendChild(lab);
     });
+    if($("notesField")!==document.activeElement) $("notesField").value = state.notes || "";
     updateChecklistProgress();
     updateCureSuggest();
     updateTempSuggest();
@@ -1112,6 +1115,7 @@
       case "costs": openCosts(); break;
       case "card": openCard(); break;
       case "label": openLabel(); break;
+      case "wrapper": openWrapper(); break;
       case "share": openShare(); break;
       case "trouble": openTrouble(); break;
       case "examples": openExamples(); break;
@@ -1570,6 +1574,41 @@
     var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); });
     foot.appendChild(cl); md.m.appendChild(foot);
   }
+  // A printable bar wrapper: name, net weight, INCI ingredients, dates, cautions.
+  function wrapperDates(){
+    if(!state.madeOn) return null;
+    var base=new Date(state.madeOn+"T00:00:00"); if(isNaN(base.getTime())) return null;
+    var ready=new Date(base.getTime()); ready.setDate(ready.getDate()+(state.cureWeeks||4)*7);
+    var o={year:"numeric",month:"short",day:"numeric"};
+    return { made:base.toLocaleDateString(undefined,o), ready:ready.toLocaleDateString(undefined,o) };
+  }
+  function openWrapper(){
+    syncCurrent(); var r=libById(currentId); if(!r) return;
+    var lab=inciLabel(), netOz=fmt(fromG(barG(),"oz"),1), netG=Math.round(barG()), d=wrapperDates();
+    var md=makeModal();
+    var card=el("div","print-card wrapper-card");
+    var h="<h2>"+escapeHtml(r.name)+"</h2><div class='wrap-tag'>Handmade Soap</div>";
+    h+="<div class='wrap-net'>Net wt. "+netOz+" oz ("+netG+" g)</div>";
+    h+="<h3>Ingredients</h3><p class='wrap-inci'>"+(lab.count?escapeHtml(lab.text):"—")+"</p>";
+    if(d) h+="<div class='wrap-dates'>Made "+d.made+" · Best after "+d.ready+"</div>";
+    h+="<div class='wrap-warn'>For external use only. Keep out of reach of children. Discontinue use if irritation occurs.</div>";
+    card.innerHTML=h; md.m.appendChild(card);
+    if(lab.missing.length) md.m.appendChild(el("div","inci-warn no-print","⚠ No stored INCI name for: "+escapeHtml(lab.missing.join(", "))+" — fill these in before printing for sale."));
+    md.m.appendChild(el("p","sub no-print","A starting-point wrapper. To sell, add your name/contact and check your local labelling rules."));
+    var foot=el("div","mfoot no-print");
+    var pr=el("button","ghost","🖨 Print"); pr.addEventListener("click",function(){ window.print(); });
+    var cp=el("button","ghost","📋 Copy"); cp.addEventListener("click",function(){ copyText(wrapperText(r,lab,netOz,netG,d),cp); });
+    var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); });
+    foot.appendChild(pr); foot.appendChild(cp); foot.appendChild(cl); md.m.appendChild(foot);
+  }
+  function wrapperText(r,lab,netOz,netG,d){
+    var L=[r.name, "Handmade Soap", "Net wt. "+netOz+" oz ("+netG+" g)", "",
+      "Ingredients: "+(lab.count?lab.text:"—")];
+    if(d) L.push("", "Made "+d.made+" · Best after "+d.ready);
+    L.push("", "For external use only. Keep out of reach of children. Discontinue use if irritation occurs.");
+    return L.join("\n");
+  }
+
   /* ---------- share a recipe by link (the recipe rides in the URL, nothing uploaded) ---------- */
   function b64urlEnc(str){ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
   function b64urlDec(s){ s=s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4) s+="="; return decodeURIComponent(escape(atob(s))); }
