@@ -154,6 +154,21 @@
       <div class="safety">⚠️ Lye is caustic — wear gloves &amp; eye protection. SAP values are references and vary by supplier; double-check before making a batch.</div>
     </div>
 
+    <div class="card" id="diluteCard" hidden>
+      <h2>Dilute the Paste</h2>
+      <div class="ctrl">
+        <div class="lbl"><span>Water per 1 part paste</span><b><span id="dilVal">1</span>×</b></div>
+        <input type="range" id="dilution" min="0.25" max="4" step="0.25" value="1">
+      </div>
+      <div class="results">
+        <div class="result"><div class="k">Soap paste</div><div class="v"><span id="pasteOut">0</span><span class="u" id="pasteUnit">g</span></div></div>
+        <div class="result"><div class="k">Add water</div><div class="v"><span id="dilWaterOut">0</span><span class="u" id="dilWaterUnit">g</span></div></div>
+        <div class="result hero"><div class="k">Finished liquid soap</div><div class="v"><span id="dilYieldOut">0</span><span class="u" id="dilYieldUnit">g</span></div></div>
+      </div>
+      <div class="subinfo" id="dilHint"></div>
+      <div class="subinfo">Dilute <em>after</em> the cook: melt the paste into hot distilled water, then leave it overnight — it thickens and clears as it sits. Add fragrance once diluted and cooled, and use a preservative if you'll keep it more than a few weeks.</div>
+    </div>
+
     <div class="card" id="safetyCard" hidden>
       <h2>Safety Check</h2>
       <div id="safetyVerdict" class="safety-verdict"></div>
@@ -223,6 +238,14 @@
 
   <!-- ============ MAKE TAB ============ -->
   <section id="tab-make" hidden>
+    <div class="card" id="methodCard">
+      <h2>Method</h2>
+      <div class="seg sub" id="methodSeg">
+        <button type="button" data-mt="cp" class="active">Cold process</button>
+        <button type="button" data-mt="hp">Hot process</button>
+      </div>
+      <div class="subinfo" id="methodNote"></div>
+    </div>
     <div class="card">
       <h2>Cure Schedule</h2>
       <div class="ctrl">
@@ -240,12 +263,19 @@
     <div class="card" id="tempCard">
       <h2>Soaping Temperatures</h2>
       <div id="tempSuggest" class="temp-suggest"></div>
-      <ul class="temp-ref">
+      <ul class="temp-ref" id="tempRefCP">
         <li><b>Aim for ~100°F / 38°C</b> for both the lye water and the melted oils, and keep them within about 10°F (5°C) of each other.</li>
         <li><b>Soap cooler (~80–90°F / 27–32°C)</b> with fragrances or spices that speed up trace, with honey / milk / sugar (they overheat), and for intricate swirls (more working time).</li>
         <li><b>Soap warmer (~110–120°F / 43–49°C)</b> when using hard, high-melt oils and waxes (beeswax, stearic acid, lots of butters or palm) so they stay fully melted and don't &ldquo;false trace.&rdquo;</li>
         <li><b>Milk &amp; honey:</b> keep the <em>lye side</em> cold — freeze the milk and add the lye slowly, or it scorches.</li>
         <li>Too cold → grainy / false trace; too hot → volcano, cracks, glycerin rivers.</li>
+      </ul>
+      <ul class="temp-ref hide" id="tempRefHP">
+        <li><b>Combine at ~120–140°F / 49–60°C</b> — warmer than cold process, since you're heading for a cook anyway.</li>
+        <li><b>Cook on low, ~160–180°F / 71–82°C</b>, covered, until the batter folds over on itself like thick mashed potato or vaseline (about 45–60 min).</li>
+        <li><b>Add fragrance at ~150°F / 65°C</b>, after the cook — added hotter, much of the scent simply burns off.</li>
+        <li><b>Milk, honey &amp; sugar</b> scorch easily at cook temperatures — stir them in near the end, off the heat.</li>
+        <li>Too hot → it can climb the pot and volcano; too cool → it never fully cooks, so zap-test before you mould.</li>
       </ul>
     </div>
     <div class="card">
