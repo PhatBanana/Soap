@@ -44,8 +44,8 @@ phone in the kitchen or on a desktop.
   </tr>
   <tr>
     <td align="center"><img src="screenshots/16-shopping-list.png" width="240" alt="Shopping list totalling ingredients across recipes"><br><sub><b>Shopping list</b> — totals across several recipes</sub></td>
-    <td></td>
-    <td></td>
+    <td align="center"><img src="screenshots/18-library.png" width="240" alt="Recipe library with search, sort and favourites"><br><sub><b>Library</b> — search, sort &amp; favourites</sub></td>
+    <td align="center"><img src="screenshots/17-quick-add.png" width="240" alt="Quick-add chips for recently used ingredients"><br><sub><b>Quick add</b> — your recent ingredients, one tap</sub></td>
   </tr>
 </table>
 
@@ -208,6 +208,11 @@ phone in the kitchen or on a desktop.
   recipe you can tweak.
 - **Saved, named recipes** — keep a library (New / Duplicate / Rename / Delete) and
   switch between them; each is stored separately in your browser.
+- **Library browser** — **All recipes** in the ⋯ menu opens a searchable list: filter
+  by name, sort **A–Z / Recent / Added**, and **star** the ones you keep coming back
+  to. Favourites pin to the top of both the list and the recipe picker (marked ★), and
+  each row shows a quick read — how many oils, whether it's liquid or hot process, what
+  it's made for, and when you last opened it.
 - **Compare** any two recipes side by side (oils as % of oils, plus qualities,
   lye, and batch).
 - **Recipe card** — a clean **printable / copyable** summary to take to the bench
