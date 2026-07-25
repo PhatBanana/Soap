@@ -239,6 +239,11 @@ phone in the kitchen or on a desktop.
 - 📱 **Installable PWA** — add to your home screen; works fully offline.
 - **Responsive** — a compact single column on phones, a two-column layout on
   desktop.
+- **Always-visible lye & batch** — a compact readout pinned under the tabs shows your
+  lye, water and batch weight while you scroll a long ingredient list, so you can see
+  the numbers move as you tweak.
+- **Theme** — follows your device by default; tap **Theme** in the ⋯ menu to cycle
+  auto → light → dark and force one.
 - **Multi-level undo** — removing an ingredient, scaling, rounding, nudging or
   clearing can all be stepped back (up to 10 changes), and the Undo button shows how
   many are left.

@@ -262,6 +262,50 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   STICKY MINI-SUMMARY · THEME TOGGLE
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ oils:[OIL("olive",400),OIL("coconut",300),OIL("palm",300)] }));
+  const shown = () => p.evaluate(() => !document.getElementById("miniSummary").classList.contains("hide"));
+  ok("Mini summary shows on the Base tab", await shown());
+  const mini = await txt(p, "#miniSummary");
+  has("Mini summary shows the lye", mini, "NaOH");
+  has("Mini summary shows water", mini, "water");
+  has("Mini summary shows the batch", mini, "batch");
+
+  await p.click('#tabs button[data-tab="make"]'); await p.waitForTimeout(200);
+  ok("Mini summary hides on other tabs", !(await shown()));
+  await p.click('#tabs button[data-tab="base"]'); await p.waitForTimeout(200);
+  ok("…and comes back on Base", await shown());
+
+  // theme cycles auto → light → dark → auto and sticks
+  const theme = () => p.evaluate(() => ({ attr: document.documentElement.getAttribute("data-theme"),
+    label: document.getElementById("themeLabel").textContent }));
+  const tap = async () => { await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="theme"]').click(); }); await p.waitForTimeout(120); };
+  eq("Theme starts on auto", (await theme()).attr, null);
+  await tap(); eq("First tap forces light", (await theme()).attr, "light");
+  await tap();
+  const dark = await theme();
+  eq("Second tap forces dark", dark.attr, "dark");
+  has("Theme label follows", dark.label, "dark");
+  eq("Dark actually repaints", await p.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(33, 27, 22)");
+  await tap();
+  eq("Third tap returns to auto", (await theme()).attr, null);
+  eq("Theme choice persists", (await LS(p)).theme, "auto");
+  await p.close();
+
+  // a forced light theme must beat a dark device
+  const ctx = await browser.newContext({ colorScheme: "dark" });
+  const dp = await ctx.newPage();
+  await dp.goto(base + "/index.html");
+  await dp.evaluate((s) => localStorage.setItem("soapcalc.v4", JSON.stringify(s)), store({ oils:[OIL("olive",500)] }, { theme:"light" }));
+  await dp.reload(); await dp.waitForTimeout(200);
+  eq("Forced light wins over a dark device", await dp.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(251, 241, 227)");
+  await ctx.close();
+}
+
+/* =======================================================================
    SHOPPING LIST (aggregate across recipes)
 ======================================================================= */
 {
@@ -496,7 +540,7 @@ async function addOil(p, key, g) {
 
   // save shape unchanged (backup/restore compatibility)
   const keys = Object.keys(await LS(p)).sort().join(",");
-  eq("Save shape keys", keys, "collapsed,currency,currentId,lastWeightUnit,moldShape,prices,recent,recipes,scaleMode,scaleUnit,tab,unit");
+  eq("Save shape keys", keys, "collapsed,currency,currentId,lastWeightUnit,moldShape,prices,recent,recipes,scaleMode,scaleUnit,tab,theme,unit");
   await p.close();
 }
 

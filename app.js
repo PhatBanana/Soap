@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v28", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v29", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -67,7 +67,8 @@
     {k:"prices",         coerce:function(v){return (v&&typeof v==="object")?v:{};}},
     {k:"collapsed",      coerce:function(v){return (v&&typeof v==="object")?v:null;}},
     // ingredient keys you've added lately, newest first — drives the quick-add chips
-    {k:"recent",         coerce:function(v){return Array.isArray(v)?v.filter(function(x){return typeof x==="string";}).slice(0,8):[];}}
+    {k:"recent",         coerce:function(v){return Array.isArray(v)?v.filter(function(x){return typeof x==="string";}).slice(0,8):[];}},
+    {k:"theme",          coerce:function(v){return (v==="light"||v==="dark")?v:"auto";}}
   ];
 
   var library=[];      // [{ id, name } + the RECIPE_FIELDS above]
@@ -224,6 +225,7 @@
     if(state.tab==="base") renderBase();
     else if(state.tab==="scents") renderScents();
     else renderMake();
+    updateMiniSummary();   // the scents/make renderers don't run refreshDerived
   }
 
   function renderBase(){
@@ -275,6 +277,27 @@
   }
 
   /* ---------- quick-add chips for the ingredients you actually use ---------- */
+  /* ---------- theme: follow the device, or force light / dark ---------- */
+  var THEMES=[["auto","🌗","Theme: auto"],["light","☀️","Theme: light"],["dark","🌙","Theme: dark"]];
+  function applyTheme(){
+    var t=state.theme||"auto", row=null;
+    THEMES.forEach(function(x){ if(x[0]===t) row=x; });
+    if(t==="auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme",t);
+    if($("themeIcon")) $("themeIcon").textContent=row[1];
+    if($("themeLabel")) $("themeLabel").textContent=row[2];
+    // keep the browser chrome in step with the palette actually showing
+    var dark = t==="dark" || (t==="auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme:dark)").matches);
+    var meta=document.querySelector('meta[name="theme-color"]');
+    if(meta) meta.setAttribute("content", dark?"#211b16":"#fbf1e3");
+  }
+  function cycleTheme(){
+    var i=0; THEMES.forEach(function(x,n){ if(x[0]===(state.theme||"auto")) i=n; });
+    state.theme=THEMES[(i+1)%THEMES.length][0];
+    applyTheme(); save();
+    showToast(THEMES[(i+1)%THEMES.length][2],true);
+  }
+
   function rememberPick(sel){
     if(!Array.isArray(state.recent)) state.recent=[];
     state.recent=[sel].concat(state.recent.filter(function(x){ return x!==sel; })).slice(0,8);
@@ -465,6 +488,7 @@
   /* ---------- refresh derived values (in place) ---------- */
   function refreshDerived(active){
     var isPct=state.unit==="pct", total=totalOilsG(), wunit=weightUnit();
+    updateMiniSummary();
 
     // oils
     state.oils.forEach(function(it,i){ var r=oilRefs[i]; if(!r) return;
@@ -497,6 +521,17 @@
     if(state.tab==="scents") updateScents(active);
   }
 
+  // Compact lye/batch readout pinned in the sticky header, so the numbers you're
+  // steering toward stay visible while you scroll a long ingredient list.
+  function updateMiniSummary(){
+    var box=$("miniSummary"); if(!box) return;
+    var show = state.tab==="base" && state.oils.length>0;
+    box.classList.toggle("hide",!show); if(!show) return;
+    var L=computeLye(), wunit=weightUnit(), ul=UNITS[wunit].label;
+    box.innerHTML="<span><b>"+fmt(fromG(L.lyeG,wunit),2)+"</b> "+ul+" "+(state.lyeType==="koh"?"KOH":"NaOH")+"</span>"+
+      "<span><b>"+fmt(fromG(L.waterG,wunit),1)+"</b> "+ul+" water</span>"+
+      "<span><b>"+fmt(fromG(currentBatchG(),wunit),1)+"</b> "+ul+" batch</span>";
+  }
   function updateLyePanel(){
     var wunit=weightUnit(), L=computeLye(), isPct=state.unit==="pct";
     $("lyeK").textContent=L.kind;
@@ -1249,6 +1284,7 @@
       case "compare": openCompare(); break;
       case "costs": openCosts(); break;
       case "shopping": openShopping(); break;
+      case "theme": cycleTheme(); break;
       case "card": openCard(); break;
       case "label": openLabel(); break;
       case "wrapper": openWrapper(); break;
@@ -2125,6 +2161,7 @@
     });
   }
 
+  applyTheme();
   render();
   initCollapsibles();
   detectAI();

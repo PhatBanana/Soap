@@ -6,13 +6,22 @@
   --shadow:0 6px 22px rgba(120,80,40,.13); --shadow-sm:0 2px 8px rgba(120,80,40,.10);
   --r:16px; --r-lg:22px;
 }
-@media (prefers-color-scheme:dark){:root{
+/* Dark palette: applied when the device asks for it, or forced via data-theme="dark".
+   data-theme="light" wins over the media query so "always light" really is always light. */
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#211b16; --bg-2:#2a231c; --card:#2e2720; --ink:#f1e7da; --muted:#b0a08c; --line:#41362a;
   --coral:#f18a5e; --coral-d:#c96a40; --green:#79c088; --green-d:#5fa06e;
   --amber:#edc167; --violet:#bfa4e8; --teal:#57c9bd;
   --coral-soft:#3c2a20; --green-soft:#26302a; --violet-soft:#2f2842; --teal-soft:#1f332f; --amber-soft:#38301f;
   --shadow:0 6px 22px rgba(0,0,0,.38); --shadow-sm:0 2px 8px rgba(0,0,0,.32);
 }}
+:root[data-theme="dark"]{
+  --bg:#211b16; --bg-2:#2a231c; --card:#2e2720; --ink:#f1e7da; --muted:#b0a08c; --line:#41362a;
+  --coral:#f18a5e; --coral-d:#c96a40; --green:#79c088; --green-d:#5fa06e;
+  --amber:#edc167; --violet:#bfa4e8; --teal:#57c9bd;
+  --coral-soft:#3c2a20; --green-soft:#26302a; --violet-soft:#2f2842; --teal-soft:#1f332f; --amber-soft:#38301f;
+  --shadow:0 6px 22px rgba(0,0,0,.38); --shadow-sm:0 2px 8px rgba(0,0,0,.32);
+}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{
@@ -38,6 +47,9 @@ body{
 .units{display:flex;gap:4px;background:var(--bg-2);padding:5px;border-radius:999px;margin-bottom:8px}
 .units button{flex:1;border:0;background:transparent;color:var(--muted);padding:9px 4px;border-radius:999px;font-size:.95rem;font-weight:800;cursor:pointer;transition:.15s;-webkit-tap-highlight-color:transparent}
 .units button.active{background:var(--card);color:var(--coral-d);box-shadow:var(--shadow-sm)}
+.mini{display:flex;justify-content:space-between;gap:8px;background:var(--bg-2);border-radius:12px;padding:7px 12px;margin:-6px 0 12px;font-size:.78rem;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums;overflow-x:auto}
+.mini span{white-space:nowrap}
+.mini b{color:var(--coral-d);font-size:.86rem}
 .tabs{display:flex;gap:6px;margin-bottom:14px}
 .tabs button{flex:1;border:2px solid var(--line);background:var(--card);color:var(--muted);padding:11px 4px;border-radius:14px;font-size:1rem;font-weight:800;cursor:pointer;transition:.12s}
 .tabs button .te{margin-right:5px}
