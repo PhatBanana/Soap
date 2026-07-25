@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v22", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v23", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -52,7 +52,7 @@
     {k:"unit",           coerce:function(v){return UNITS[v]?v:"g";}},
     {k:"lastWeightUnit", coerce:function(v,view){return (UNITS[v]&&v!=="pct")?v:((UNITS[view.unit]&&view.unit!=="pct")?view.unit:"g");}},
     {k:"tab",            coerce:function(v){return ["base","scents","make"].indexOf(v)>=0?v:"base";}},
-    {k:"scaleMode",      coerce:function(v){return ["batch","oils","mold"].indexOf(v)>=0?v:"batch";}},
+    {k:"scaleMode",      coerce:function(v){return ["batch","oils","bars","mold"].indexOf(v)>=0?v:"batch";}},
     {k:"moldShape",      coerce:function(v){return ["loaf","round","cavity"].indexOf(v)>=0?v:"loaf";}},
     {k:"scaleUnit",      coerce:function(v){return (UNITS[v]&&v!=="pct")?v:null;}},
     {k:"barWeight",      coerce:function(v){return v>0?v:110;}},
@@ -747,13 +747,15 @@
     save(); render();
   }
   function applyWeightScale(){
-    var wunit=scaleUnit(), raw=parseFloat($("scaleTarget").value);
+    var isBars=state.scaleMode==="bars", wunit=scaleUnit(), raw=parseFloat($("scaleTarget").value);
     if(!(raw>0)) return;
-    var targetG=raw*UNITS[wunit].toG;
+    var targetG = isBars ? raw*barG() : raw*UNITS[wunit].toG;   // N bars → the wet weight of N bars at your bar size
     var cur = state.scaleMode==="oils" ? totalOilsG() : currentBatchG();
     if(cur<=0) return;
     scaleDirty=false; $("scaleTarget").value="";
-    pushUndo(); scaleAll(targetG/cur); showToast("Recipe scaled to "+fmt(raw,UNITS[wunit].dp)+" "+UNITS[wunit].label+(state.scaleMode==="oils"?" of oils":" wet"));
+    pushUndo(); scaleAll(targetG/cur);
+    showToast(isBars ? ("Recipe scaled to ~"+Math.round(raw)+" bar"+(Math.round(raw)===1?"":"s"))
+      : ("Recipe scaled to "+fmt(raw,UNITS[wunit].dp)+" "+UNITS[wunit].label+(state.scaleMode==="oils"?" of oils":" wet")));
   }
   function applyMold(){
     var target=moldOilsG(); if(target<=0) return;
@@ -774,9 +776,12 @@
     $("moldRound").classList.toggle("hide",ms!=="round");
     $("moldCavity").classList.toggle("hide",ms!=="cavity");
     $("moldUnitRow").classList.toggle("hide",ms==="cavity");
+    var isBars=state.scaleMode==="bars";
     if(!$("scaleUnit").options.length){ var uh=""; ["g","oz","lb","kg"].forEach(function(u){ uh+='<option value="'+u+'">'+UNITS[u].label+'</option>'; }); $("scaleUnit").innerHTML=uh; }
     $("scaleUnit").value=sunit;
-    $("scaleTarget").placeholder = state.scaleMode==="oils" ? "Target oils" : "Target wet weight";
+    $("scaleUnit").classList.toggle("hide",isBars);
+    $("scaleBarsUnit").classList.toggle("hide",!isBars);
+    $("scaleTarget").placeholder = isBars ? "Number of bars" : (state.scaleMode==="oils" ? "Target oils" : "Target wet weight");
     var oilsG=totalOilsG(), batchG=currentBatchG();
 
     // expected yield readout
@@ -788,20 +793,23 @@
 
     // reuse the target field to also show the current amount (in the target's unit) until edited
     if(!isMold && !scaleDirty && document.activeElement!==$("scaleTarget")){
-      var curShown = state.scaleMode==="oils" ? oilsG : batchG;
-      $("scaleTarget").value = curShown>0 ? fmt(fromG(curShown,sunit),UNITS[sunit].dp) : "";
+      if(isBars){ $("scaleTarget").value = batchG>0 ? barCount(batchG) : ""; }
+      else { var curShown = state.scaleMode==="oils" ? oilsG : batchG;
+        $("scaleTarget").value = curShown>0 ? fmt(fromG(curShown,sunit),UNITS[sunit].dp) : ""; }
     }
     updateScaleHint(); updateMoldHint();
   }
   function updateScaleHint(){
-    var sunit=scaleUnit(), sul=UNITS[sunit].label, raw=parseFloat($("scaleTarget").value);
+    var isBars=state.scaleMode==="bars", sunit=scaleUnit(), sul=UNITS[sunit].label, raw=parseFloat($("scaleTarget").value);
     if(!scaleDirty || !(raw>0)){
-      $("scaleHint").textContent = state.scaleMode==="oils"
+      $("scaleHint").textContent = isBars
+        ? "Shows how many bars this batch makes (at ~"+barG()+" g each) — type how many you want and tap Scale."
+        : state.scaleMode==="oils"
         ? "Shows your current total oils — type a new target and tap Scale."
         : "Shows your current wet (poured) weight — type how much soap you want and tap Scale.";
       return;
     }
-    var targetG=raw*UNITS[sunit].toG;
+    var targetG = isBars ? raw*barG() : raw*UNITS[sunit].toG;
     var cur = state.scaleMode==="oils" ? totalOilsG() : currentBatchG();
     if(cur<=0){ $("scaleHint").textContent=""; return; }
     var f=targetG/cur;
