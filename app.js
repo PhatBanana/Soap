@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v21", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v22", BUILD_DATE = "2026-07-23";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -946,6 +946,7 @@
     });
     updateChecklistProgress();
     updateCureSuggest();
+    updateTempSuggest();
     updateReady();
   }
   function updateChecklistProgress(){
@@ -982,6 +983,26 @@
       btn.addEventListener("click",function(){ state.cureWeeks=s.max; save(); renderMake(); });
       box.appendChild(btn);
     }
+  }
+  function updateTempSuggest(){
+    var box=$("tempSuggest"); if(!box) return;
+    var warm=[], cool=[];
+    if(state.oils.some(function(it){return it.key==="beeswax"&&it.g>0;})) warm.push("beeswax");
+    if(state.oils.some(function(it){return it.key==="stearic"&&it.g>0;})) warm.push("stearic acid");
+    var B=blendFA(); if(B.tot>0 && qualitiesOf(B.fa).hardness>52) warm.push("lots of hard fats/butters");
+    state.aromas.forEach(function(it){ var d=it.key?AROMAS[it.key]:null; if(d&&d.accel&&it.g>0) cool.push(d.name); });
+    ["honey","sugar","goatmilk","coconutmilk"].forEach(function(k){
+      if(state.additives.some(function(it){return it.key===k&&it.g>0;})) cool.push(ADDITIVES[k].name); });
+    var msg;
+    if(warm.length && cool.length)
+      msg="Heads-up: this recipe has both fast-tracers ("+cool.join(", ")+") and high-melt fats ("+warm.join(", ")+"). Keep the oils just barely melted (~100°F / 38°C) and work quickly by hand — ease off the stick blender once the scent is in.";
+    else if(warm.length)
+      msg="For this recipe, soap on the warmer side (~110–120°F / 43–49°C) so the hard fats ("+warm.join(", ")+") stay fully melted and don't ‘false trace’.";
+    else if(cool.length)
+      msg="For this recipe, soap cooler (~80–90°F / 27–32°C) because of "+cool.join(", ")+" — it helps avoid overheating and a fast or seized trace.";
+    else
+      msg="No special heat concerns here — soap around ~100°F / 38°C, with your lye and oils within ~10°F of each other.";
+    box.textContent=msg;
   }
   function updateReady(){
     var base = state.madeOn ? new Date(state.madeOn+"T00:00:00") : new Date();

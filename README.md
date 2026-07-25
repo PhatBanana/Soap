@@ -113,6 +113,10 @@ phone in the kitchen or on a desktop.
   saved per recipe.
 - A **cure schedule**: set the date you made the batch and the cure time, and it
   shows the **ready-to-use date** and days remaining.
+- **Soaping-temperature guide** — a quick reference (aim ~100°F/38°C, when to soap
+  cooler vs warmer, milk/honey cautions), plus a **context-aware tip** that adapts to
+  your recipe: warmer for high-melt fats (beeswax, stearic, lots of butters), cooler
+  for accelerators (honey, milk, spice oils), in both °F and °C.
 - **Troubleshooting reference** — a searchable "why did my soap do X?" guide grouped
   by stage (in the pot / in the mold / curing & storing / using the bar): seizing,
   soda ash, overheating, DOS, soft or crumbly bars, poor lather, and more — each with
