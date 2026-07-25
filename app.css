@@ -283,6 +283,7 @@ input[type=range]{touch-action:pan-y}
 .temp-ref{margin:0;padding-left:20px}
 .temp-ref li{margin:8px 0;font-size:.86rem;line-height:1.5;color:var(--ink)}
 .temp-ref b{color:var(--coral-d)}
+.notes-field{width:100%;font-size:1rem;line-height:1.5;padding:12px 14px;border:2px solid var(--line);border-radius:14px;background:var(--bg-2);color:var(--ink);resize:vertical;min-height:96px;font-family:inherit}
 .ocr-status{text-align:center;color:var(--muted);font-size:.92rem;padding:18px 0;font-weight:600}
 .ocr-preview{max-width:100%;border-radius:14px;margin:0 auto 12px;display:block;max-height:180px}
 .spin{display:inline-block;width:16px;height:16px;border:3px solid var(--line);border-top-color:var(--coral);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-3px;margin-right:7px}
@@ -317,6 +318,16 @@ input[type=range]{touch-action:pan-y}
 .print-card li{margin:4px 0;font-variant-numeric:tabular-nums}
 .print-card .mut{color:var(--muted);font-size:.86rem}
 .print-card .pc-yield{margin-top:10px;font-weight:800;color:var(--coral-d)}
+
+/* bar wrapper */
+.wrapper-card{text-align:center}
+.wrapper-card h2{margin:0 0 2px}
+.wrapper-card h3{text-align:left}
+.wrap-tag{color:var(--muted);font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:.78rem}
+.wrap-net{margin-top:8px;font-weight:800;color:var(--coral-d)}
+.wrap-inci{text-align:left;font-size:.84rem;line-height:1.55;margin:2px 0 0;word-break:break-word}
+.wrap-dates{margin-top:12px;font-size:.84rem;color:var(--muted);font-weight:700}
+.wrap-warn{margin-top:12px;padding-top:10px;border-top:2px dashed var(--line);font-size:.78rem;color:var(--muted);line-height:1.5}
 
 /* costs */
 .cost-table{width:100%;border-collapse:collapse;font-size:.92rem}

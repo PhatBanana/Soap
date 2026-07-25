@@ -118,6 +118,9 @@ phone in the kitchen or on a desktop.
   cooler vs warmer, milk/honey cautions), plus a **context-aware tip** that adapts to
   your recipe: warmer for high-melt fats (beeswax, stearic, lots of butters), cooler
   for accelerators (honey, milk, spice oils), in both °F and °C.
+- **Batch notes** — a free-text field on the Make tab to keep a per-recipe log
+  (traced fast, great lather, use less water next time…). Saved with the recipe and
+  kept private — it's never included when you share a recipe by link.
 - **Troubleshooting reference** — a searchable "why did my soap do X?" guide grouped
   by stage (in the pot / in the mold / curing & storing / using the bar): seizing,
   soda ash, overheating, DOS, soft or crumbly bars, poor lather, and more — each with
@@ -145,6 +148,10 @@ phone in the kitchen or on a desktop.
   glycerin, additives and fragrance, in descending order by weight — copyable, with
   custom oils flagged. (INCI names and labelling rules vary by supplier/region —
   verify before sale.)
+- **Bar wrapper** — a **printable / copyable** label to wrap around a finished bar:
+  soap name, net weight, the INCI ingredient list, the made & ready dates, and the
+  standard cautions. A starting point for gifting or a market table (add your own
+  name/contact and check local rules before selling).
 
 ### Get recipes in & out
 - 📷 **Scan a photo** of a recipe — on-device OCR (Tesseract.js) reads it, then you

@@ -430,6 +430,41 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   BATCH NOTES + BAR WRAPPER
+======================================================================= */
+{
+  const p = await newPage();
+  // notes persist per recipe
+  await open(p, store({ id:"r1", name:"Note Bar", oils:[OIL("olive",500)] }, { tab:"make" }));
+  await p.fill("#notesField", "Traced fast, great lather at week 4.");
+  await p.waitForTimeout(120);
+  await p.reload(); await p.waitForTimeout(200);
+  eq("Batch notes persist", (await LS(p)).recipes[0].notes, "Traced fast, great lather at week 4.");
+  eq("Notes shown back in the field", await p.evaluate(() => document.getElementById("notesField").value), "Traced fast, great lather at week 4.");
+
+  // private notes are NOT in a share link
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="share"]').click(); });
+  await p.waitForTimeout(100);
+  const url = await p.evaluate(() => document.querySelector(".share-url").value);
+  const payload = await p.evaluate((u) => { let s = u.split("#r=")[1].replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return decodeURIComponent(escape(atob(s))); }, url);
+  ok("Share link omits private notes", !payload.includes("Traced fast"));
+  await p.evaluate(() => { const bk = document.querySelector(".modal-back"); if (bk) bk.remove(); document.body.style.overflow = ""; });
+
+  // bar wrapper content
+  await open(p, store({ name:"Lavender Bar", oils:[OIL("olive",400),OIL("coconut",300),OIL("palm",300)],
+    aromas:[{name:"Lavender EO",key:"lavender",g:20}], madeOn:"2026-07-01", cureWeeks:4 }, { barWeight:100 }));
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="wrapper"]').click(); });
+  await p.waitForTimeout(100);
+  const w = await p.evaluate(() => document.querySelector(".wrapper-card").textContent);
+  has("Wrapper shows the name", w, "Lavender Bar");
+  has("Wrapper shows net weight", w, "Net wt. 3.5 oz (100 g)");
+  has("Wrapper lists saponified oils", w, "Sodium Olivate");
+  has("Wrapper shows cure dates", w, "Best after");
+  has("Wrapper has a caution", w, "For external use only");
+  await p.close();
+}
+
+/* =======================================================================
    SHARE BY LINK (recipe rides in the URL)
 ======================================================================= */
 {
