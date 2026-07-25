@@ -196,6 +196,20 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   SOAPING-TEMPERATURE GUIDE (context-aware)
+======================================================================= */
+{
+  const p = await newPage();
+  const tip = (rec) => open(p, store(rec, { tab: "make" })).then(() => txt(p, "#tempSuggest"));
+  has("Balanced recipe → ~100°F default", await tip({ oils:[OIL("olive",500),OIL("coconut",300),OIL("palm",200)] }), "~100°F");
+  has("Beeswax → soap warmer", await tip({ oils:[OIL("olive",600),OIL("coconut",370),OIL("beeswax",30)] }), "warmer");
+  has("Honey → soap cooler", await tip({ oils:[OIL("olive",600),OIL("coconut",400)], additives:[{name:"Honey",key:"honey",g:10}] }), "cooler");
+  has("Accelerating scent → soap cooler", await tip({ oils:[OIL("olive",600),OIL("coconut",400)], aromas:[{name:"Cinnamon",key:"cinnamon",g:8}] }), "cooler");
+  has("Both warm + cool → work-quickly note", await tip({ oils:[OIL("olive",600),OIL("coconut",370),OIL("beeswax",30)], aromas:[{name:"Cinnamon",key:"cinnamon",g:8}] }), "work quickly");
+  await p.close();
+}
+
+/* =======================================================================
    PERSISTENCE (schema round-trip, sanitize, duplicate, clear)
 ======================================================================= */
 {
