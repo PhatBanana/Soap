@@ -283,6 +283,11 @@ input[type=range]{touch-action:pan-y}
 .temp-ref{margin:0;padding-left:20px}
 .temp-ref li{margin:8px 0;font-size:.86rem;line-height:1.5;color:var(--ink)}
 .temp-ref b{color:var(--coral-d)}
+.lot-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.lot-row label{font-size:.85rem;font-weight:800;color:var(--muted);flex:0 0 auto}
+.lot-row input{flex:1;min-width:0;font-size:1rem;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:var(--bg-2);color:var(--ink)}
+.lot-gen{flex:0 0 auto;border:2px solid var(--line);background:var(--bg-2);color:var(--ink);border-radius:12px;padding:10px 11px;font-weight:800;font-size:.78rem;cursor:pointer}
+.lot-gen:active{transform:translateY(1px)}
 .notes-field{width:100%;font-size:1rem;line-height:1.5;padding:12px 14px;border:2px solid var(--line);border-radius:14px;background:var(--bg-2);color:var(--ink);resize:vertical;min-height:96px;font-family:inherit}
 .ocr-status{text-align:center;color:var(--muted);font-size:.92rem;padding:18px 0;font-weight:600}
 .ocr-preview{max-width:100%;border-radius:14px;margin:0 auto 12px;display:block;max-height:180px}
@@ -327,6 +332,7 @@ input[type=range]{touch-action:pan-y}
 .wrap-net{margin-top:8px;font-weight:800;color:var(--coral-d)}
 .wrap-inci{text-align:left;font-size:.84rem;line-height:1.55;margin:2px 0 0;word-break:break-word}
 .wrap-dates{margin-top:12px;font-size:.84rem;color:var(--muted);font-weight:700}
+.wrap-lot{margin-top:4px;font-size:.78rem;color:var(--muted);font-weight:700;letter-spacing:.04em}
 .wrap-warn{margin-top:12px;padding-top:10px;border-top:2px dashed var(--line);font-size:.78rem;color:var(--muted);line-height:1.5}
 
 /* costs */

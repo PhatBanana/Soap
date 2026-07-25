@@ -70,11 +70,12 @@ phone in the kitchen or on a desktop.
 ### Lye, superfat & water
 - Lye computed **per oil** from its SAP value, reduced by your **superfat**, for
   **NaOH** (bars) or **KOH** (liquid soap, with purity).
-- **Water, two ways** — set it as a **% of oils** (the traditional way, default
-  38%) or by **lye concentration** (the modern way, default 33%), where the water
-  is sized *from the lye* — so your superfat, which lowers the lye, lowers the
-  water too. The panel always shows the other number (concentration ↔ water-of-oils)
-  plus the **total batch weight**. Water doesn't stay in the bar — most evaporates
+- **Water, three ways** — set it as a **% of oils** (the traditional way, default
+  38%), by **lye concentration** (the modern way, default 33%), or as a
+  **water : lye ratio** (the old-school "2:1" notation you'll see in older recipes
+  and other calculators). The last two size the water *from the lye* — so your
+  superfat, which lowers the lye, lowers the water too. The panel always shows the
+  numbers you aren't setting, plus the **total batch weight**. Water doesn't stay in the bar — most evaporates
   during cure — so this is really a **choice of how concentrated the lye is**: more
   water = thinner trace and more working time; less = faster trace and a firmer bar
   sooner.
@@ -125,7 +126,12 @@ phone in the kitchen or on a desktop.
 
 ### Batch yield & scaling
 - **Expected yield** readout for the current ingredients (batch weight + approx.
-  bar count), with an **adjustable bar weight**.
+  bar count), with an **adjustable bar weight** — plus an **after-curing estimate**,
+  since most of the water evaporates and bars come out meaningfully lighter than the
+  wet poured weight.
+- **Round to tidy amounts** — scaling leaves you with 793.83 g of olive oil, which
+  nobody weighs out; one tap snaps every ingredient to a practical step for the unit
+  you're in (whole grams, 0.1 oz…) and the lye recomputes from the new amounts.
 - **Scale** the whole recipe (keeping every ratio) to hit a target **wet (poured)
   batch weight**, **total oils**, a **number of bars**, or a **mold size**. The
   weight target has its **own unit picker** (g / oz / lb / kg), so you can say "make
@@ -199,8 +205,10 @@ phone in the kitchen or on a desktop.
   custom oils flagged. (INCI names and labelling rules vary by supplier/region —
   verify before sale.)
 - **Bar wrapper** — a **printable / copyable** label to wrap around a finished bar:
-  soap name, net weight, the INCI ingredient list, the made & ready dates, and the
-  standard cautions. A starting point for gifting or a market table (add your own
+  soap name, net weight (the **cured** estimate, not the wet weight — weigh a real bar
+  before printing for sale), the INCI ingredient list, the made & ready dates, an
+  optional **lot number** for traceability (one tap generates one from the batch date),
+  and the standard cautions. A starting point for gifting or a market table (add your own
   name/contact and check local rules before selling).
 
 ### Get recipes in & out

@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v25", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v26", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -40,7 +40,7 @@
     {k:"lyeType",   def:"naoh", coerce:function(v){return v==="koh"?"koh":"naoh";}},
     {k:"superfat",  def:5,      coerce:function(v){return clamp(v,5,0,15);}},
     {k:"waterPct",  def:38,     coerce:function(v){return clamp(v,38,25,50);}},
-    {k:"waterMode", def:"oils", coerce:function(v){return v==="conc"?"conc":"oils";}},
+    {k:"waterMode", def:"oils", coerce:function(v){return (v==="conc"||v==="ratio")?v:"oils";}},
     {k:"lyeConc",   def:33,     coerce:function(v){return clamp(v,33,25,50);}},
     {k:"kohPurity", def:90,     coerce:function(v){return clamp(v,90,85,100);}},
     {k:"madeOn",    def:"",     coerce:function(v){return typeof v==="string"?v:"";}},
@@ -49,7 +49,9 @@
     {k:"use",       def:"body", coerce:function(v){return validUse(v)?v:"body";}},
     {k:"notes",     def:"",     coerce:function(v){return typeof v==="string"?v:"";}},
     {k:"method",    def:"cp",   coerce:function(v){return v==="hp"?"hp":"cp";}},          // cold or hot process
-    {k:"dilution",  def:1,      coerce:function(v){return clamp(v,1,0.25,4);}}            // KOH paste : water, by weight
+    {k:"dilution",  def:1,      coerce:function(v){return clamp(v,1,0.25,4);}},           // KOH paste : water, by weight
+    {k:"waterRatio",def:2,      coerce:function(v){return clamp(v,2,1,4);}},              // water : lye, by weight
+    {k:"lot",       def:"",     coerce:function(v){return typeof v==="string"?v.slice(0,32):"";}}
   ];
   var VIEW_FIELDS=[
     {k:"unit",           coerce:function(v){return UNITS[v]?v:"g";}},
@@ -190,6 +192,13 @@
   Array.prototype.forEach.call($("methodSeg").children,function(b){
     b.addEventListener("click",function(){ state.method=b.dataset.mt; save(); render(); });
   });
+  bindRange($("waterRatio"),"ratioVal","waterRatio");
+  $("roundBtn").addEventListener("click",roundAmounts);
+  $("lotField").addEventListener("input",function(){ state.lot=$("lotField").value; save(); });
+  $("lotGen").addEventListener("click",function(){
+    var d=state.madeOn||todayISO();
+    state.lot=d.replace(/-/g,"")+"-A"; $("lotField").value=state.lot; save();
+  });
   $("dilution").addEventListener("input",function(){
     state.dilution=parseFloat($("dilution").value)||1; $("dilVal").textContent=fmt(state.dilution,2);
     updateDilutePanel(); save();
@@ -239,10 +248,12 @@
     $("water").value=state.waterPct; $("waterVal").textContent=state.waterPct;
     $("lyeConc").value=state.lyeConc; $("concVal").textContent=state.lyeConc;
     $("purity").value=state.kohPurity; $("purVal").textContent=state.kohPurity;
-    var concMode=state.waterMode==="conc";
-    setActive($("waterMode"),"w",state.waterMode);
-    $("waterOilsCtrl").classList.toggle("hide",concMode);
-    $("waterConcCtrl").classList.toggle("hide",!concMode);
+    var wmode=state.waterMode||"oils";
+    setActive($("waterMode"),"w",wmode);
+    $("waterOilsCtrl").classList.toggle("hide",wmode!=="oils");
+    $("waterConcCtrl").classList.toggle("hide",wmode!=="conc");
+    $("waterRatioCtrl").classList.toggle("hide",wmode!=="ratio");
+    $("waterRatio").value=state.waterRatio; $("ratioVal").textContent=fmt(state.waterRatio,1);
 
     $("clearOils").hidden = !(state.oils.length||state.additives.length||state.aromas.length);
     if(!$("useSelect").options.length){ var uh=""; USES.forEach(function(u){ uh+='<option value="'+u[0]+'">'+u[1]+'</option>'; }); $("useSelect").innerHTML=uh; }
@@ -377,7 +388,7 @@
   /* ---------- blend / lye ---------- */
   function curRV(){ return { oils:state.oils, additives:state.additives, aromas:state.aromas,
     lyeType:state.lyeType, superfat:state.superfat, waterPct:state.waterPct, kohPurity:state.kohPurity,
-    waterMode:state.waterMode, lyeConc:state.lyeConc }; }
+    waterMode:state.waterMode, lyeConc:state.lyeConc, waterRatio:state.waterRatio }; }
   function oilsGof(rv){ return sumG(rv.oils); }
   function blendFA(rv){
     rv=rv||curRV();
@@ -400,6 +411,8 @@
     if(rv.waterMode==="conc"){
       var c=(rv.lyeConc>0?rv.lyeConc:33)/100;   // lye concentration = lye / (lye + water)
       waterG = lyeG*(1-c)/c;                     // water sized from the lye (so superfat lowers it too)
+    } else if(rv.waterMode==="ratio"){
+      waterG = lyeG*(rv.waterRatio>0?rv.waterRatio:2);   // the "2:1 water:lye" notation
     } else {
       waterG = oilG*rv.waterPct/100;
     }
@@ -461,9 +474,9 @@
     $("batchOut").textContent=fmt(fromG(batch,wunit),1); $("batchUnit").textContent=UNITS[wunit].label;
     var conc=(L.lyeG+L.waterG)>0?L.lyeG/(L.lyeG+L.waterG)*100:0;
     var waterOfOils=L.oilG>0?L.waterG/L.oilG*100:0;
-    var info=(state.waterMode==="conc"
-        ? "Water ≈ "+fmt(waterOfOils,1)+"% of oils"
-        : "Lye concentration ≈ "+fmt(conc,1)+"%")
+    var info=(state.waterMode==="oils"
+        ? "Lye concentration ≈ "+fmt(conc,1)+"%"
+        : "Water ≈ "+fmt(waterOfOils,1)+"% of oils · lye conc. ≈ "+fmt(conc,1)+"%")
       +(state.superfat>0?" · "+state.superfat+"% superfat":"");
     if(isPct) info+=" · shown in "+UNITS[wunit].name;
     if(L.hasCustom) info+=" · custom oils excluded";
@@ -753,6 +766,12 @@
     var ar=sumG(rv.aromas);
     return L.oilG + L.lyeG + L.waterG + add + ar;
   }
+  // Most of the water evaporates during cure; the rest of the batch stays put. ~70% is a
+  // reasonable middle estimate — the real figure depends on humidity, airflow and cure length.
+  function curedBatchG(rv){
+    var L=computeLye(rv||curRV());
+    return Math.max(0, currentBatchG(rv) - L.waterG*0.7);
+  }
   function moldOilsG(){
     var shape=state.moldShape||"loaf";
     // rule of thumb: ~0.4 oz of oils per in³ (~0.69 g per cm³ / per mL)
@@ -789,6 +808,19 @@
     showToast(isBars ? ("Recipe scaled to ~"+Math.round(raw)+" bar"+(Math.round(raw)===1?"":"s"))
       : ("Recipe scaled to "+fmt(raw,UNITS[wunit].dp)+" "+UNITS[wunit].label+(state.scaleMode==="oils"?" of oils":" wet")));
   }
+  // Scaling leaves amounts like 793.83 g that nobody weighs out. Snap every ingredient to a
+  // practical step in the unit you're working in; the lye is recomputed from the new amounts.
+  function roundStepG(u){ return u==="g" ? 1 : u==="oz" ? UNITS.oz.toG*0.1 : u==="lb" ? UNITS.lb.toG*0.01 : 10; }
+  function roundAmounts(){
+    var wunit=weightUnit(), step=roundStepG(wunit);
+    if(!(totalOilsG()>0)) return;
+    pushUndo();
+    [state.oils,state.additives,state.aromas].forEach(function(list){
+      list.forEach(function(it){ if(it.g>0) it.g=Math.max(step,Math.round(it.g/step)*step); });
+    });
+    lastGoal=null; save(); render();
+    showToast("Rounded to tidy "+UNITS[wunit].name);
+  }
   function applyMold(){
     var target=moldOilsG(); if(target<=0) return;
     var cur=totalOilsG(); if(cur<=0) return;
@@ -821,6 +853,9 @@
     $("yieldUnit").textContent=ul;
     var bars=barCount(batchG);
     $("yieldBars").textContent="≈ "+bars+" bar"+(bars===1?"":"s")+" (~"+barG()+" g each) · "+fmt(fromG(oilsG,wunit),1)+" "+ul+" of oils";
+    var cured=curedBatchG(), lossPct = batchG>0 ? (batchG-cured)/batchG*100 : 0;
+    $("yieldCured").textContent="After curing ≈ "+fmt(fromG(cured,wunit),1)+" "+ul+
+      " (about "+Math.round(lossPct)+"% lighter as the water dries out)";
     if($("barW")!==document.activeElement) $("barW").value=state.barWeight;
 
     // reuse the target field to also show the current amount (in the target's unit) until edited
@@ -998,6 +1033,7 @@
       lab.appendChild(cb); lab.appendChild(el("span","txt",step)); box.appendChild(lab);
     });
     if($("notesField")!==document.activeElement) $("notesField").value = state.notes || "";
+    if($("lotField")!==document.activeElement) $("lotField").value = state.lot || "";
     var hp=state.method==="hp";
     $("tempRefCP").classList.toggle("hide",hp);
     $("tempRefHP").classList.toggle("hide",!hp);
@@ -1651,17 +1687,20 @@
   }
   function openWrapper(){
     syncCurrent(); var r=libById(currentId); if(!r) return;
-    var lab=inciLabel(), netOz=fmt(fromG(barG(),"oz"),1), netG=Math.round(barG()), d=wrapperDates();
+    // net weight on a label is the packaged (cured) bar, not the wet poured weight
+    var batch=currentBatchG(), curedBar = batch>0 ? barG()*(curedBatchG()/batch) : barG();
+    var lab=inciLabel(), netOz=fmt(fromG(curedBar,"oz"),1), netG=Math.round(curedBar), d=wrapperDates();
     var md=makeModal();
     var card=el("div","print-card wrapper-card");
     var h="<h2>"+escapeHtml(r.name)+"</h2><div class='wrap-tag'>Handmade Soap</div>";
     h+="<div class='wrap-net'>Net wt. "+netOz+" oz ("+netG+" g)</div>";
     h+="<h3>Ingredients</h3><p class='wrap-inci'>"+(lab.count?escapeHtml(lab.text):"—")+"</p>";
     if(d) h+="<div class='wrap-dates'>Made "+d.made+" · Best after "+d.ready+"</div>";
+    if(state.lot) h+="<div class='wrap-lot'>Lot "+escapeHtml(state.lot)+"</div>";
     h+="<div class='wrap-warn'>For external use only. Keep out of reach of children. Discontinue use if irritation occurs.</div>";
     card.innerHTML=h; md.m.appendChild(card);
     if(lab.missing.length) md.m.appendChild(el("div","inci-warn no-print","⚠ No stored INCI name for: "+escapeHtml(lab.missing.join(", "))+" — fill these in before printing for sale."));
-    md.m.appendChild(el("p","sub no-print","A starting-point wrapper. To sell, add your name/contact and check your local labelling rules."));
+    md.m.appendChild(el("p","sub no-print","Net weight is an estimate of the cured bar — weigh a real one before printing a label for sale. Add your name/contact and check your local labelling rules."));
     var foot=el("div","mfoot no-print");
     var pr=el("button","ghost","🖨 Print"); pr.addEventListener("click",function(){ window.print(); });
     var cp=el("button","ghost","📋 Copy"); cp.addEventListener("click",function(){ copyText(wrapperText(r,lab,netOz,netG,d),cp); });
@@ -1672,6 +1711,7 @@
     var L=[r.name, "Handmade Soap", "Net wt. "+netOz+" oz ("+netG+" g)", "",
       "Ingredients: "+(lab.count?lab.text:"—")];
     if(d) L.push("", "Made "+d.made+" · Best after "+d.ready);
+    if(state.lot) L.push("Lot "+state.lot);
     L.push("", "For external use only. Keep out of reach of children. Discontinue use if irritation occurs.");
     return L.join("\n");
   }
