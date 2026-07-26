@@ -181,6 +181,25 @@ async function addOil(p, key, g) {
     const t = r.oils.reduce((s,o)=>s+o.g,0); return r.oils.map((o)=>Math.round(o.g/t*100)).join("/"); });
   eq("Ratios preserved after scale", pcts, "40/30/30");
 
+  // bar size follows the chosen weight unit (it used to be hardcoded to grams)
+  await open(p, store({ oils:[OIL("olive",1000)], barWeight:113.4 }));   // 113.4 g == exactly 4 oz
+  const barBox = () => p.evaluate(() => ({ val: document.getElementById("barW").value,
+    unit: document.getElementById("barWUnit").textContent, step: document.getElementById("barW").step }));
+  let bb = await barBox();
+  eq("Bar size shows grams in g mode", bb.val + bb.unit, "113.4g");
+  await p.selectOption("#unitSelect", "oz"); await p.waitForTimeout(200);
+  bb = await barBox();
+  eq("Bar size converts to ounces", bb.val + bb.unit, "4oz");
+  eq("Step adapts to the unit", bb.step, "0.25");
+  has("Yield line uses the same unit", await txt(p, "#yieldBars"), "~4 oz each");
+  await p.selectOption("#unitSelect", "lb"); await p.waitForTimeout(200);
+  eq("Bar size converts to pounds", (await barBox()).val, "0.25");
+  // typing a small number in oz must not trip the old grams-based floor
+  await p.selectOption("#unitSelect", "oz"); await p.waitForTimeout(200);
+  await p.fill("#barW", "4.5"); await p.waitForTimeout(200);
+  near("Typing 4.5 oz stores 127.6 g (not a reset to 110)", (await LS(p)).recipes[0].barWeight, 4.5 * 28.349523125, 0.5);
+  await p.selectOption("#unitSelect", "g"); await p.waitForTimeout(200);
+
   // scale by number of bars
   await open(p, store({ oils:[OIL("olive",400),OIL("coconut",300),OIL("palm",300)] }, { scaleMode:"bars", barWeight:100 }));
   ok("Bars mode shows the 'bars' unit, hides weight unit", await p.evaluate(() =>
