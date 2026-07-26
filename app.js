@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v31", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v32", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -196,7 +196,12 @@
   $("restoreInput").addEventListener("change",function(e){ var f=e.target.files&&e.target.files[0]; if(f) restoreFrom(f); $("restoreInput").value=""; });
 
   // bar weight, scent helper, make-tab controls
-  $("barW").addEventListener("input",function(){ var v=parseFloat($("barW").value); state.barWeight=(isFinite(v)&&v>=10)?v:110; save(); updateScaleCard(); });
+  // the box shows the current weight unit, so convert before validating (10 g floor, not "10 oz")
+  $("barW").addEventListener("input",function(){
+    var v=parseFloat($("barW").value), g=isFinite(v)?v*UNITS[weightUnit()].toG:NaN;
+    state.barWeight=(isFinite(g)&&g>=10)?g:110;
+    save(); updateScaleCard();
+  });
   $("scentSuggest").addEventListener("click",suggestScents);
   $("clearOils").addEventListener("click",clearRecipe);
   $("useSelect").addEventListener("change",function(){ state.use=$("useSelect").value; save(); render(); });
@@ -925,11 +930,16 @@
     $("yieldVal").textContent=fmt(fromG(batchG,wunit),UNITS[wunit].dp);
     $("yieldUnit").textContent=ul;
     var bars=barCount(batchG);
-    $("yieldBars").textContent="≈ "+bars+" bar"+(bars===1?"":"s")+" (~"+barG()+" g each) · "+fmt(fromG(oilsG,wunit),1)+" "+ul+" of oils";
+    var barShown=fmt(fromG(barG(),wunit),UNITS[wunit].dp);
+    $("yieldBars").textContent="≈ "+bars+" bar"+(bars===1?"":"s")+" (~"+barShown+" "+ul+" each) · "+fmt(fromG(oilsG,wunit),1)+" "+ul+" of oils";
     var cured=curedBatchG(), lossPct = batchG>0 ? (batchG-cured)/batchG*100 : 0;
     $("yieldCured").textContent="After curing ≈ "+fmt(fromG(cured,wunit),1)+" "+ul+
       " (about "+Math.round(lossPct)+"% lighter as the water dries out)";
-    if($("barW")!==document.activeElement) $("barW").value=state.barWeight;
+    var BAR_STEP={g:5,oz:0.25,lb:0.05,kg:0.05};
+    $("barWUnit").textContent=ul;
+    $("barW").step=BAR_STEP[wunit]||1;
+    $("barW").min=fmt(fromG(10,wunit),3);
+    if($("barW")!==document.activeElement) $("barW").value=barShown;
 
     // reuse the target field to also show the current amount (in the target's unit) until edited
     if(!isMold && !scaleDirty && document.activeElement!==$("scaleTarget")){
@@ -943,7 +953,7 @@
     var isBars=state.scaleMode==="bars", sunit=scaleUnit(), sul=UNITS[sunit].label, raw=parseFloat($("scaleTarget").value);
     if(!scaleDirty || !(raw>0)){
       $("scaleHint").textContent = isBars
-        ? "Shows how many bars this batch makes (at ~"+barG()+" g each) — type how many you want and tap Scale."
+        ? "Shows how many bars this batch makes (at ~"+fmt(fromG(barG(),sunit),UNITS[sunit].dp)+" "+sul+" each) — type how many you want and tap Scale."
         : state.scaleMode==="oils"
         ? "Shows your current total oils — type a new target and tap Scale."
         : "Shows your current wet (poured) weight — type how much soap you want and tap Scale.";
