@@ -273,7 +273,7 @@ input[type=range]{touch-action:pan-y}
 @media (min-width:560px){.modal{border-radius:26px}}
 .modal h3{margin:0 0 4px;font-size:1.3rem;font-weight:800}
 .modal .sub{color:var(--muted);font-size:.86rem;margin:0 0 14px;font-weight:600}
-.modal .prow{display:grid;grid-template-columns:1fr 84px 62px auto;gap:8px;align-items:center;margin-bottom:8px}
+.modal .prow{display:grid;grid-template-columns:1fr 84px 62px auto;gap:8px;align-items:center;margin-bottom:14px}
 .modal .prow input,.modal .prow select{font-size:16px;padding:9px;border-radius:11px;border:2px solid var(--line);background:var(--bg-2);color:var(--ink);min-width:0}
 .modal .prow .rm{border:0;background:transparent;color:var(--muted);font-size:1.2rem;cursor:pointer}
 .modal .mfoot{display:flex;gap:10px;margin-top:18px}

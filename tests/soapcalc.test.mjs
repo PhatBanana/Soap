@@ -1126,6 +1126,147 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   PASTE A RECIPE (import from other calculators)
+======================================================================= */
+{
+  const p = await newPage();
+  // paste text, return what the review screen shows, optionally committing it
+  async function paste(text, { total = null, commit = false } = {}) {
+    await p.evaluate((t) => {
+      document.getElementById("menuBtn").click();
+      document.querySelector('[data-a="paste"]').click();
+      const ta = document.querySelector(".paste-in");
+      ta.value = t; ta.dispatchEvent(new Event("input"));
+    }, text);
+    await p.waitForTimeout(120);
+    const status = await p.$eval("#modalRoot .ocr-status", (e) => e.textContent);
+    const pctAsked = await p.evaluate(() => !document.querySelector("#modalRoot .scale-row").hidden);
+    if (total != null) await p.fill("#pasteTotal", String(total));
+    await p.click("#modalRoot .mfoot .primary");
+    await p.waitForTimeout(180);
+    const rows = await p.$$eval("#modalRoot .prow", (rs) => rs.map((r) => {
+      const i = r.querySelectorAll("input"), s = r.querySelectorAll("select");
+      return { name: i[0].value, amount: parseFloat(i[1].value), unit: s[0].value, section: s[1].value };
+    }));
+    const note = await p.$eval("#modalRoot .sub", (e) => e.textContent);
+    if (commit) { await p.click("#modalRoot .mfoot .primary"); await p.waitForTimeout(250); }
+    else await p.evaluate(() => { const b = document.querySelector("#modalRoot .modal-back"); if (b) b.remove(); document.body.style.overflow = ""; });
+    return { status, rows, note, pctAsked };
+  }
+
+  // --- SoapCalc's print view: a %/lb/oz/g table, and settings lines ---
+  await open(p, store({ oils:[] }));
+  const soapcalc = await paste(
+`Oil/Fat                    %      Pounds   Ounces   Grams
+Coconut Oil, 76 deg       30      0.600     9.60    272.16
+Olive Oil                 40      0.800    12.80    362.87
+Palm Kernel Flakes        25      0.500     8.00    226.80
+Castor Oil                 5      0.100     1.60     45.36
+Water as % of Oils        38%
+Super Fat                  5%
+Lye Concentration       27.5%`, { commit: true });
+  eq("SoapCalc: four oils read", soapcalc.rows.length, 4);
+  eq("SoapCalc: grams column preferred over oz/lb/%", soapcalc.rows[0].amount, 272.16);
+  eq("SoapCalc: a number inside the name doesn't become the amount",
+    soapcalc.rows[0].name, "Coconut Oil, 76 deg");
+  eq("SoapCalc: units read as grams", soapcalc.rows.map((r) => r.unit).join(","), "g,g,g,g");
+  eq("SoapCalc: everything classed as oil", soapcalc.rows.map((r) => r.section).join(","), "oil,oil,oil,oil");
+  has("SoapCalc: superfat applied", soapcalc.note, "superfat 5%");
+  has("SoapCalc: water setting applied", soapcalc.note, "water 38% of oils");
+
+  let r = (await LS(p)).recipes[0];
+  eq("Committed oils land in the recipe", r.oils.length, 4);
+  eq("Names normalised to ours", r.oils.map((o) => o.name).join(","),
+    "Coconut oil (76°),Olive oil,Palm kernel oil,Castor oil");
+  eq("Every oil matched a known key", r.oils.filter((o) => !o.key).length, 0);
+  eq("Palm *kernel* beats plain palm", r.oils[2].key, "palmkernel");
+  eq("Superfat came across", r.superfat, 5);
+  eq("Water mode came across", r.waterMode, "conc");
+  eq("Lye concentration came across", r.lyeConc, 27.5);
+  near("Total oils as pasted", r.oils.reduce((a, o) => a + o.g, 0), 907.19, 0.05);
+
+  // --- Bramble Berry style: one unit per line, plus lye and water lines ---
+  await open(p, store({ oils:[] }));
+  const bb = await paste(
+`Olive Oil 12 oz
+Coconut Oil 9 oz
+Palm Oil 7.5 oz
+Castor Oil 1.5 oz
+Sodium Hydroxide 4.3 oz
+Water 9.9 oz
+Superfat: 5%`, { commit: true });
+  eq("Bramble Berry: four oils (lye and water excluded)", bb.rows.length, 4);
+  eq("Bramble Berry: ounces kept as ounces", bb.rows[0].unit, "oz");
+  eq("Bramble Berry: amount read", bb.rows[0].amount, 12);
+  ok("Lye is never added as an ingredient", !bb.rows.some((x) => /hydroxide/i.test(x.name)));
+  ok("Water is never added as an ingredient", !bb.rows.some((x) => /water/i.test(x.name)));
+  has("Lye type applied instead", bb.note, "NaOH");
+  r = (await LS(p)).recipes[0];
+  eq("Ounces converted on commit", Math.round(r.oils[0].g * 100) / 100, 340.19);
+  eq("Lye type set from the paste", r.lyeType, "naoh");
+
+  // --- a percentage-only recipe needs a batch size ---
+  await open(p, store({ oils:[] }));
+  const pct = await paste(
+`Olive 40%
+Coconut 30%
+Palm 25%
+Castor 5%
+Super fat 8%`, { total: 1000, commit: true });
+  ok("Percent paste asks for a total", pct.pctAsked);
+  eq("Percentages scaled to the requested total",
+    pct.rows.map((x) => x.amount).join(","), "400,300,250,50");
+  eq("Scaled rows are weights now", pct.rows[0].unit, "g");
+  r = (await LS(p)).recipes[0];
+  near("Total oils matches the batch size asked for", r.oils.reduce((a, o) => a + o.g, 0), 1000, 0.5);
+  eq("Superfat from a percent paste", r.superfat, 8);
+
+  // --- KOH, a scent, and a water:lye ratio ---
+  await open(p, store({ oils:[] }));
+  const koh = await paste(
+`Ingredient           Grams    Percent
+Olive Oil            362.9    40
+Coconut Oil          272.2    30
+Lavender Essential Oil 30
+Potassium Hydroxide 155.2
+Water:Lye Ratio 2.5`, { commit: true });
+  ok("Essential oil classed as a scent", koh.rows.some((x) => x.section === "scent"));
+  ok("Coconut oil is an oil, not the additive 'coconut milk'",
+    koh.rows.find((x) => /coconut/i.test(x.name)).section === "oil");
+  has("KOH detected", koh.note, "KOH");
+  has("Water:lye ratio applied", koh.note, "water:lye 2.5:1");
+  r = (await LS(p)).recipes[0];
+  eq("Scent landed in the scent list", r.aromas.length, 1);
+  eq("Scent matched a known key", r.aromas[0].key, "lavender");
+  eq("Lye type is KOH", r.lyeType, "koh");
+  eq("Water mode is ratio", r.waterMode, "ratio");
+  eq("Ratio value stored", r.waterRatio, 2.5);
+
+  // --- rubbish in, nothing out ---
+  await open(p, store({ oils:[] }));
+  await p.evaluate(() => {
+    document.getElementById("menuBtn").click();
+    document.querySelector('[data-a="paste"]').click();
+    const ta = document.querySelector(".paste-in");
+    ta.value = "just some prose with no numbers at all"; ta.dispatchEvent(new Event("input"));
+  });
+  await p.waitForTimeout(120);
+  has("Unparseable text says so", await p.$eval("#modalRoot .ocr-status", (e) => e.textContent), "Nothing recognised");
+  await p.click("#modalRoot .mfoot .primary"); await p.waitForTimeout(150);
+  ok("…and doesn't open the review screen", (await p.$$("#modalRoot .prow")).length === 0);
+  eq("…and adds nothing", (await LS(p)).recipes[0].oils.length, 0);
+  await p.evaluate(() => { const b = document.querySelector("#modalRoot .modal-back"); if (b) b.remove(); document.body.style.overflow = ""; });
+
+  // --- a wild setting can't get past the schema's own clamps ---
+  await open(p, store({ oils:[] }));
+  await paste("Olive Oil 500 g\nSuper Fat 90%\nWater as % of Oils 5%", { commit: true });
+  r = (await LS(p)).recipes[0];
+  eq("Absurd superfat clamped to the schema max", r.superfat, 15);
+  eq("Absurd water % clamped to the schema min", r.waterPct, 25);
+  await p.close();
+}
+
+/* =======================================================================
    GUIDE CROSS-LINKS (troubleshooting ⇄ rebatch ⇄ colorants)
 ======================================================================= */
 {
