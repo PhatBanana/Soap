@@ -359,17 +359,25 @@ above are what ships.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state.
+the real app and asserts on the computed numbers and saved state. **381 assertions.**
 
 ```sh
-npm install                       # installs playwright (dev-only)
+npm ci                            # installs playwright (dev-only)
 npx playwright install chromium   # one-time browser download
 npm test                          # runs tests/soapcalc.test.mjs
 ```
 
 The suite is self-contained (it starts its own static server) and exits non-zero
-on any failure — handy to run before pushing a change to the lye math, safety
-rules, or persistence.
+on any failure. It also guards **release hygiene** — that the service-worker cache
+name was bumped along with `APP_VERSION`, that every precached file actually
+exists, and that the footer shows the version — since a mismatch there is what
+leaves a phone running a stale copy.
+
+**CI:** every pull request runs the suite via
+[`.github/workflows/tests.yml`](.github/workflows/tests.yml). The workflow
+deliberately uploads **no artifacts** — no traces, no screenshots — so it costs
+no repository storage; the pass/fail and the log are enough, and anything needing
+more is reproduced locally with `npm test`.
 
 ## What's next
 See **[ROADMAP.md](ROADMAP.md)** for the full picture — everything the app does today,

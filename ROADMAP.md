@@ -7,7 +7,7 @@ in the kitchen, offline, with no account and nothing leaving the device. Everyth
 below is judged against that.
 
 **Today:** v40 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
-15 example recipes · 359 test assertions.
+15 example recipes · 381 test assertions, run on every pull request.
 
 ---
 
@@ -86,7 +86,8 @@ below is judged against that.
 - **Installable PWA**, fully offline, auto-updating, with a version footer.
 - **Backup / restore** everything as JSON.
 - Collapsible cards, sticky lye/batch summary, theme toggle, **multi-level undo**.
-- A **behaviour test suite** covering the chemistry, safety rules, scaling and storage.
+- A **behaviour test suite** covering the chemistry, safety rules, scaling and storage,
+  run automatically on every pull request.
 
 ---
 
@@ -139,9 +140,15 @@ than in a parallel list, so it backs up, restores and sanitizes with everything 
 
 ### Tier 3 — platform
 
-**7. CI running the test suite on pull requests.** Skipped so far to keep GitHub
-Actions storage down; worth revisiting with short artifact retention, since the suite
-is the main safety net.
+**7. CI running the test suite on pull requests** — ✅ **shipped**
+Every pull request now runs the full suite. The storage worry that kept this off the
+list turned out to be avoidable rather than manageable: the workflow uploads **no
+artifacts at all**, so it consumes no repository storage — logs aren't billed as
+storage, and anything a log can't explain is reproduced locally with `npm test`.
+Shipped alongside **release-hygiene assertions**: the service-worker cache name must
+be bumped with `APP_VERSION`, every precached file must exist, and the footer must
+show the version. That coupling was hand-maintained for 40 releases and is exactly
+what leaves a phone on a stale copy when it slips.
 
 **8. Import from other calculators** — SoapCalc, Bramble Berry, SoapmakingFriend
 formats, so existing recipes can come along.

@@ -1,0 +1,45 @@
+# Runs the behaviour test suite on every pull request.
+#
+# Deliberately stores nothing: no artifacts, no traces, no screenshots. Storage
+# on this repo is the reason CI was skipped for so long, and a run that uploads
+# nothing costs none of it — the pass/fail and the log are all we need, and logs
+# aren't billed as storage. If a failure ever needs more than the log to
+# diagnose, reproduce it locally with `npm test` rather than adding uploads here.
+name: Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A second push to the same PR makes the first run pointless — cancel it.
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The suite launches Chromium itself; --with-deps pulls the system libs
+      # the bare download needs on ubuntu-latest.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # Starts its own static server, drives the real app, and exits non-zero
+      # on any failed assertion.
+      - name: Run tests
+        run: npm test
