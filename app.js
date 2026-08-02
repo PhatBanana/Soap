@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v33", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v34", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -79,6 +79,9 @@
     {k:"scaleUnit",      coerce:function(v){return (UNITS[v]&&v!=="pct")?v:null;}},
     {k:"currency",       coerce:function(v){return (typeof v==="string"&&v)?v:"$";}},
     {k:"prices",         coerce:function(v){return (v&&typeof v==="object")?v:{};}},
+    // what's in the cupboard, in grams, keyed like prices. Only ingredients you've
+    // actually entered appear here, which is what keeps inventory opt-in.
+    {k:"stock",          coerce:function(v){return (v&&typeof v==="object")?v:{};}},
     {k:"collapsed",      coerce:function(v){return (v&&typeof v==="object")?v:null;}},
     // ingredient keys you've added lately, newest first — drives the quick-add chips
     {k:"recent",         coerce:function(v){return Array.isArray(v)?v.filter(function(x){return typeof x==="string";}).slice(0,8):[];}},
@@ -1146,10 +1149,27 @@
     state.batches.push({ id:uid(), madeOn:made, lot:state.lot||"",
       cureWeeks:state.cureWeeks||4, notes:state.notes||"" });
     if(state.batches.length>50) state.batches.shift();
+    var used=drawDownStock();
     // the checklist and notes belonged to that make — start the next one clean
     state.checklist={}; state.notes="";
     save(); render();
-    showToast("Batch logged — "+state.batches.length+" on record",true);
+    showToast("Batch logged — "+state.batches.length+" on record"+(used?" · inventory updated":""),true);
+  }
+  // Making a batch uses up ingredients. Only touches what you're already tracking,
+  // so it's a no-op unless you use Inventory. Returns whether anything changed.
+  function drawDownStock(){
+    var r=libById(currentId); if(!r) return false;
+    var touched=false;
+    function take(it,g){
+      var k=priceKeyOf(it); if(state.stock[k]===undefined || !(g>0)) return;
+      state.stock[k]=Math.max(0,state.stock[k]-g); touched=true;
+    }
+    [r.oils,r.additives,r.aromas].forEach(function(list){
+      list.forEach(function(it){ take(it,it.g); });
+    });
+    var L=computeLye(r);
+    take(r.lyeType==="koh"?LYE_KOH:LYE_NAOH, L.lyeG);   // water isn't stocked
+    return touched;
   }
   function renderHistory(){
     var card=$("historyCard"), box=$("batchList"); if(!card||!box) return;
@@ -1352,6 +1372,7 @@
       case "library": openLibrary(); break;
       case "compare": openCompare(); break;
       case "costs": openCosts(); break;
+      case "stock": openStock(); break;
       case "shopping": openShopping(); break;
       case "theme": cycleTheme(); break;
       case "card": openCard(); break;
@@ -2030,6 +2051,79 @@
     draw();
   }
 
+  /* ---------- inventory: what's in the cupboard ---------- */
+  // The lye and water lines are shopping-list items too, so they get names and keys
+  // like any other ingredient (water is deliberately not stockable).
+  var LYE_NAOH={name:"Sodium hydroxide (NaOH)",key:null},
+      LYE_KOH ={name:"Potassium hydroxide (KOH)",key:null},
+      WATER_ROW={name:"Distilled water",key:null};
+  function lyeRows(T,skipWater){
+    var rows=[];
+    if(T.naoh>0) rows.push({name:LYE_NAOH.name,key:null,g:T.naoh});
+    if(T.koh>0)  rows.push({name:LYE_KOH.name, key:null,g:T.koh});
+    if(!skipWater && T.water>0) rows.push({name:WATER_ROW.name,key:null,g:T.water});
+    return rows;
+  }
+  // Every ingredient across the whole library (a cupboard spans recipes), plus
+  // anything already holding stock, de-duplicated by the price-book key.
+  function stockCandidates(){
+    var seen={}, out=[];
+    function add(it){ var k=priceKeyOf(it); if(seen[k]) return; seen[k]={name:it.name}; out.push({key:k,name:it.name}); }
+    library.forEach(function(r){
+      r.oils.forEach(function(it){ if(it.g>0) add(it); });
+      r.additives.forEach(function(it){ if(it.g>0) add(it); });
+      r.aromas.forEach(function(it){ if(it.g>0) add(it); });
+      add(r.lyeType==="koh" ? LYE_KOH : LYE_NAOH);
+    });
+    Object.keys(state.stock||{}).forEach(function(k){ if(!seen[k]) out.push({key:k,name:k.indexOf("c:")===0?k.slice(2):k}); });
+    return out;
+  }
+  function openStock(){
+    syncCurrent();
+    var md=makeModal(), wunit=weightUnit(), ul=UNITS[wunit].label;
+    md.m.appendChild(el("h3",null,"Inventory"));
+    md.m.appendChild(el("p","sub","What you've got in the cupboard, in "+UNITS[wunit].name+". The shopping list subtracts this, so it only asks you to buy what you're short of. Leave anything blank to stop tracking it."));
+    var out=el("div"); md.m.appendChild(out);
+    var cover=el("div","subinfo"); cover.style.textAlign="left"; md.m.appendChild(cover);
+    var items=stockCandidates();
+    if(!items.length){ out.appendChild(el("div","ocr-status","Add ingredients to a recipe first.")); }
+    else {
+      var table=el("table","cost-table"), tb=document.createElement("tbody"); table.appendChild(tb);
+      items.forEach(function(x){
+        var tr=document.createElement("tr");
+        tr.appendChild(el("td",null,escapeHtml(x.name)));
+        var td=document.createElement("td");
+        var inp=document.createElement("input"); inp.type="number"; inp.min="0"; inp.step="any"; inp.placeholder="0";
+        var have=state.stock[x.key];
+        inp.value = have>0 ? fmt(fromG(have,wunit),UNITS[wunit].dp) : "";
+        inp.addEventListener("input",function(){
+          var v=parseFloat(inp.value);
+          if(isFinite(v)&&v>0) state.stock[x.key]=v*UNITS[wunit].toG; else delete state.stock[x.key];
+          save(); showCoverage();
+        });
+        td.appendChild(inp); td.appendChild(document.createTextNode(" "+ul));
+        tr.appendChild(td); tb.appendChild(tr);
+      });
+      out.appendChild(table);
+    }
+    function showCoverage(){
+      var r=libById(currentId); if(!r){ cover.textContent=""; return; }
+      var T=shoppingTotals([r]), short=[];
+      [].concat(T.oils,T.adds,T.scents,lyeRows(T,true)).forEach(function(x){
+        var have=state.stock[priceKeyOf(x)];
+        if(have===undefined) return;                       // untracked — can't judge
+        if(have < x.g-0.01) short.push(x.name+" (short "+fmt(fromG(x.g-have,wunit),1)+" "+ul+")");
+      });
+      var tracked=Object.keys(state.stock||{}).length;
+      cover.textContent = !tracked ? "Nothing tracked yet — fill in what you have above."
+        : short.length ? "“"+r.name+"”: short on "+short.join(", ")+"."
+        : "“"+r.name+"”: you have enough of everything you're tracking. ✓";
+    }
+    showCoverage();
+    var foot=el("div","mfoot"); var done=el("button","primary","Done");
+    done.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(done); md.m.appendChild(foot);
+  }
+
   /* ---------- shopping list: what to buy across a batch plan ---------- */
   function shoppingTotals(recipes){
     var oils={}, adds={}, scents={}, naoh=0, koh=0, water=0;
@@ -2085,23 +2179,26 @@
         out.appendChild(el("div","shop-h",title));
         lines.push(title.toUpperCase());
         items.forEach(function(x){
-          var row=el("div","shop-row");
-          var amt=fmt(fromG(x.g,wunit),UNITS[wunit].dp)+" "+ul;
-          var price=state.prices[priceKeyOf(x)], cost=price>0 ? x.g/1000*price : 0; total+=cost;
-          row.innerHTML="<span class='sr-name'>"+escapeHtml(x.name)+"</span><span class='sr-amt'>"+amt+
-            (cost>0?" <span class='sr-cost'>"+cur+fmt(cost,2)+"</span>":"")+"</span>";
+          var pk=priceKeyOf(x), have=state.stock[pk];
+          // untracked ingredients behave exactly as they did before inventory existed
+          var tracked=have!==undefined, buyG=tracked?Math.max(0,x.g-have):x.g, covered=tracked&&buyG<=0.01;
+          var row=el("div","shop-row"+(covered?" covered":""));
+          var amt=fmt(fromG(buyG,wunit),UNITS[wunit].dp)+" "+ul;
+          var price=state.prices[pk], cost=price>0 ? buyG/1000*price : 0; total+=cost;
+          var main = covered ? "<span class='sr-amt'>have enough</span>"
+            : "<span class='sr-amt'>"+amt+(cost>0?" <span class='sr-cost'>"+cur+fmt(cost,2)+"</span>":"")+"</span>";
+          row.innerHTML="<span class='sr-name'>"+escapeHtml(x.name)+
+            (tracked?"<span class='sr-have'>need "+fmt(fromG(x.g,wunit),UNITS[wunit].dp)+" · have "+fmt(fromG(have,wunit),UNITS[wunit].dp)+"</span>":"")+
+            "</span>"+main;
           out.appendChild(row);
-          lines.push("  "+x.name+": "+amt+(cost>0?"  ("+cur+fmt(cost,2)+")":""));
+          lines.push("  "+x.name+": "+(covered?"have enough":amt+(cost>0?"  ("+cur+fmt(cost,2)+")":""))+
+            (tracked&&!covered?"  [need "+fmt(fromG(x.g,wunit),UNITS[wunit].dp)+", have "+fmt(fromG(have,wunit),UNITS[wunit].dp)+"]":""));
         });
       }
       section("Oils & fats",T.oils);
       section("Additives",T.adds);
       section("Scents",T.scents);
-      var lye=[];
-      if(T.naoh>0) lye.push({name:"Sodium hydroxide (NaOH)",key:null,g:T.naoh});
-      if(T.koh>0)  lye.push({name:"Potassium hydroxide (KOH)",key:null,g:T.koh});
-      if(T.water>0) lye.push({name:"Distilled water",key:null,g:T.water});
-      section("Lye & water",lye);
+      section("Lye & water",lyeRows(T));
       var foot2=el("div","shop-tot");
       foot2.innerHTML="<span>"+chosen.length+" recipe"+(chosen.length===1?"":"s")+"</span>"+
         (total>0?"<span class='big'>"+cur+fmt(total,2)+"</span>":"<span class='sub'>add prices in Costs for a total</span>");

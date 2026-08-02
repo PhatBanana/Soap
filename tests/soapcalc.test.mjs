@@ -281,6 +281,66 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   INVENTORY (cupboard stock → shopping list → drawn down by a batch)
+======================================================================= */
+{
+  const p = await newPage();
+  const blank = recipe();
+  const seed = (stock, tab) => p.evaluate(({ b, stock, tab }) => {
+    localStorage.setItem("soapcalc.v4", JSON.stringify({
+      unit:"g", tab:tab||"base", scaleMode:"batch", currency:"$",
+      prices:{ olive:8, coconut:5 }, stock:stock, currentId:"r1",
+      recipes:[Object.assign({}, b, { id:"r1", name:"Bar A",
+        oils:[{name:"Olive oil",key:"olive",g:600},{name:"Coconut oil",key:"coconut",g:400}] })]
+    }));
+  }, { b: blank, stock, tab });
+  const openShop = async () => {
+    await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="shopping"]').click(); });
+    await p.waitForTimeout(150);
+    const r = await p.evaluate(() => ({ rows: [...document.querySelectorAll(".shop-row")].map((x) => x.textContent),
+      covered: document.querySelectorAll(".shop-row.covered").length,
+      tot: document.querySelector(".shop-tot").textContent }));
+    await p.evaluate(() => { const b = document.querySelector(".modal-back"); if (b) b.remove(); document.body.style.overflow = ""; });
+    return r;
+  };
+
+  // no stock at all → behaves exactly as before inventory existed
+  await p.goto(base + "/index.html"); await seed({}); await p.reload(); await p.waitForTimeout(200);
+  let s = await openShop();
+  has("Without stock the row is just the amount", s.rows[0], "Olive oil600 g");
+  ok("Without stock nothing is marked covered", s.covered === 0);
+  has("Without stock the full cost is charged", s.tot, "$6.8");
+
+  // partial stock → need / have / buy, and only the shortfall is priced
+  await seed({ olive:200, coconut:1000 }); await p.reload(); await p.waitForTimeout(200);
+  s = await openShop();
+  has("Short ingredient shows need and have", s.rows[0], "need 600 · have 200");
+  has("…and asks you to buy only the shortfall", s.rows[0], "400 g");
+  has("…priced on the shortfall", s.rows[0], "$3.2");
+  has("Covered ingredient says so", s.rows[1], "have enough");
+  eq("Covered ingredient is greyed", s.covered, 1);
+  has("Total counts only what must be bought", s.tot, "$3.2");
+
+  // inventory modal lists library ingredients + lye, and reports coverage
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="stock"]').click(); });
+  await p.waitForTimeout(150);
+  const names = await p.$$eval(".cost-table tr td:first-child", (ts) => ts.map((t) => t.textContent));
+  has("Inventory lists oils", names.join("|"), "Olive oil");
+  has("Inventory lists lye too", names.join("|"), "Sodium hydroxide (NaOH)");
+  has("Coverage line names the shortfall", await txt(p, ".modal .subinfo"), "short on Olive oil");
+  await p.evaluate(() => { const b = document.querySelector(".modal-back"); if (b) b.remove(); document.body.style.overflow = ""; });
+
+  // logging a batch draws stock down, floors at zero, ignores untracked items
+  await seed({ olive:200, coconut:1000 }, "make"); await p.reload(); await p.waitForTimeout(200);
+  await p.click("#logBatch"); await p.waitForTimeout(250);
+  const st = (await LS(p)).stock;
+  eq("Used-up ingredient floors at zero", st.olive, 0);
+  near("Remaining stock is reduced by what was used", st.coconut, 600, 0.5);
+  ok("Untracked ingredients stay untracked", st["c:sodium hydroxide (naoh)"] === undefined);
+  await p.close();
+}
+
+/* =======================================================================
    BATCH LOG (each make archived, not overwritten)
 ======================================================================= */
 {
@@ -668,7 +728,7 @@ async function addOil(p, key, g) {
 
   // save shape unchanged (backup/restore compatibility)
   const keys = Object.keys(await LS(p)).sort().join(",");
-  eq("Save shape keys", keys, "collapsed,currency,currentId,lastWeightUnit,librarySort,moldShape,prices,recent,recipes,scaleMode,scaleUnit,tab,theme,unit");
+  eq("Save shape keys", keys, "collapsed,currency,currentId,lastWeightUnit,librarySort,moldShape,prices,recent,recipes,scaleMode,scaleUnit,stock,tab,theme,unit");
   await p.close();
 }
 

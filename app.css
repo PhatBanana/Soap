@@ -390,6 +390,9 @@ input[type=range]{touch-action:pan-y}
 .shop-h{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800;margin:16px 0 6px}
 .shop-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:2px solid var(--line);font-size:.92rem}
 .shop-row .sr-name{overflow-wrap:anywhere}
+.shop-row .sr-have{display:block;color:var(--muted);font-size:.74rem;font-weight:700;margin-top:1px}
+.shop-row.covered{opacity:.55}
+.shop-row.covered .sr-amt{color:var(--green-d);font-size:.82rem}
 .shop-row .sr-amt{white-space:nowrap;font-weight:800;font-variant-numeric:tabular-nums}
 .shop-row .sr-cost{color:var(--muted);font-weight:700;font-size:.82rem}
 .shop-tot{display:flex;justify-content:space-between;align-items:baseline;margin-top:16px;padding-top:14px;border-top:3px dashed var(--line);font-weight:800}

@@ -203,6 +203,12 @@ phone in the kitchen or on a desktop.
   the **NaOH and KOH kept separate** (they're different chemicals) and the total
   distilled water. Priced ingredients show a line cost and an **estimated total**, and
   the whole list is copyable to take to the shop.
+- 📦 **Inventory** — record what's in the cupboard and the shopping list only asks you
+  to buy **what you're actually short of**: each line shows *need · have → buy*,
+  anything you have enough of is greyed out, and the total counts only the shortfall.
+  The Inventory screen also answers "**can I make this today?**" for the current
+  recipe, and **logging a batch draws down** what it used. Entirely optional — track
+  nothing and the shopping list behaves exactly as it always has.
 
 ### Recipes
 - **15 built-in example recipes** — one-tap starters across **bars** (Classic Gentle
