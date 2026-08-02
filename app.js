@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v37", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v38", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -70,7 +70,16 @@
           madeOn:(typeof b.madeOn==="string")?b.madeOn:"",
           lot:(typeof b.lot==="string")?b.lot.slice(0,32):"",
           cureWeeks:clamp(b.cureWeeks,4,1,16),
-          notes:(typeof b.notes==="string")?b.notes.slice(0,4000):"" };
+          notes:(typeof b.notes==="string")?b.notes.slice(0,4000):"",
+          // zap tests & pH readings taken while the bar cures
+          checks:(Array.isArray(b.checks)?b.checks:[]).filter(function(k){ return k&&typeof k==="object"; })
+            .slice(-20).map(function(k){
+              return { id:(typeof k.id==="string"&&k.id)?k.id:uid(),
+                on:(typeof k.on==="string")?k.on.slice(0,10):"",
+                ph:(k.ph===""||k.ph==null||!isFinite(parseFloat(k.ph)))?null:clamp(k.ph,10,0,14),
+                zap:!!k.zap,
+                note:(typeof k.note==="string")?k.note.slice(0,300):"" };
+            }) };
       });
     }}
   ];
@@ -1203,7 +1212,7 @@
     if(!Array.isArray(state.batches)) state.batches=[];
     var made=state.madeOn||todayISO();
     state.batches.push({ id:uid(), madeOn:made, lot:state.lot||"",
-      cureWeeks:state.cureWeeks||4, notes:state.notes||"" });
+      cureWeeks:state.cureWeeks||4, notes:state.notes||"", checks:[] });
     if(state.batches.length>50) state.batches.shift();
     var used=drawDownStock();
     // the checklist and notes belonged to that make — start the next one clean
@@ -1245,6 +1254,7 @@
       head.innerHTML="<b>"+escapeHtml(when)+"</b><span>"+escapeHtml((b.lot?"Lot "+b.lot:"")+ready)+"</span>";
       row.appendChild(head);
       if(b.notes) row.appendChild(el("div","bh-notes",escapeHtml(b.notes)));
+      row.appendChild(checkLog(b,made));
       var del=el("button","bh-del","&times;"); del.type="button"; del.setAttribute("aria-label","Delete this batch record");
       del.addEventListener("click",function(){
         state.batches=state.batches.filter(function(x){ return x.id!==b.id; });
@@ -1253,6 +1263,67 @@
       row.appendChild(del);
       box.appendChild(row);
     });
+  }
+  /* Zap tests and pH readings taken across a batch's cure. Kept on the batch record
+     so a bar's story reads week 1 "zaps" → week 4 "pH 9, no zap".                   */
+  function checkLog(b,made){
+    var wrap=el("div","bh-checks");
+    var list=(b.checks||[]).slice().sort(function(x,y){ return (x.on||"").localeCompare(y.on||""); });
+    if(list.length) wrap.appendChild(el("div","bh-clabel","Cure checks"));
+    list.forEach(function(k){
+      var r=el("div","bh-check");
+      var when=k.on||"—", wk="", d=k.on?new Date(k.on+"T00:00:00"):null;
+      if(d&&!isNaN(d.getTime())){
+        when=d.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+        if(made&&!isNaN(made.getTime())){
+          var days=Math.round((d-made)/86400000);
+          if(days>=0) wk=" · "+(days<7 ? "day "+days : "week "+Math.round(days/7));
+        }
+      }
+      var bits=[];
+      bits.push("<span class='"+(k.zap?"bc-zap":"bc-nozap")+"'>"+(k.zap?"⚡ zaps":"✓ no zap")+"</span>");
+      if(k.ph!=null) bits.push("<span class='bc-ph'>pH "+fmt(k.ph,1)+"</span>");
+      r.innerHTML="<span class='bc-when'>"+escapeHtml(when+wk)+"</span>"+bits.join("")+
+        (k.note?"<span class='bc-note'>"+escapeHtml(k.note)+"</span>":"");
+      var x=el("button","bc-del","&times;"); x.type="button"; x.setAttribute("aria-label","Remove this check");
+      x.addEventListener("click",function(){
+        var rec=null; (state.batches||[]).forEach(function(y){ if(y.id===b.id) rec=y; });
+        if(!rec) return;
+        rec.checks=(rec.checks||[]).filter(function(y){ return y.id!==k.id; });
+        save(); render(); showToast("Check removed",true);
+      });
+      r.appendChild(x);
+      wrap.appendChild(r);
+    });
+    var add=el("button","bh-addcheck","+ check"); add.type="button";
+    add.setAttribute("data-batch",b.id);
+    var form=el("form","bh-cform"); form.hidden=true;
+    form.innerHTML=
+      "<label class='bcf-f'><span>Date</span><input type='date' class='bcf-on' value='"+escapeHtml(todayISO())+"'></label>"+
+      "<label class='bcf-f'><span>pH (optional)</span><input type='number' class='bcf-ph' step='0.1' min='0' max='14' inputmode='decimal' placeholder='—'></label>"+
+      "<label class='bcf-z'><input type='checkbox' class='bcf-zap'><span>It zaps my tongue</span></label>"+
+      "<input type='text' class='bcf-note' maxlength='300' placeholder='Note (optional) — still soft, ash on top…'>"+
+      "<div class='bcf-btns'><button type='submit' class='primary'>Save check</button></div>";
+    add.addEventListener("click",function(){
+      form.hidden=!form.hidden;
+      if(!form.hidden){ var f=form.querySelector(".bcf-on"); if(f) f.focus(); }
+    });
+    form.addEventListener("submit",function(e){
+      e.preventDefault();
+      var rec=null; (state.batches||[]).forEach(function(y){ if(y.id===b.id) rec=y; });
+      if(!rec) return;
+      var phRaw=form.querySelector(".bcf-ph").value;
+      if(!Array.isArray(rec.checks)) rec.checks=[];
+      rec.checks.push({ id:uid(),
+        on:form.querySelector(".bcf-on").value||todayISO(),
+        ph:(phRaw===""||!isFinite(parseFloat(phRaw)))?null:clamp(phRaw,10,0,14),
+        zap:form.querySelector(".bcf-zap").checked,
+        note:form.querySelector(".bcf-note").value.slice(0,300) });
+      if(rec.checks.length>20) rec.checks.shift();
+      save(); render(); showToast("Check saved",true);
+    });
+    wrap.appendChild(add); wrap.appendChild(form);
+    return wrap;
   }
   function updateMethodNote(){
     setActive($("methodSeg"),"mt",state.method||"cp");

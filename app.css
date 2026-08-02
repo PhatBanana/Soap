@@ -317,6 +317,28 @@ input[type=range]{touch-action:pan-y}
 .bh-notes{margin-top:6px;font-size:.84rem;line-height:1.45;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
 .bh-del{position:absolute;top:8px;right:8px;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:1.25rem;line-height:1;padding:2px 6px;border-radius:9px}
 .bh-del:hover{color:var(--coral-d);background:var(--coral-soft)}
+.bh-checks{margin-top:8px}
+.bh-clabel{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800;margin-bottom:4px}
+.bh-check{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 26px 6px 0;border-top:1px solid var(--line);font-size:.8rem}
+.bh-check:first-of-type{border-top:0}
+.bc-when{font-weight:800;color:var(--muted)}
+.bc-zap,.bc-nozap,.bc-ph{border-radius:999px;padding:1px 8px;font-weight:800;font-size:.74rem}
+.bc-zap{background:var(--coral-soft);color:var(--coral-d)}
+.bc-nozap{background:var(--green-soft);color:var(--green-d)}
+.bc-ph{background:var(--bg);color:var(--muted)}
+.bc-note{flex:1 1 100%;color:var(--ink);line-height:1.4;overflow-wrap:anywhere}
+.bc-del{position:absolute;top:3px;right:0;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:1.05rem;line-height:1;padding:1px 5px;border-radius:8px}
+.bc-del:hover{color:var(--coral-d);background:var(--coral-soft)}
+.bh-addcheck{margin-top:8px;border:2px dashed var(--line);background:transparent;color:var(--muted);font-weight:800;font-size:.78rem;border-radius:10px;padding:6px 12px;cursor:pointer}
+.bh-addcheck:hover{border-color:var(--coral);color:var(--coral-d)}
+.bh-cform{margin-top:8px;display:flex;flex-wrap:wrap;gap:8px}
+.bcf-f{flex:1 1 130px;display:flex;flex-direction:column;gap:3px;font-size:.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.bcf-f input{width:100%}
+.bcf-z{flex:1 1 100%;display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:var(--ink)}
+.bcf-z input{width:20px;height:20px;flex:0 0 auto}
+.bcf-note{flex:1 1 100%}
+.bcf-btns{flex:1 1 100%;display:flex;justify-content:flex-end}
+.bcf-btns button{padding:8px 16px;font-size:.85rem}
 .notes-field{width:100%;font-size:1rem;line-height:1.5;padding:12px 14px;border:2px solid var(--line);border-radius:14px;background:var(--bg-2);color:var(--ink);resize:vertical;min-height:96px;font-family:inherit}
 .ocr-status{text-align:center;color:var(--muted);font-size:.92rem;padding:18px 0;font-weight:600}
 .ocr-preview{max-width:100%;border-radius:14px;margin:0 auto 12px;display:block;max-height:180px}
