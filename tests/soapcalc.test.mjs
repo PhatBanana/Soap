@@ -902,6 +902,54 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   REBATCH HELPER
+======================================================================= */
+{
+  const p = await newPage();
+  const openRebatch = async () => {
+    await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="rebatch"]').click(); });
+    await p.waitForTimeout(150);
+  };
+  const amounts = () => p.$$eval("#modalRoot .rb-row .sr-amt", (es) => es.map((e) => e.textContent.trim()));
+
+  // 1000 g of oils -> 1521.2 g wet -> ~1255.2 g cured, which is the prefill
+  await open(p, store({ oils:[OIL("olive",500),OIL("coconut",300),OIL("palm",200)] }));
+  await openRebatch();
+  near("Rebatch prefills the cured weight", parseFloat(await p.inputValue("#rebatchIn")), 1255.2, 1);
+
+  await p.fill("#rebatchIn", "1000"); await p.waitForTimeout(120);
+  eq("Rebatch liquid tiers at 1000 g", (await amounts()).join(","), "50 g,100 g,250 g");
+  const names = await p.$$eval("#modalRoot .rb-row .sr-name", (es) => es.map((e) => e.textContent));
+  eq("Three consistencies offered", names.length, 3);
+  has("Firm tier labelled", names[0], "Firm");
+  has("Typical tier labelled", names[1], "Typical");
+  has("Pourable tier labelled", names[2], "Pourable");
+
+  await p.fill("#rebatchIn", "500"); await p.waitForTimeout(120);
+  eq("Liquid halves when the weight halves", (await amounts()).join(","), "25 g,50 g,125 g");
+
+  await p.fill("#rebatchIn", ""); await p.waitForTimeout(120);
+  eq("Blank weight shows no figures", (await amounts()).length, 0);
+  ok("Blank weight prompts for one", !!(await p.$("#modalRoot .ocr-status")));
+
+  ok("Rebatch lists a method", (await p.$$("#modalRoot .temp-ref li")).length >= 4);
+  const warn = await p.evaluate(() => document.querySelector("#modalRoot .safety").textContent);
+  has("Warns a zapping batch is lye-heavy", warn, "lye-heavy");
+  has("Warns never to add more lye", warn, "Never add more lye");
+
+  // the whole modal tracks the app's unit picker
+  await p.evaluate(() => document.querySelector("#modalRoot .modal-back").remove());
+  await p.selectOption("#unitSelect", "oz"); await p.waitForTimeout(200);
+  await openRebatch();
+  eq("Rebatch unit label follows the app unit",
+    await p.$eval("#modalRoot .scale-row .u", (e) => e.textContent), "oz");
+  near("Rebatch prefill converts to oz", parseFloat(await p.inputValue("#rebatchIn")), 1255.2 / 28.3495, 0.1);
+  await p.fill("#rebatchIn", "32"); await p.waitForTimeout(120);
+  eq("Rebatch liquid tiers in oz", (await amounts()).join(","), "1.6 oz,3.2 oz,8 oz");
+  await p.close();
+}
+
+/* =======================================================================
    BATCH NOTES + BAR WRAPPER
 ======================================================================= */
 {

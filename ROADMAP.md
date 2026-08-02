@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v32 · 42 oils · 18 additives · 17 aromas · 15 example recipes ·
-216 test assertions.
+**Today:** v36 · 42 oils · 18 additives · 17 aromas · 15 example recipes ·
+273 test assertions.
 
 ---
 
@@ -65,6 +65,7 @@ below is judged against that.
 - **Soaping temperatures**, with a tip that adapts to your recipe.
 - **Step-by-step checklist**, **batch notes**, and an optional **lot number**.
 - **Troubleshooting** — a searchable "why did my soap do X?" guide.
+- **Rebatch helper** — liquid to add and the method for saving a failed batch.
 
 ### Costs & planning
 - Price book (price per kg), **batch total and cost per bar**.
@@ -110,8 +111,12 @@ reserving 50 g of shea from a 1 kg blend needs 140.2 g NaOH rather than 139.3 g.
 
 ### Tier 2 — useful, narrower
 
-**4. Rebatch helper** — how much liquid to add per pound when rebatching. The
-troubleshooting guide already tells you to rebatch without telling you the amounts.
+**4. Rebatch helper** — ✅ **shipped in v36**
+The troubleshooting guide used to tell you to rebatch without telling you the amounts.
+Now **♻️ Rebatch** takes the weight of soap you're saving (prefilled from the current
+recipe's cured estimate, in whatever unit you're working in) and gives the liquid to
+add for a **firm**, **typical** or **pourable** mash, plus the method — and the point
+that matters: a bar that *zaps* is lye-heavy, and rebatching alone won't fix it.
 
 **5. Colorant guidance** — usage per pound of oils, natural colorants (madder, annatto,
 indigo, spirulina), and which survive soap's high pH. Same data shape as the existing
@@ -164,7 +169,7 @@ off the roadmap. Written down so the reasoning survives:
 
 Every change follows the same loop: build it, cover it with assertions in
 `tests/soapcalc.test.mjs`, run the full suite, bump the version in `app.js` and
-`sw.js`, then PR and merge. The suite has caught four schema changes on its own —
+`sw.js`, then PR and merge. The suite has caught five schema changes on its own —
 it's the reason the chemistry can be refactored without fear.
 
 **Reference values (SAP, fatty acids) vary by supplier — always verify before a real
