@@ -1285,6 +1285,41 @@ async function addOil(p, key, g) {
   await p.close();
 }
 
+/* =======================================================================
+   RELEASE HYGIENE (the version/cache coupling that keeps phones off stale copies)
+======================================================================= */
+{
+  const appSrc = fs.readFileSync(path.join(ROOT, "app.js"), "utf8");
+  const swSrc  = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
+  const appV   = (appSrc.match(/APP_VERSION\s*=\s*"(v\d+)"/) || [])[1];
+  const swV    = (swSrc.match(/CACHE\s*=\s*"soapcalc-(v\d+)"/) || [])[1];
+  const built  = (appSrc.match(/BUILD_DATE\s*=\s*"([\d-]+)"/) || [])[1];
+
+  ok("app.js declares APP_VERSION", !!appV, appV);
+  ok("sw.js declares a cache name", !!swV, swV);
+  eq("Service-worker cache is bumped with the app version", swV, appV);
+  ok("BUILD_DATE is an ISO date", /^\d{4}-\d{2}-\d{2}$/.test(built || ""), built);
+  ok("BUILD_DATE is a real date", !isNaN(new Date(built + "T00:00:00").getTime()));
+
+  // every precached file must actually exist, or the first offline load silently loses it
+  const shell = (swSrc.match(/var SHELL\s*=\s*\[([\s\S]*?)\]/) || [])[1] || "";
+  const files = shell.match(/"\.\/[^"]+"/g).map((s) => s.slice(3, -1));
+  ok("Service worker precaches a shell", files.length >= 5, String(files.length));
+  files.forEach((f) => ok(`Precached file exists: ${f}`, fs.existsSync(path.join(ROOT, f))));
+
+  // the app's own source files must all be in the shell, or an update can half-apply offline
+  ["index.html", "app.css", "app.js", "data.js", "manifest.webmanifest"].forEach((f) =>
+    ok(`Shell covers ${f}`, files.includes(f)));
+
+  // and the footer must show the version, since that's how a stale copy gets spotted
+  const p = await newPage();
+  await open(p, store({ oils:[OIL("olive",500)] }));
+  const stamp = await txt(p, "#buildStamp");
+  has("Footer shows the app version", stamp, appV);
+  has("Footer shows the build date", stamp, built);
+  await p.close();
+}
+
 /* ---------- report ---------- */
 ok("No console/page errors during tests", pageErrors.length === 0, pageErrors.join(" | "));
 
