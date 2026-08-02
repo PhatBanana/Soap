@@ -1058,6 +1058,18 @@ async function addOil(p, key, g) {
    "cocoapowder","turmeric","paprika","ironoxide","ultramarine"].forEach((k) =>
     ok(`Colorant ${k} offered as an additive`, opts.includes("add:" + k)));
 
+  // colorants are half the additive list, so they get their own group in the picker
+  const grouped = await p.$$eval("#baseSelect optgroup", (gs) => gs.map((g) => ({
+    label: g.label, values: Array.from(g.children).map((o) => o.value) })));
+  eq("Picker groups", grouped.map((g) => g.label.replace(/ \(.*/, "")).join(","),
+    "Oils, butters & fats,Additives,Colorants");
+  const colorGroup = grouped[2].values;
+  ok("Colour goes in the colorant group",
+    ["madder","indigo","mica","titanium","charcoal","ultramarine"].every((k) => colorGroup.includes("add:" + k)));
+  ok("Milk and honey stay in the additive group",
+    ["goatmilk","honey","sugar","silk"].every((k) => grouped[1].values.includes("add:" + k)));
+  ok("Nothing lands in both groups", !colorGroup.some((v) => grouped[1].values.includes(v)));
+
   await p.selectOption("#baseSelect", "add:madder");
   has("Picking a colorant shows its usage note", await txt(p, "#pickPreview"), "per lb");
   await p.fill("#amtIn", "8");
