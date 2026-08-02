@@ -94,10 +94,11 @@ per-recipe history; the checklist clears for the next make. Every make is kept, 
 remaking a recipe no longer overwrites the record of the last one, and the library
 shows how many times each recipe has been made.
 
-**2. Ingredient inventory → a smarter shopping list**
-Track what's actually in the cupboard, subtract it from the shopping list, and warn
-when a recipe needs more than you have. Pairs naturally with the batch log — logging
-a make depletes stock.
+**2. Ingredient inventory → a smarter shopping list** — ✅ **shipped in v34**
+Record what's in the cupboard and the shopping list shows *need · have → buy*, greys
+out anything you already have enough of, and prices only the shortfall. Inventory also
+answers "can I make this today?" for the current recipe, and logging a batch draws
+down what it used. Fully optional — track nothing and everything behaves as before.
 
 **3. Hot-process superfat**
 Hot-process soapers usually add the superfat oil *after* the cook, where it stays
