@@ -254,7 +254,8 @@
     // ---- White ----
     { name:"Titanium dioxide", family:"White", dose:"½–1 tsp PPO",
       how:"Disperse in a little light oil (water-soluble grades in water) and blend smooth — clumps show up as white specks.",
-      behaviour:"Completely stable. Use it to lighten a base before adding another colour, or to fight the tan a vanilla-heavy fragrance will bring. Too much can cause glycerin rivers." },
+      behaviour:"Completely stable. Use it to lighten a base before adding another colour, or to fight the tan a vanilla-heavy fragrance will bring. Too much can cause glycerin rivers.",
+      see:"trouble:glycerin rivers" },
     { name:"Kaolin clay", family:"White", dose:"1 tsp PPO",
       how:"Disperse in an equal amount of water first.",
       behaviour:"An off-white that also adds silky slip and anchors fragrance. Not a strong whitener — reach for titanium dioxide for that." },
@@ -323,7 +324,8 @@
       behaviour:"Buy CP-STABLE micas: many cosmetic micas are coloured with dyes that morph or vanish at soap's pH. The shimmer largely disappears inside a bar — mica shines brightest dusted on the top." },
     { name:"Botanicals (petals, herbs)", family:"Anything else", dose:"a pinch, on top",
       how:"Sprinkle on the surface after pouring rather than stirring through.",
-      behaviour:"Almost everything botanical turns brown in soap — lavender buds, rose petals, citrus zest. Calendula petals are the famous exception and stay gold." }
+      behaviour:"Almost everything botanical turns brown in soap — lavender buds, rose petals, citrus zest. Calendula petals are the famous exception and stay gold.",
+      see:"trouble:discolored" }
   ];
 
   /* General blending guidance shown in the Scents tab. */
@@ -342,13 +344,15 @@
     // ---- In the pot ----
     { when:"In the pot", q:"It seized — went thick, lumpy or 'ricey' fast",
       why:"Usually a fragrance or essential oil that accelerates trace (spices like clove & cinnamon, some FOs), or soaping too hot.",
-      fix:"Work fast — glop it into the mold and press it down; it'll still be soap. Next time soap cooler (~90–100°F/32–38°C), hand-stir once the scent is in, and add accelerating scents last." },
+      fix:"Work fast — glop it into the mold and press it down; it'll still be soap. Next time soap cooler (~90–100°F/32–38°C), hand-stir once the scent is in, and add accelerating scents last.",
+      see:"rebatch" },
     { when:"In the pot", q:"It won't come to trace — stays liquid",
       why:"A soft, olive-heavy blend traces slowly; temps may be too low; or it's just under-blended.",
       fix:"Pulse the stick blender in short bursts (don't run it constantly), warm the batter slightly, and double-check you weighed the lye and oils correctly." },
     { when:"In the pot", q:"It separated — an oily layer or pooling",
       why:"A 'false trace' (it looked thick but hadn't emulsified), or the lye water wasn't fully mixed in.",
-      fix:"If you catch it right away, blend it back together to a true trace. If it's already set that way, rebatch it (grate, melt with a splash of water, re-mold)." },
+      fix:"If you catch it right away, blend it back together to a true trace. If it's already set that way, rebatch it (grate, melt with a splash of water, re-mold).",
+      see:"rebatch" },
     // ---- In the mold ----
     { when:"In the mold", q:"Volcano or cracked, cratered top",
       why:"It overheated during gel — often from honey, milk or sugar, a hot fragrance, or too much insulation.",
@@ -358,10 +362,12 @@
       fix:"Spritz 91%+ alcohol right after pouring, or cover the mold; force gel. On a cured bar, steam it, or rinse/rub it off." },
     { when:"In the mold", q:"Translucent crackly streaks (glycerin rivers)",
       why:"Overheating, usually with titanium dioxide and/or a lot of water.",
-      fix:"Soap cooler, use a water discount (higher lye concentration), and don't over-insulate." },
+      fix:"Soap cooler, use a water discount (higher lye concentration), and don't over-insulate.",
+      see:"colors:titanium" },
     { when:"In the mold", q:"White chalky spots or pockets inside",
       why:"Could be unmelted hard oil — or unmixed lye, which is caustic. Take it seriously.",
-      fix:"Zap-test a spot (a battery-like zing = active lye). If it zaps or feels lye-heavy, rebatch. Blend more thoroughly and fully melt hard oils next time." },
+      fix:"Zap-test a spot (a battery-like zing = active lye). If it zaps or feels lye-heavy, rebatch. Blend more thoroughly and fully melt hard oils next time.",
+      see:"rebatch" },
     { when:"In the mold", q:"Air bubbles or holes in the bars",
       why:"The stick blender whipped in air, or you poured at a thick trace.",
       fix:"Keep the blender head fully submerged, tap the mold firmly on the counter after pouring, and pour at a thinner trace." },
@@ -380,7 +386,8 @@
       fix:"Cure and store somewhere dry with airflow; only wrap bars after a full cure." },
     { when:"Curing & storing", q:"It discolored — turned tan or brown",
       why:"Vanillin in the fragrance, or spice oils. Expected, not a fault.",
-      fix:"Use a vanilla stabilizer, or plan your colors around the browning." },
+      fix:"Use a vanilla stabilizer, or plan your colors around the browning.",
+      see:"colors" },
     // ---- Using the bar ----
     { when:"Using the bar", q:"Little or no lather",
       why:"A soft-oil-heavy blend, not enough coconut/castor, hard water, or using it before it's cured.",

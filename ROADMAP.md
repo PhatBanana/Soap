@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v39 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
-15 example recipes · 341 test assertions.
+**Today:** v40 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
+15 example recipes · 359 test assertions.
 
 ---
 
@@ -69,6 +69,8 @@ below is judged against that.
 - **Troubleshooting** — a searchable "why did my soap do X?" guide.
 - **Rebatch helper** — liquid to add and the method for saving a failed batch.
 - **Colorant guide** — dose, dispersal and what survives soap's pH, by colour family.
+- The three guides **cross-link**: a fix that says "rebatch it" opens the rebatch
+  helper, and a colour problem opens the colorant that caused it.
 
 ### Costs & planning
 - Price book (price per kg), **batch total and cost per bar**.

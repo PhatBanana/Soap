@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v39", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v40", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -2052,6 +2052,27 @@
     md.m.appendChild(foot);
   }
   /* ---------- rebatch helper: how much liquid to add when you remelt a batch ---------- */
+  /* Guides cross-link: a `see` value is a guide key, optionally with a search term
+     ("colors:titanium"), so a link lands on the relevant entry rather than the top. */
+  var GUIDES={
+    trouble:{ label:"🔧 Troubleshooting",  open:function(q){ openTrouble(q); } },
+    rebatch:{ label:"♻️ Rebatch helper",   open:function(){ openRebatch(); } },
+    colors: { label:"🎨 Colorant guide",   open:function(q){ openColors(q); } }
+  };
+  function guideLinks(spec,back){
+    var wrap=null;
+    [].concat(spec||[]).forEach(function(s){
+      if(typeof s!=="string") return;
+      var i=s.indexOf(":"), key=i<0?s:s.slice(0,i), q=i<0?"":s.slice(i+1);
+      var g=GUIDES[key]; if(!g) return;
+      if(!wrap) wrap=el("div","see-also");
+      var b=el("button","see-btn",escapeHtml(g.label)); b.type="button";
+      b.addEventListener("click",function(){ closeModal(back); g.open(q); });
+      wrap.appendChild(b);
+    });
+    return wrap;
+  }
+
   function openRebatch(){
     syncCurrent();
     var md=makeModal(), wunit=weightUnit(), ul=UNITS[wunit].label;
@@ -2090,13 +2111,14 @@
      "Expect a rustic, textured bar rather than a smooth pour — that's rebatch. It's usable in about a week once firm."
     ].forEach(function(t){ var li=document.createElement("li"); li.textContent=t; ol.appendChild(li); });
     md.m.appendChild(ol);
+    var back1=guideLinks("trouble",md.back); if(back1) md.m.appendChild(back1);
     md.m.appendChild(el("div","safety long","⚠️ Water is the safe default — milk, beer and purées can scorch at rebatch temperatures. And if the soap <b>zaps</b>, it's lye-heavy: rebatching alone won't fix that, it needs extra oil stirred in. Never add more lye to a rebatch."));
     var foot=el("div","mfoot"); var cl=el("button","primary","Done");
     cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
   }
 
   /* ---------- "why did my soap do X?" troubleshooting reference ---------- */
-  function openTrouble(){
+  function openTrouble(q0){
     var md=makeModal();
     md.m.appendChild(el("h3",null,"Troubleshooting"));
     md.m.appendChild(el("p","sub","Something go sideways? Find the symptom, why it happened, and what to do."));
@@ -2117,20 +2139,22 @@
         hits.forEach(function(t){
           var d=document.createElement("details"); d.className="ts-item"; if(q) d.open=true;
           var s=document.createElement("summary"); s.textContent=t.q; d.appendChild(s);
-          d.appendChild(el("div","ts-body","<p><b>Why:</b> "+escapeHtml(t.why)+"</p><p><b>Fix:</b> "+escapeHtml(t.fix)+"</p>"));
+          var body=el("div","ts-body","<p><b>Why:</b> "+escapeHtml(t.why)+"</p><p><b>Fix:</b> "+escapeHtml(t.fix)+"</p>");
+          var links=guideLinks(t.see,md.back); if(links) body.appendChild(links);
+          d.appendChild(body);
           wrap.appendChild(d);
         });
       });
       if(!wrap.children.length) wrap.appendChild(el("p","sub","No match — try another word (e.g. “soft”, “ash”, “lather”)."));
     }
     filter.addEventListener("input",function(){ draw(filter.value); });
-    draw("");
+    filter.value=q0||""; draw(filter.value);
     var foot=el("div","mfoot"); var cl=el("button","primary","Close");
     cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
   }
 
   /* ---------- colorant guide: dose, how to disperse, what survives high pH ---------- */
-  function openColors(){
+  function openColors(q0){
     var md=makeModal();
     md.m.appendChild(el("h3",null,"Colorants"));
     md.m.appendChild(el("p","sub","How much, how to mix it in, and what soap's high pH will do to it. Doses are per <b>lb (450 g) of oils</b> — “PPO”."));
@@ -2153,14 +2177,17 @@
           var s=document.createElement("summary");
           s.innerHTML=escapeHtml(t.name)+" <span class='cl-dose'>"+escapeHtml(t.dose)+"</span>";
           d.appendChild(s);
-          d.appendChild(el("div","ts-body","<p><b>How:</b> "+escapeHtml(t.how)+"</p><p><b>In soap:</b> "+escapeHtml(t.behaviour)+"</p>"));
+          var body=el("div","ts-body","<p><b>How:</b> "+escapeHtml(t.how)+"</p><p><b>In soap:</b> "+escapeHtml(t.behaviour)+"</p>");
+          var links=guideLinks(t.see,md.back); if(links) body.appendChild(links);
+          d.appendChild(body);
           wrap.appendChild(d);
         });
       });
       if(!wrap.children.length) wrap.appendChild(el("p","sub","No match — try another word (e.g. “blue”, “clay”, “fades”)."));
     }
     filter.addEventListener("input",function(){ draw(filter.value); });
-    draw("");
+    filter.value=q0||""; draw(filter.value);
+    var back2=guideLinks("trouble:discolored",md.back); if(back2) md.m.appendChild(back2);
     md.m.appendChild(el("div","safety long","⚠️ Colour is cosmetic — nothing here changes the lye maths. Add colorants to the recipe as ordinary ingredients if you want them costed and on the label. Use skin-safe, soap-stable colorants only: craft dyes, food colouring and candle pigments don't belong in soap."));
     var foot=el("div","mfoot"); var cl=el("button","primary","Close");
     cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
