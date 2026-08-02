@@ -1126,6 +1126,80 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   GUIDE CROSS-LINKS (troubleshooting ⇄ rebatch ⇄ colorants)
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ oils:[OIL("olive",500),OIL("coconut",300)] }));
+  const menu = (a) => p.evaluate((x) => { document.getElementById("menuBtn").click();
+    document.querySelector('[data-a="' + x + '"]').click(); }, a);
+  const title = () => p.$eval("#modalRoot h3", (e) => e.textContent);
+  const backdrops = async () => (await p.$$("#modalRoot .modal-back")).length;
+  const expanded = () => p.$$eval("#modalRoot .ts-item[open] summary", (es) => es.map((e) => e.textContent.trim()));
+  const search = async (q) => { await p.fill("#modalRoot .ts-filter", q); await p.waitForTimeout(120); };
+  const follow = async (sel) => { await p.click(sel); await p.waitForTimeout(200); };
+  const close = async () => { await p.click("#modalRoot .mfoot .primary"); await p.waitForTimeout(150); };
+
+  // a fix that says "rebatch it" can now get you there
+  await menu("trouble"); await p.waitForTimeout(150);
+  await search("separated");
+  eq("Rebatch-able problem offers a link",
+    await p.$$eval("#modalRoot .ts-item[open] .see-btn", (es) => es.map((e) => e.textContent).join(",")),
+    "♻️ Rebatch helper");
+  await follow("#modalRoot .ts-item[open] .see-btn");
+  eq("Following the link opens the rebatch helper", await title(), "Rebatch");
+  eq("The old guide closes behind it", await backdrops(), 1);
+  ok("Rebatch is usable after arriving by link", !!(await p.$("#rebatchIn")));
+  await close();
+
+  // links can carry a search term, so you land on the entry, not the top of the guide
+  await menu("trouble"); await p.waitForTimeout(150);
+  await search("glycerin");
+  await follow("#modalRoot .ts-item[open] .see-btn");
+  eq("Glycerin rivers links to the colorant guide", await title(), "Colorants");
+  eq("…pre-filtered to the culprit", await p.inputValue("#modalRoot .ts-filter"), "titanium");
+  has("…landing expanded on titanium dioxide", (await expanded())[0], "Titanium dioxide");
+
+  // and back the other way — the link is a round trip, not a dead end
+  await follow("#modalRoot .ts-item[open] .see-btn");
+  eq("Titanium dioxide links back to troubleshooting", await title(), "Troubleshooting");
+  eq("…on the glycerin rivers entry", (await expanded()).join(","), "Translucent crackly streaks (glycerin rivers)");
+  eq("Still just one modal after a round trip", await backdrops(), 1);
+  await close();
+
+  // the rebatch helper has no entries of its own, so it links at modal level
+  await menu("rebatch"); await p.waitForTimeout(150);
+  eq("Rebatch links back to troubleshooting",
+    await p.$$eval("#modalRoot .see-btn", (es) => es.map((e) => e.textContent).join(",")), "🔧 Troubleshooting");
+  await follow("#modalRoot .see-btn");
+  eq("…and it opens", await title(), "Troubleshooting");
+  await close();
+
+  // a colorant that browns links to the discoloration entry
+  await menu("colors"); await p.waitForTimeout(150);
+  await search("botanical");
+  await follow("#modalRoot .ts-item[open] .see-btn");
+  eq("Botanicals link to the discoloration entry", await title(), "Troubleshooting");
+  eq("…expanded on it", (await expanded()).join(","), "It discolored — turned tan or brown");
+  await close();
+
+  eq("Nothing left open at the end", await backdrops(), 0);
+  ok("Page scroll is restored", await p.evaluate(() => document.body.style.overflow === ""));
+
+  // exactly the entries that declare a `see` get a link — no dead buttons, none missing
+  await menu("trouble"); await p.waitForTimeout(150);
+  const counts = await p.evaluate(() => ({
+    rendered: document.querySelectorAll("#modalRoot .see-btn").length,
+    declared: window.TROUBLESHOOTING.filter((t) => t.see).length,
+    entries: document.querySelectorAll("#modalRoot .ts-item").length
+  }));
+  eq("Every declared cross-link renders", counts.rendered, counts.declared);
+  ok("…and only some entries have one", counts.rendered > 0 && counts.rendered < counts.entries);
+  await close();
+  await p.close();
+}
+
+/* =======================================================================
    BATCH NOTES + BAR WRAPPER
 ======================================================================= */
 {

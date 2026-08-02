@@ -224,6 +224,11 @@ phone in the kitchen or on a desktop.
   (madder, annatto, indigo, alkanet, spirulina, French green and rose clay, cocoa,
   turmeric, paprika, iron oxide, ultramarine), so they cost, stock and label like
   anything else.
+- 🔗 **The guides cross-link.** A troubleshooting fix that says "rebatch it" has a
+  button that opens the rebatch helper; glycerin rivers open the colorant guide already
+  filtered to titanium dioxide, and titanium dioxide links back to glycerin rivers. The
+  links carry a search term, so you land on the entry rather than the top of a
+  22-entry list.
 - ♻️ **Rebatch helper** — for when a batch seizes, separates or just comes out ugly.
   Enter how much soap you're rebatching (prefilled from the current recipe's cured
   weight) and it works out the **liquid to add** for three consistencies — firm,
