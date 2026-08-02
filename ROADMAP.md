@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v37 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
-15 example recipes · 304 test assertions.
+**Today:** v38 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
+15 example recipes · 337 test assertions.
 
 ---
 
@@ -65,6 +65,7 @@ below is judged against that.
 - **Cure schedule** with a suggested cure time derived from the oil blend.
 - **Soaping temperatures**, with a tip that adapts to your recipe.
 - **Step-by-step checklist**, **batch notes**, and an optional **lot number**.
+- **Cure checks** — zap tests and pH readings filed onto the batch that made the bar.
 - **Troubleshooting** — a searchable "why did my soap do X?" guide.
 - **Rebatch helper** — liquid to add and the method for saving a failed batch.
 - **Colorant guide** — dose, dispersal and what survives soap's pH, by colour family.
@@ -111,7 +112,7 @@ and on the hot-process checklist step where you'd stir it in. Holding back a spe
 oil genuinely changes the lye whenever its SAP differs from the blend average — e.g.
 reserving 50 g of shea from a 1 kg blend needs 140.2 g NaOH rather than 139.3 g.
 
-### Tier 2 — useful, narrower
+### Tier 2 — useful, narrower  ·  ✅ all shipped (v36–v38)
 
 **4. Rebatch helper** — ✅ **shipped in v36**
 The troubleshooting guide used to tell you to rebatch without telling you the amounts.
@@ -128,8 +129,11 @@ brown). **12 natural and mineral colorants** joined the ingredient list as ordin
 additives, so they flow through costs, inventory, the shopping list and the INCI label
 with no structural change.
 
-**6. Cure / pH check log** — record zap tests and pH readings across the cure. Folds
-into the batch log.
+**6. Cure / pH check log** — ✅ **shipped in v38**
+Each logged batch takes **cure checks**: date, optional pH, a yes/no zap and a note.
+They list oldest-first with the week worked out from the make date, so a bar reads
+*week 1: ⚡ zaps, pH 11* → *week 4: ✓ no zap, pH 9*. Stored on the batch record rather
+than in a parallel list, so it backs up, restores and sanitizes with everything else.
 
 ### Tier 3 — platform
 
@@ -175,7 +179,7 @@ off the roadmap. Written down so the reasoning survives:
 
 Every change follows the same loop: build it, cover it with assertions in
 `tests/soapcalc.test.mjs`, run the full suite, bump the version in `app.js` and
-`sw.js`, then PR and merge. The suite has caught five schema changes on its own —
+`sw.js`, then PR and merge. The suite has caught six schema changes on its own —
 it's the reason the chemistry can be refactored without fear.
 
 **Reference values (SAP, fatty acids) vary by supplier — always verify before a real

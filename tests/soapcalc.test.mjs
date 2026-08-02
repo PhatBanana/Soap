@@ -425,6 +425,102 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   CURE & pH CHECK LOG (zap tests filed onto the batch record)
+======================================================================= */
+{
+  const p = await newPage();
+  const BATCH = (id, madeOn, checks) => ({ id, madeOn, lot:"", cureWeeks:4, notes:"", checks });
+  const rows = () => p.$$eval(".batch-row", (rs) => rs.map((r) =>
+    Array.from(r.querySelectorAll(".bh-check")).map((c) => c.textContent.replace(/×$/, ""))));
+
+  await open(p, store({ oils:[OIL("olive",600),OIL("coconut",400)], batches:[
+    BATCH("bOld", "2026-06-01", [
+      { id:"c2", on:"2026-06-29", ph:9,  zap:false, note:"Mild, good lather." },
+      { id:"c1", on:"2026-06-08", ph:11, zap:true,  note:"Still sharp." }]),
+    BATCH("bNew", "2026-07-10", [])
+  ] }, { tab:"make" }));
+
+  // rendering: oldest first within a batch, with the cure week worked out from the make date
+  let seen = await rows();
+  eq("Checks render on their own batch", seen.map((r) => r.length).join(","), "0,2");
+  ok("Checks render oldest first", seen[1][0].startsWith("Jun 8") && seen[1][1].startsWith("Jun 29"));
+  has("Check dates a zap test into the cure", seen[1][0], "week 1");
+  has("Week counted from the make date", seen[1][1], "week 4");
+  has("A zapping check is called out", seen[1][0], "zaps");
+  has("A passing check is called out", seen[1][1], "no zap");
+  has("pH reading shown", seen[1][0], "pH 11");
+  ok("A batch with no checks shows no check rows", seen[0].length === 0);
+  ok("Every batch offers a check form", (await p.$$(".bh-addcheck")).length === 2);
+  ok("Check forms start closed", await p.$$eval(".bh-cform", (fs) => fs.every((f) => f.hidden)));
+
+  // adding: goes onto the batch whose button you tapped (the newest one, listed first)
+  await p.evaluate(() => document.querySelectorAll(".bh-addcheck")[0].click());
+  await p.waitForTimeout(120);
+  ok("Tapping + check opens that batch's form", await p.$$eval(".bh-cform", (fs) => !fs[0].hidden && fs[1].hidden));
+  await p.fill(".batch-row:first-of-type .bcf-on", "2026-07-17");
+  await p.fill(".batch-row:first-of-type .bcf-ph", "10.5");
+  await p.check(".batch-row:first-of-type .bcf-zap");
+  await p.fill(".batch-row:first-of-type .bcf-note", "Week one, definitely zaps.");
+  await p.click(".batch-row:first-of-type .bh-cform button[type=submit]");
+  await p.waitForTimeout(250);
+
+  let bs = (await LS(p)).recipes[0].batches;
+  const byId = (id) => bs.find((b) => b.id === id);
+  eq("Check attaches to the batch it was added from", byId("bNew").checks.length, 1);
+  eq("…and not to the other batch", byId("bOld").checks.length, 2);
+  eq("Check date saved", byId("bNew").checks[0].on, "2026-07-17");
+  eq("Check pH saved", byId("bNew").checks[0].ph, 10.5);
+  eq("Zap flag saved", byId("bNew").checks[0].zap, true);
+  eq("Check note saved", byId("bNew").checks[0].note, "Week one, definitely zaps.");
+
+  await p.reload(); await p.waitForTimeout(250);
+  seen = await rows();
+  eq("Checks survive a reload", seen.map((r) => r.length).join(","), "1,2");
+  has("Reloaded check keeps its reading", seen[0][0], "pH 10.5");
+
+  // deleting one check leaves the others (and the batch) alone
+  await p.evaluate(() => document.querySelectorAll(".batch-row")[1].querySelectorAll(".bc-del")[0].click());
+  await p.waitForTimeout(250);
+  bs = (await LS(p)).recipes[0].batches;
+  eq("Deleting a check leaves the batch", bs.length, 2);
+  eq("Deleting removes just that check", byId("bOld").checks.length, 1);
+  eq("…and it's the right one that went", byId("bOld").checks[0].on, "2026-06-29");
+  eq("The other batch is untouched", byId("bNew").checks.length, 1);
+  await p.close();
+}
+
+{
+  // the stored shape is sanitized like everything else
+  const p = await newPage();
+  const junk = [
+    { id:"k1", on:"2026-06-08", ph:"11",   zap:1,    note:"string ph" },
+    { id:"k2", on:"2026-06-15", ph:"",     zap:false, note:"blank ph" },
+    { id:"k3", on:"2026-06-22", ph:99,     zap:false, note:"out of range" },
+    { id:"k4", on:"2026-06-29", ph:"abc",  zap:false, note:"nonsense ph" },
+    null, "nope"
+  ];
+  await open(p, store({ oils:[OIL("olive",500)], batches:[
+    { id:"b1", madeOn:"2026-06-01", lot:"", cureWeeks:4, notes:"", checks:junk },
+    { id:"b2", madeOn:"2026-06-02", lot:"", cureWeeks:4, notes:"" },
+    { id:"b3", madeOn:"2026-06-03", lot:"", cureWeeks:4, notes:"", checks:"not an array" }
+  ] }));
+  await addOil(p, "castor", 10);                    // force a save through the schema
+  const bs = (await LS(p)).recipes[0].batches;
+  eq("Junk check entries dropped", bs[0].checks.length, 4);
+  eq("String pH coerced to a number", bs[0].checks[0].ph, 11);
+  eq("Truthy zap coerced to a boolean", bs[0].checks[0].zap, true);
+  eq("Blank pH stored as null", bs[0].checks[1].ph, null);
+  eq("Out-of-range pH clamped to 14", bs[0].checks[2].ph, 14);
+  eq("Unparseable pH stored as null", bs[0].checks[3].ph, null);
+  eq("A batch with no checks gets an empty list", JSON.stringify(bs[1].checks), "[]");
+  eq("A non-array checks value becomes an empty list", JSON.stringify(bs[2].checks), "[]");
+  // batch-record shape (backup/restore compatibility)
+  eq("Batch record keys", Object.keys(bs[0]).sort().join(","), "checks,cureWeeks,id,lot,madeOn,notes");
+  eq("Check record keys", Object.keys(bs[0].checks[0]).sort().join(","), "id,note,on,ph,zap");
+  await p.close();
+}
+
+/* =======================================================================
    RECIPE LIBRARY: search · sort · favourites
 ======================================================================= */
 {

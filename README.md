@@ -57,6 +57,11 @@ phone in the kitchen or on a desktop.
     <td align="center"><img src="screenshots/19-appbar-units.png" width="240" alt="Unit picker in the app bar"><br><sub><b>Units</b> — g / oz / lb / kg / % in one tap</sub></td>
     <td align="center"><img src="screenshots/24-colorants.png" width="240" alt="Colorant guide grouped by colour family"><br><sub><b>Colorants</b> — dose, dispersal &amp; what survives pH</sub></td>
   </tr>
+  <tr>
+    <td align="center"><img src="screenshots/25-cure-checks.png" width="240" alt="Cure and pH checks filed onto a batch record"><br><sub><b>Cure checks</b> — zap tests &amp; pH across the cure</sub></td>
+    <td></td>
+    <td></td>
+  </tr>
 </table>
 
 ## Features
@@ -202,6 +207,11 @@ phone in the kitchen or on a desktop.
   filed into a per-recipe history, then the checklist clears for your next make. Every
   make is kept, so remaking a recipe never overwrites what happened last time, and the
   library shows how many times you've made each one.
+- 🧪 **Cure & pH checks** — file the zap tests and pH readings you take while a bar
+  cures onto the batch that made it. Each check records the date, an optional pH, a
+  yes/no zap and a note, and they list oldest-first with the cure week worked out from
+  the make date — so a bar's story reads *week 1: ⚡ zaps, pH 11* → *week 4: ✓ no zap,
+  pH 9*. Any check can be removed on its own.
 - **Troubleshooting reference** — a searchable "why did my soap do X?" guide grouped
   by stage (in the pot / in the mold / curing & storing / using the bar): seizing,
   soda ash, overheating, DOS, soft or crumbly bars, poor lather, and more — each with
