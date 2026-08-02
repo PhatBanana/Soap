@@ -47,6 +47,16 @@ phone in the kitchen or on a desktop.
     <td align="center"><img src="screenshots/18-library.png" width="240" alt="Recipe library with search, sort and favourites"><br><sub><b>Library</b> — search, sort &amp; favourites</sub></td>
     <td align="center"><img src="screenshots/17-quick-add.png" width="240" alt="Quick-add chips for recently used ingredients"><br><sub><b>Quick add</b> — your recent ingredients, one tap</sub></td>
   </tr>
+  <tr>
+    <td align="center"><img src="screenshots/20-batch-history.png" width="240" alt="Per-recipe batch history"><br><sub><b>Batch history</b> — every make kept, not overwritten</sub></td>
+    <td align="center"><img src="screenshots/21-inventory-shopping.png" width="240" alt="Shopping list showing need, have and buy"><br><sub><b>Inventory</b> — <i>need · have → buy</i></sub></td>
+    <td align="center"><img src="screenshots/22-hp-superfat.png" width="240" alt="Hot-process superfat added after the cook"><br><sub><b>HP superfat</b> — hold an oil back after the cook</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/23-rebatch.png" width="240" alt="Rebatch helper with liquid amounts and method"><br><sub><b>Rebatch</b> — how much liquid, and the method</sub></td>
+    <td align="center"><img src="screenshots/19-appbar-units.png" width="240" alt="Unit picker in the app bar"><br><sub><b>Units</b> — g / oz / lb / kg / % in one tap</sub></td>
+    <td></td>
+  </tr>
 </table>
 
 ## Features
@@ -196,6 +206,12 @@ phone in the kitchen or on a desktop.
   by stage (in the pot / in the mold / curing & storing / using the bar): seizing,
   soda ash, overheating, DOS, soft or crumbly bars, poor lather, and more — each with
   the likely cause and the fix.
+- ♻️ **Rebatch helper** — for when a batch seizes, separates or just comes out ugly.
+  Enter how much soap you're rebatching (prefilled from the current recipe's cured
+  weight) and it works out the **liquid to add** for three consistencies — firm,
+  typical or pourable — alongside the method and the one thing that matters: a bar
+  that **zaps** is lye-heavy, and rebatching alone won't fix it (it needs extra oil,
+  never more lye).
 - **Suggested cure time from your oils** — softer, olive/oleic-heavy bars cure
   slower and harder coconut/palm/butter bars cure faster, so the app suggests a
   week range from the blend's hardness (e.g. a hard bar ~3–4 weeks, a balanced bar
@@ -334,5 +350,4 @@ rules, or persistence.
 
 ## What's next
 See **[ROADMAP.md](ROADMAP.md)** for the full picture — everything the app does today,
-what's planned next (a batch log, an ingredient inventory, hot-process superfat), and
-what's deliberately *not* planned, with the reasoning.
+what's planned next, and what's deliberately *not* planned, with the reasoning.

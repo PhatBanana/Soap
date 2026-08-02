@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v35", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v36", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -1436,6 +1436,7 @@
       case "wrapper": openWrapper(); break;
       case "share": openShare(); break;
       case "trouble": openTrouble(); break;
+      case "rebatch": openRebatch(); break;
       case "examples": openExamples(); break;
       case "scan": $("photoInput").click(); break;
       case "import": $("csvInput").click(); break;
@@ -1970,6 +1971,50 @@
     var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl);
     md.m.appendChild(foot);
   }
+  /* ---------- rebatch helper: how much liquid to add when you remelt a batch ---------- */
+  function openRebatch(){
+    syncCurrent();
+    var md=makeModal(), wunit=weightUnit(), ul=UNITS[wunit].label;
+    md.m.appendChild(el("h3",null,"Rebatch"));
+    md.m.appendChild(el("p","sub","Grate a batch down, melt it with a little liquid and re-mould it. Good for a soap that seized, separated or just came out ugly."));
+    var row=el("div","scale-row");
+    var inp=document.createElement("input"); inp.type="number"; inp.step="any"; inp.min="0"; inp.inputMode="decimal";
+    inp.id="rebatchIn"; inp.value=fmt(fromG(curedBatchG(),wunit),UNITS[wunit].dp);
+    row.appendChild(inp); row.appendChild(el("span","u",ul));
+    md.m.appendChild(el("div","subhead","Weight of soap to rebatch"));
+    md.m.appendChild(row);
+    var out=el("div"); md.m.appendChild(out);
+    function draw(){
+      var raw=parseFloat(inp.value), g=isFinite(raw)&&raw>0 ? raw*UNITS[wunit].toG : 0;
+      out.innerHTML="";
+      if(!(g>0)){ out.appendChild(el("div","ocr-status","Enter how much soap you're rebatching.")); return; }
+      out.appendChild(el("div","subhead","Liquid to add"));
+      [["Firm — holds detail, hardest to stir",0.05],
+       ["Typical — a workable, moldable mash",0.10],
+       ["Pourable — smoothest, needs longer to firm up",0.25]
+      ].forEach(function(x){
+        var r=el("div","shop-row rb-row");
+        r.innerHTML="<span class='sr-name'>"+escapeHtml(x[0])+"</span><span class='sr-amt'>"+
+          fmt(fromG(g*x[1],wunit),UNITS[wunit].dp)+" "+ul+"</span>";
+        out.appendChild(r);
+      });
+      out.appendChild(el("p","sub","Start at the low end — you can always stir in more, and too much liquid just means a longer second cure."));
+    }
+    inp.addEventListener("input",draw); draw();
+    md.m.appendChild(el("div","subhead","How to do it"));
+    var ol=document.createElement("ul"); ol.className="temp-ref";
+    ["Grate or shred the soap — the finer it is, the smoother the result.",
+     "Melt it low and slow: a slow cooker on low, or a covered dish in the oven at about 200°F / 95°C.",
+     "Add the liquid, cover, and leave it be — stir every 15 minutes or so, mashing lumps as it softens (30–60 min).",
+     "When it looks like thick mashed potato, stir in any fragrance or colour, then glop it into the mould and press down hard to drive out air pockets.",
+     "Expect a rustic, textured bar rather than a smooth pour — that's rebatch. It's usable in about a week once firm."
+    ].forEach(function(t){ var li=document.createElement("li"); li.textContent=t; ol.appendChild(li); });
+    md.m.appendChild(ol);
+    md.m.appendChild(el("div","safety long","⚠️ Water is the safe default — milk, beer and purées can scorch at rebatch temperatures. And if the soap <b>zaps</b>, it's lye-heavy: rebatching alone won't fix that, it needs extra oil stirred in. Never add more lye to a rebatch."));
+    var foot=el("div","mfoot"); var cl=el("button","primary","Done");
+    cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
+  }
+
   /* ---------- "why did my soap do X?" troubleshooting reference ---------- */
   function openTrouble(){
     var md=makeModal();
