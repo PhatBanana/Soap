@@ -78,6 +78,13 @@ phone in the kitchen or on a desktop.
 ### Lye, superfat & water
 - Lye computed **per oil** from its SAP value, reduced by your **superfat**, for
   **NaOH** (bars) or **KOH** (liquid soap, with purity).
+- **Superfat, two ways (hot process)** — as a **lye discount** (the usual way: some oil
+  is left unsaponified, but you don't get to choose which fats), or **added after the
+  cook**: pick an oil to hold back and it's reserved for stirring in at the end, so you
+  know exactly what's superfatting the bar. The lye is then sized to fully saponify
+  only what goes in the pot — which genuinely differs from a flat discount whenever the
+  held-back oil's SAP isn't the blend average. The hold-back also appears in the
+  hot-process checklist, on the step where you'd actually do it.
 - **Water, three ways** — set it as a **% of oils** (the traditional way, default
   38%), by **lye concentration** (the modern way, default 33%), or as a
   **water : lye ratio** (the old-school "2:1" notation you'll see in older recipes

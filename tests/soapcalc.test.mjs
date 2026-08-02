@@ -281,6 +281,45 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   HOT-PROCESS SUPERFAT (lye discount vs oil held back after the cook)
+======================================================================= */
+{
+  const p = await newPage();
+  // real display names here, since the hold-back messages quote them back to you
+  const oils = [OIL("olive",600), OIL("coconut",300), {name:"Shea butter",key:"shea",g:100}];
+  const lye = () => num(p, "#lyeVal");
+
+  await open(p, store({ oils, method:"cp", superfat:5 }));
+  ok("Superfat mode is hidden for cold process", await p.evaluate(() => document.getElementById("sfModeCtrl").classList.contains("hide")));
+  const cpLye = await lye();
+
+  await open(p, store({ oils, method:"hp", superfat:5, sfMode:"discount" }));
+  ok("Superfat mode appears for hot process", await p.evaluate(() => !document.getElementById("sfModeCtrl").classList.contains("hide")));
+  near("Discount mode matches cold process", await lye(), cpLye, 0.01);
+  has("Discount mode explains you don't pick the fats", await txt(p, "#sfModeNote"), "don't control which fats");
+
+  // holding back proportionally is mathematically the same as a flat discount
+  await open(p, store({ oils, method:"hp", superfat:5, sfMode:"after", sfOil:"" }));
+  near("Proportional hold-back equals a flat discount", await lye(), cpLye, 0.01);
+  has("It tells you how much to hold back", await txt(p, "#sfModeNote"), "Hold back 50 g");
+
+  // holding back one specific oil changes the lye, because its SAP isn't the blend average
+  await open(p, store({ oils, method:"hp", superfat:5, sfMode:"after", sfOil:"shea" }));
+  const sheaLye = await lye();
+  const expected = 600*0.134 + 300*0.178 + 50*0.128;   // full saponification of what's in the pot
+  near("Holding back shea sizes lye on the in-pot oils", sheaLye, expected, 0.02);
+  ok("…which differs from a flat discount", Math.abs(sheaLye - cpLye) > 0.5, `${sheaLye} vs ${cpLye}`);
+  has("It names the oil being held back", await txt(p, "#sfModeNote"), "of Shea butter");
+
+  // and the instruction lands on the step where you'd do it
+  await open(p, store({ oils, method:"hp", superfat:5, sfMode:"after", sfOil:"shea" }, { tab:"make" }));
+  const step = await p.$$eval("#checklist .txt", (ts) => ts[7].textContent);
+  has("HP checklist tells you to stir the reserve in", step, "held-back 50 g of Shea butter");
+  has("…after the cook", step, "after the cook");
+  await p.close();
+}
+
+/* =======================================================================
    INVENTORY (cupboard stock → shopping list → drawn down by a batch)
 ======================================================================= */
 {
