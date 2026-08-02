@@ -60,6 +60,7 @@ phone in the kitchen or on a desktop.
   <tr>
     <td align="center"><img src="screenshots/25-cure-checks.png" width="240" alt="Cure and pH checks filed onto a batch record"><br><sub><b>Cure checks</b> — zap tests &amp; pH across the cure</sub></td>
     <td align="center"><img src="screenshots/26-paste-import.png" width="240" alt="Review screen for a recipe pasted from another calculator"><br><sub><b>Paste import</b> — from SoapCalc &amp; friends, reviewed first</sub></td>
+    <td align="center"><img src="screenshots/27-sap-values.png" width="240" alt="Supplier SAP value override for an oil"><br><sub><b>SAP values</b> — use your supplier's numbers</sub></td>
     <td></td>
   </tr>
 </table>
@@ -287,6 +288,13 @@ phone in the kitchen or on a desktop.
   and the standard cautions. A starting point for gifting or a market table (add your own
   name/contact and check local rules before selling).
 
+- 🧪 **Your supplier's SAP values** — every calculator warns that reference SAP values
+  vary by supplier; this one lets you do something about it. Put your spec sheet's
+  figure in and the lye is sized on that instead, entered as **mg KOH/g** (what
+  suppliers print) or g NaOH/g. A **custom oil can carry its own SAP** too, which puts
+  it into the lye maths instead of being excluded from it. Overrides are flagged on the
+  Lye card and in the Safety Check, so you always know when the numbers aren't stock.
+
 ### Get recipes in & out
 - 📋 **Paste a recipe from another calculator** — copy the recipe out of SoapCalc,
   Bramble Berry, SoapmakingFriend or a note, paste it in, and it reads the oils and
@@ -368,7 +376,7 @@ above are what ships.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **433 assertions.**
+the real app and asserts on the computed numbers and saved state. **451 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)

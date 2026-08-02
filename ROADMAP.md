@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v42 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
-15 example recipes · 433 test assertions, run on every pull request.
+**Today:** v43 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
+15 example recipes · 451 test assertions, run on every pull request.
 
 ---
 
@@ -66,6 +66,8 @@ below is judged against that.
 - **Soaping temperatures**, with a tip that adapts to your recipe.
 - **Step-by-step checklist**, **batch notes**, and an optional **lot number**.
 - **Cure checks** — zap tests and pH readings filed onto the batch that made the bar.
+- **SAP values** — override any oil with your supplier's figure; custom oils can
+  carry their own and count toward the lye.
 - **Troubleshooting** — a searchable "why did my soap do X?" guide.
 - **Rebatch helper** — liquid to add and the method for saving a failed batch.
 - **Colorant guide** — dose, dispersal and what survives soap's pH, by colour family.
@@ -162,7 +164,14 @@ word overlap so *"Palm Kernel Flakes"* beats plain palm and *"Coconut Oil"* isn'
 claimed by the additive *coconut milk*. Everything lands on the existing review screen
 before it touches the recipe.
 
-**9. Data growth** — more oils and fragrance oils; supplier-specific SAP overrides.
+**9. Data growth** — supplier SAP overrides ✅ **shipped in v43**; more oils and
+fragrance oils still to come.
+**🧪 SAP values** takes your supplier's figure (as mg KOH/g or g NaOH/g) and sizes the
+lye on it, and a **custom oil can now carry its own SAP** so it joins the lye maths
+rather than being excluded. Between them the database size stops being a hard limit:
+any oil, from any supplier, with their number. Overrides are surfaced on the Lye card
+and in the Safety Check, because non-standard numbers you've forgotten about are worse
+than no numbers.
 
 **10. Print stylesheet for the shopping list.**
 
