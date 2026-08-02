@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v42", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v43", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -92,6 +92,11 @@
     {k:"scaleUnit",      coerce:function(v){return (UNITS[v]&&v!=="pct")?v:null;}},
     {k:"currency",       coerce:function(v){return (typeof v==="string"&&v)?v:"$";}},
     {k:"prices",         coerce:function(v){return (v&&typeof v==="object")?v:{};}},
+    // your supplier's SAP values, keyed by oil. App-wide rather than per-recipe,
+    // because it describes where you shop, not what you're making.
+    {k:"sapOverrides",   coerce:function(v){
+      var out={}; if(v&&typeof v==="object") for(var k in v){ var n=parseFloat(v[k]);
+        if(OILS[k] && isFinite(n) && n>0 && n<1) out[k]=n; } return out; }},
     // what's in the cupboard, in grams, keyed like prices. Only ingredients you've
     // actually entered appear here, which is what keeps inventory opt-in.
     {k:"stock",          coerce:function(v){return (v&&typeof v==="object")?v:{};}},
@@ -524,6 +529,21 @@
       for(var k in fa) fa[k]+=fr*d.fa[k]; iod+=fr*d.iod; ins+=fr*d.ins; });
     return {fa:fa,iod:iod,ins:ins,tot:tot};
   }
+  /* Reference SAP values vary by supplier, which the app has always warned about
+     without letting you do anything. sapOf is the single place that decides which
+     number an oil actually uses: your override, the oil's own (custom oils), or
+     our reference. */
+  function sapOf(it){
+    if(it.key){ var ov=(state.sapOverrides||{})[it.key];
+      if(ov>0) return ov;
+      return OILS[it.key] ? OILS[it.key].sap : 0; }
+    return it.sap>0 ? it.sap : 0;                 // custom oil with a SAP off the bottle
+  }
+  function overriddenKeys(rv){
+    var ov=state.sapOverrides||{}, out=[];
+    (rv.oils||[]).forEach(function(it){ if(it.g>0 && it.key && ov[it.key]>0 && out.indexOf(it.key)<0) out.push(it.key); });
+    return out;
+  }
   function computeLye(rv){
     rv=rv||curRV();
     // Hot process, superfat added after the cook: the oils that actually go in the pot
@@ -537,13 +557,16 @@
       rv.oils.forEach(function(it){ if(!target && it.key && it.key===rv.sfOil && it.g>0) target=it; });
       if(target){ reserveG=Math.min(reserveG,target.g); reserveName=target.name; }
     }
-    var naohRaw=0, hasCustom=false;
+    var naohRaw=0, hasCustom=false, customSap=false;
     rv.oils.forEach(function(it){
       var d=it.key?OILS[it.key]:null;
       var g=it.g;
       if(afterCook) g = target ? (it===target ? it.g-reserveG : it.g)   // hold back the chosen oil
                               : it.g*(1-rv.superfat/100);              // or proportionally across all
-      if(d) naohRaw+=g*d.sap; else if(it.g>0) hasCustom=true;
+      var sapV=sapOf(it);
+      if(sapV>0) naohRaw+=g*sapV;
+      else if(it.g>0) hasCustom=true;             // no data and no SAP given: genuinely excluded
+      if(!d && sapV>0 && it.g>0) customSap=true;
     });
     var sf = afterCook ? 1 : 1-rv.superfat/100, lyeG, kind;
     if(rv.lyeType==="koh"){ lyeG=naohRaw*KOH_FACTOR*sf/(rv.kohPurity/100); kind="KOH (lye)"; }
@@ -559,6 +582,7 @@
       waterG = oilG*rv.waterPct/100;
     }
     return { lyeG:lyeG, waterG:waterG, oilG:oilG, kind:kind, hasCustom:hasCustom,
+      customSap:customSap, overrides:overriddenKeys(rv),
              reserveG:reserveG, reserveName:reserveName };
   }
   // single source of truth for the fatty-acid quality formulas: derived from QUALITIES,
@@ -635,6 +659,8 @@
       +(state.superfat>0?" · "+state.superfat+"% superfat":"");
     if(isPct) info+=" · shown in "+UNITS[wunit].name;
     if(L.hasCustom) info+=" · custom oils excluded";
+    if(L.customSap) info+=" · custom SAP in use";
+    if(L.overrides.length) info+=" · "+L.overrides.length+" supplier SAP value"+(L.overrides.length===1?"":"s");
     var liquidAdd=state.additives.some(function(it){ return it.key&&ADDITIVES[it.key].kind==="liquid"&&it.g>0; });
     if(liquidAdd) info+=" · liquid additives replace part of the water";
     $("lyeInfo").textContent=info;
@@ -780,7 +806,11 @@
     if(L.oilG<=0 || L.lyeG<=0){
       add("fail","Can't verify the lye","No oils with SAP data, so the app can't confirm the lye is balanced. Add oils from the list (custom oils have no data).");
     } else {
-      if(L.hasCustom) add("warn","Custom oils aren't in the lye math","The lye is sized only for oils that have data, so your true superfat is higher and unverified. Look up the SAP value of any custom oil before you make this.");
+      if(L.hasCustom) add("warn","Custom oils aren't in the lye math","The lye is sized only for oils that have data, so your true superfat is higher and unverified. Add the SAP value from the bottle in SAP values, or look it up, before you make this.");
+      if(L.customSap) add("ok","Custom oil using the SAP you entered","A custom oil is in the lye maths on your own SAP figure. The number is only as good as the source you took it from — check it against the supplier's spec sheet.");
+      if(L.overrides.length) add("warn","Supplier SAP values in use",
+        "The lye for "+L.overrides.map(function(k){ return OILS[k].name; }).join(", ")+
+        " is sized on the value you entered, not our reference. That's the right thing to do if it came off the spec sheet — just be sure it's the current one.");
       if(sf<=0){
         if(skin) add("warn","No superfat cushion","Superfat is 0% — with no extra oil, a small measuring slip could leave free lye, which is harsh on skin. Use at least 1–2% for a skin bar.");
         else add("ok","0% superfat is intended here","For dish/laundry soap, 0% superfat is correct so no oil is left behind.");
@@ -1508,6 +1538,7 @@
       case "compare": openCompare(); break;
       case "costs": openCosts(); break;
       case "stock": openStock(); break;
+      case "sap": openSAP(); break;
       case "shopping": openShopping(); break;
       case "theme": cycleTheme(); break;
       case "card": openCard(); break;
@@ -2530,6 +2561,99 @@
     Object.keys(state.stock||{}).forEach(function(k){ if(!seen[k]) out.push({key:k,name:k.indexOf("c:")===0?k.slice(2):k}); });
     return out;
   }
+  /* ---------- your supplier's SAP values ----------
+     Suppliers quote SAP as mg KOH per gram (the spec-sheet convention); the maths
+     here wants grams NaOH per gram. Accept either and convert, because retyping a
+     spec sheet through a calculator is exactly where mistakes happen. */
+  function sapToKOH(naohPerG){ return naohPerG*KOH_FACTOR*1000; }
+  function sapFromKOH(mgKOH){ return mgKOH/1000/KOH_FACTOR; }
+
+  function openSAP(){
+    syncCurrent();
+    var md=makeModal();
+    md.m.appendChild(el("h3",null,"SAP values"));
+    md.m.appendChild(el("p","sub","Reference SAP values vary between suppliers. If your spec sheet says something different, put their number in and the lye is sized on it instead. Blank means use our reference."));
+    var seg=el("div","seg sub"), asKOH=true;
+    [["mg KOH/g","koh"],["g NaOH/g","naoh"]].forEach(function(o){
+      var b=el("button",null,o[0]); b.type="button"; b.dataset.m=o[1];
+      b.addEventListener("click",function(){ asKOH=o[1]==="koh"; setActive(seg,"m",o[1]); draw(); });
+      seg.appendChild(b);
+    });
+    md.m.appendChild(el("div","subhead","Enter values as"));
+    md.m.appendChild(seg); setActive(seg,"m","koh");
+    md.m.appendChild(el("p","sub","Most suppliers print mg KOH/g — a number around 180–260."));
+
+    var out=el("div"); md.m.appendChild(out);
+    var note=el("div","subinfo"); note.style.textAlign="left"; md.m.appendChild(note);
+
+    function rows(){
+      // oils in this recipe, plus anything you've already overridden elsewhere
+      var seen={}, list=[];
+      state.oils.forEach(function(it){
+        if(!it.key || seen[it.key]) return; seen[it.key]=1;
+        list.push({key:it.key, name:OILS[it.key].name, ref:OILS[it.key].sap});
+      });
+      Object.keys(state.sapOverrides||{}).forEach(function(k){
+        if(seen[k]||!OILS[k]) return; seen[k]=1;
+        list.push({key:k, name:OILS[k].name, ref:OILS[k].sap});
+      });
+      return list;
+    }
+    function draw(){
+      out.innerHTML="";
+      var list=rows(), customs=state.oils.filter(function(it){ return !it.key && it.g>0; });
+      if(!list.length && !customs.length){ out.appendChild(el("div","ocr-status","Add some oils to a recipe first.")); showNote(); return; }
+      var dp=asKOH?1:4;
+      function cell(tr,label,getVal,setVal,ref){
+        tr.appendChild(el("td",null,escapeHtml(label)+(ref!=null?"<div class='sap-ref'>ours: "+fmt(asKOH?sapToKOH(ref):ref,dp)+"</div>":"<div class='sap-ref'>no reference</div>")));
+        var td=document.createElement("td");
+        var inp=document.createElement("input"); inp.type="number"; inp.min="0"; inp.step="any";
+        inp.placeholder=ref!=null ? fmt(asKOH?sapToKOH(ref):ref,dp) : "—";
+        var cur=getVal(); inp.value = cur>0 ? fmt(asKOH?sapToKOH(cur):cur,dp) : "";
+        inp.addEventListener("input",function(){
+          var v=parseFloat(inp.value);
+          setVal(isFinite(v)&&v>0 ? (asKOH?sapFromKOH(v):v) : 0);
+          saveSoon(); refreshDerived(); showNote();
+        });
+        td.appendChild(inp); tr.appendChild(td);
+      }
+      var table=el("table","cost-table"), tb=document.createElement("tbody"); table.appendChild(tb);
+      list.forEach(function(x){
+        var tr=document.createElement("tr");
+        cell(tr,x.name,function(){ return (state.sapOverrides||{})[x.key]||0; },
+          function(v){ if(v>0) state.sapOverrides[x.key]=v; else delete state.sapOverrides[x.key]; }, x.ref);
+        tb.appendChild(tr);
+      });
+      customs.forEach(function(it){
+        var tr=document.createElement("tr");
+        cell(tr,it.name,function(){ return it.sap||0; },
+          function(v){ if(v>0) it.sap=v; else delete it.sap; }, null);
+        tb.appendChild(tr);
+      });
+      out.appendChild(table);
+      showNote();
+    }
+    function showNote(){
+      var L=computeLye(), bits=[];
+      if(L.overrides.length) bits.push(L.overrides.length+" supplier value"+(L.overrides.length===1?"":"s")+" in use");
+      if(L.customSap) bits.push("a custom oil is in the lye maths");
+      if(L.hasCustom) bits.push("a custom oil is still excluded — give it a SAP to include it");
+      note.textContent = bits.length ? bits.join(" · ")+"." : "Using our reference values throughout.";
+    }
+    draw();
+    md.m.appendChild(el("div","safety long","⚠️ A wrong SAP value means the wrong amount of lye. Take it from the supplier's current spec sheet for the batch you actually bought, and re-check it if you change supplier."));
+    var foot=el("div","mfoot");
+    var reset=el("button","ghost","Use ours");
+    reset.addEventListener("click",function(){
+      state.sapOverrides={};
+      state.oils.forEach(function(it){ if(!it.key) delete it.sap; });
+      save(); render(); draw();
+    });
+    var done=el("button","primary","Done");
+    done.addEventListener("click",function(){ save(); render(); closeModal(md.back); });
+    foot.appendChild(reset); foot.appendChild(done); md.m.appendChild(foot);
+  }
+
   function openStock(){
     syncCurrent();
     var md=makeModal(), wunit=weightUnit(), ul=UNITS[wunit].label;
@@ -2716,7 +2840,7 @@
   function validUse(u){ for(var i=0;i<USES.length;i++) if(USES[i][0]===u) return true; return false; }
   function blankRecipe(name){ var r={id:uid(), name:name};
     RECIPE_FIELDS.forEach(function(fld){ r[fld.k]=defOf(fld); }); return r; }
-  function cloneItem(it){ return {name:it.name,key:it.key,g:it.g}; }
+  function cloneItem(it){ var o={name:it.name,key:it.key,g:it.g}; if(it.sap>0) o.sap=it.sap; return o; }
   // recipes reaching here are already sanitized (from load) or freshly built, so fields are copied
   // as-is — arrays by reference, so state and the live library recipe stay the same objects.
   function stateFromRecipe(r,view){
@@ -2829,7 +2953,12 @@
   }
   function cleanList(list,db){ if(!Array.isArray(list)) return [];
     return list.filter(function(it){ return it&&typeof it.name==="string"&&typeof it.g==="number"&&isFinite(it.g); })
-      .map(function(it){ return {name:it.name,key:(it.key&&db[it.key])?it.key:null,g:it.g}; }); }
+      .map(function(it){ var k=(it.key&&db[it.key])?it.key:null;
+        var o={name:it.name,key:k,g:it.g};
+        // a custom oil can carry the SAP value off its own bottle, which is what
+        // lets it into the lye maths at all
+        if(!k && it.sap>0 && it.sap<1) o.sap=it.sap;
+        return o; }); }
   function clamp(v,def,lo,hi){ v=parseFloat(v); if(!isFinite(v)) return def; return Math.max(lo,Math.min(hi,v)); }
   function escapeHtml(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
 

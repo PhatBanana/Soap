@@ -867,7 +867,7 @@ async function addOil(p, key, g) {
 
   // save shape unchanged (backup/restore compatibility)
   const keys = Object.keys(await LS(p)).sort().join(",");
-  eq("Save shape keys", keys, "collapsed,currency,currentId,lastWeightUnit,librarySort,moldShape,prices,recent,recipes,scaleMode,scaleUnit,stock,tab,theme,unit");
+  eq("Save shape keys", keys, "collapsed,currency,currentId,lastWeightUnit,librarySort,moldShape,prices,recent,recipes,sapOverrides,scaleMode,scaleUnit,stock,tab,theme,unit");
   await p.close();
 }
 
@@ -1427,6 +1427,74 @@ Water:Lye Ratio 2.5`, { commit: true });
   const dupes = await rp.evaluate(() => JSON.parse(localStorage.getItem("soapcalc.v4")).recipes.filter((r) => r.name === "Lavender Dream").length);
   eq("Reload does not re-import", dupes, 1);
   await ctx.close();
+  await p.close();
+}
+
+/* =======================================================================
+   SUPPLIER SAP VALUES (overrides + custom oils that carry their own)
+======================================================================= */
+{
+  const p = await newPage();
+  const KOHF = 1.40274;
+
+  // baseline: 1000 g olive at 0% superfat = 1000 × 0.134
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0 }));
+  near("Reference SAP drives the lye", await num(p, "#lyeVal"), 134, 0.05);
+
+  // a supplier's mg KOH/g figure, stored as g NaOH/g
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0 }, { sapOverrides:{ olive: 190/1000/KOHF } }));
+  near("Supplier SAP overrides the reference", await num(p, "#lyeVal"), 1000*190/1000/KOHF, 0.05);
+  has("Lye card says supplier values are in use", await txt(p, "#lyeInfo"), "supplier SAP value");
+  ok("Override raises a safety note",
+    (await p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent)))
+      .includes("Supplier SAP values in use"));
+
+  // an override for an oil that isn't in the recipe changes nothing
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0 }, { sapOverrides:{ coconut: 0.20 } }));
+  near("An unrelated override doesn't move the lye", await num(p, "#lyeVal"), 134, 0.05);
+
+  // a custom oil with its own SAP joins the lye maths
+  await open(p, store({ oils:[{ name:"Mystery oil", key:null, g:1000, sap:0.14 }], superfat:0 }));
+  near("Custom oil with a SAP is in the lye maths", await num(p, "#lyeVal"), 140, 0.05);
+  await addOil(p, "castor", 1);                       // force a save through the schema
+  let r = (await LS(p)).recipes[0];
+  eq("Custom SAP persists", r.oils[0].sap, 0.14);
+  const titles = await p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
+  ok("…and it's no longer reported as excluded", !titles.includes("Custom oils aren't in the lye math"));
+  ok("…but it is called out as your own figure", titles.includes("Custom oil using the SAP you entered"));
+
+  // without a SAP the old behaviour stands: excluded from the lye and warned about
+  await open(p, store({ oils:[OIL("olive",500), { name:"Mystery oil", key:null, g:500 }], superfat:0 }));
+  near("Custom oil with no SAP contributes no lye", await num(p, "#lyeVal"), 500*0.134, 0.05);
+  ok("…and is still flagged as excluded",
+    (await p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent)))
+      .includes("Custom oils aren't in the lye math"));
+
+  // nonsense overrides are ignored by the maths and dropped on the next save
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0 },
+    { sapOverrides:{ olive:"abc", coconut:-1, palm:0, shea:5, notanoil:0.13 } }));
+  near("Bad overrides never reach the lye", await num(p, "#lyeVal"), 134, 0.05);
+  await addOil(p, "castor", 1);                       // force a save through the schema
+  eq("…and are dropped from storage", JSON.stringify((await LS(p)).sapOverrides), "{}");
+
+  // the modal: type a spec-sheet figure, watch the lye move, flip the unit
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0 }));
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="sap"]').click(); });
+  await p.waitForTimeout(180);
+  has("Modal shows our reference in mg KOH/g", await p.$eval("#modalRoot .sap-ref", (e) => e.textContent), "188");
+  await p.fill("#modalRoot .cost-table input", "190");
+  await p.waitForTimeout(250);
+  near("Typing a supplier value re-sizes the lye live", await num(p, "#lyeVal"), 1000*190/1000/KOHF, 0.05);
+  await p.evaluate(() => document.querySelectorAll("#modalRoot .seg button")[1].click());
+  await p.waitForTimeout(150);
+  near("Switching to g NaOH/g shows the same value converted",
+    parseFloat(await p.inputValue("#modalRoot .cost-table input")), 190/1000/KOHF, 0.0002);
+
+  // "Use ours" puts everything back
+  await p.evaluate(() => document.querySelector("#modalRoot .mfoot .ghost").click());
+  await p.waitForTimeout(250);
+  near("Use ours restores the reference", await num(p, "#lyeVal"), 134, 0.05);
+  eq("…and clears the stored override", JSON.stringify((await LS(p)).sapOverrides), "{}");
   await p.close();
 }
 
