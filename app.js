@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v38", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v39", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -148,11 +148,17 @@
   (function(){
     var oilKeys=Object.keys(OILS).sort(function(a,b){return OILS[a].name.localeCompare(OILS[b].name);});
     var addKeys=Object.keys(ADDITIVES).sort(function(a,b){return ADDITIVES[a].name.localeCompare(ADDITIVES[b].name);});
+    // colorants get their own group — half the additive list is colour, and mixing
+    // them in alphabetically buries goat milk between madder and mica
+    var plainKeys=addKeys.filter(function(k){ return !ADDITIVES[k].colorant; });
+    var colorKeys=addKeys.filter(function(k){ return ADDITIVES[k].colorant; });
+    function opts(keys){ return keys.map(function(k){
+      return '<option value="add:'+k+'">'+ADDITIVES[k].name+'</option>'; }).join(""); }
     var h='<option value="" disabled selected>Choose an oil or additive…</option>';
     h+='<optgroup label="Oils, butters &amp; fats">';
     oilKeys.forEach(function(k){ h+='<option value="oil:'+k+'">'+OILS[k].name+'</option>'; });
-    h+='</optgroup><optgroup label="Additives (milk, honey, clay…)">';
-    addKeys.forEach(function(k){ h+='<option value="add:'+k+'">'+ADDITIVES[k].name+'</option>'; });
+    h+='</optgroup><optgroup label="Additives (milk, honey, clay…)">'+opts(plainKeys);
+    h+='</optgroup><optgroup label="Colorants (see 🎨 in the menu)">'+opts(colorKeys);
     h+='</optgroup><option value="__custom__">+ Custom oil (no data)…</option>';
     $("baseSelect").innerHTML=h;
   })();
@@ -1300,14 +1306,16 @@
     var form=el("form","bh-cform"); form.hidden=true;
     form.innerHTML=
       "<label class='bcf-f'><span>Date</span><input type='date' class='bcf-on' value='"+escapeHtml(todayISO())+"'></label>"+
-      "<label class='bcf-f'><span>pH (optional)</span><input type='number' class='bcf-ph' step='0.1' min='0' max='14' inputmode='decimal' placeholder='—'></label>"+
+      "<label class='bcf-f'><span>pH reading (optional)</span><input type='number' class='bcf-ph' step='0.1' min='0' max='14' inputmode='decimal' placeholder='—'></label>"+
       "<label class='bcf-z'><input type='checkbox' class='bcf-zap'><span>It zaps my tongue</span></label>"+
       "<input type='text' class='bcf-note' maxlength='300' placeholder='Note (optional) — still soft, ash on top…'>"+
-      "<div class='bcf-btns'><button type='submit' class='primary'>Save check</button></div>";
+      "<div class='bcf-btns'><button type='button' class='ghost bcf-cancel'>Cancel</button>"+
+      "<button type='submit' class='primary'>Save check</button></div>";
     add.addEventListener("click",function(){
       form.hidden=!form.hidden;
       if(!form.hidden){ var f=form.querySelector(".bcf-on"); if(f) f.focus(); }
     });
+    form.querySelector(".bcf-cancel").addEventListener("click",function(){ form.hidden=true; });
     form.addEventListener("submit",function(e){
       e.preventDefault();
       var rec=null; (state.batches||[]).forEach(function(y){ if(y.id===b.id) rec=y; });
