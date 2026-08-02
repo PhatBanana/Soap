@@ -5,7 +5,7 @@ compare recipes, size the lye and superfat, shape the soap's qualities, plan you
 scent blend, and scale a batch to fit your mold. No accounts, no build step,
 nothing leaves your device.
 
-**Live:** https://phatbanana.github.io/Soap/
+**Live:** https://phatbanana.github.io/Soap/ · **[Roadmap](ROADMAP.md)**
 
 ## Why
 
@@ -315,7 +315,7 @@ The suite is self-contained (it starts its own static server) and exits non-zero
 on any failure — handy to run before pushing a change to the lye math, safety
 rules, or persistence.
 
-## Ideas for later
-- Optional cloud sync so recipes follow you across devices.
-- Ingredient inventory, so the shopping list can subtract what's already in the
-  cupboard.
+## What's next
+See **[ROADMAP.md](ROADMAP.md)** for the full picture — everything the app does today,
+what's planned next (a batch log, an ingredient inventory, hot-process superfat), and
+what's deliberately *not* planned, with the reasoning.
