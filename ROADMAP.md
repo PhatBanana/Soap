@@ -88,12 +88,11 @@ below is judged against that.
 
 ### Tier 1 — the real gaps
 
-**1. Batch log (make history)**
-Right now the made-on date, lot number, notes and checklist are single-valued, so
-making the same recipe a second time overwrites the record of the first. A soap
-journal should keep *every* make: date, lot, what you changed, how it turned out.
-This is the natural completion of Batch Notes + Lot + Cure Schedule, and the biggest
-gap in the app today.
+**1. Batch log (make history)** — ✅ **shipped in v33**
+Tap **Log this batch** and the date, lot, cure time and notes are filed into a
+per-recipe history; the checklist clears for the next make. Every make is kept, so
+remaking a recipe no longer overwrites the record of the last one, and the library
+shows how many times each recipe has been made.
 
 **2. Ingredient inventory → a smarter shopping list**
 Track what's actually in the cupboard, subtract it from the shopping list, and warn

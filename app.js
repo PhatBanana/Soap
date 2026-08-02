@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v32", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v33", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -56,7 +56,19 @@
     // cost per bar, the wrapper's net weight and the "Bars" scale target
     {k:"barWeight", def:110,    coerce:function(v){return clamp(v,110,10,2000);}},
     {k:"fav",       def:false,  coerce:function(v){return !!v;}},
-    {k:"lastUsed",  def:0,      coerce:function(v){return (typeof v==="number"&&isFinite(v)&&v>0)?v:0;}}
+    {k:"lastUsed",  def:0,      coerce:function(v){return (typeof v==="number"&&isFinite(v)&&v>0)?v:0;}},
+    // every time you actually make this recipe, archived so a second make doesn't
+    // overwrite the record of the first
+    {k:"batches",   def:function(){return [];}, coerce:function(v){
+      if(!Array.isArray(v)) return [];
+      return v.filter(function(b){ return b&&typeof b==="object"; }).slice(-50).map(function(b){
+        return { id:(typeof b.id==="string"&&b.id)?b.id:uid(),
+          madeOn:(typeof b.madeOn==="string")?b.madeOn:"",
+          lot:(typeof b.lot==="string")?b.lot.slice(0,32):"",
+          cureWeeks:clamp(b.cureWeeks,4,1,16),
+          notes:(typeof b.notes==="string")?b.notes.slice(0,4000):"" };
+      });
+    }}
   ];
   var VIEW_FIELDS=[
     {k:"unit",           coerce:function(v){return UNITS[v]?v:"g";}},
@@ -220,6 +232,7 @@
     updateDilutePanel(); save();
   });
   $("notesField").addEventListener("input",function(){ state.notes=$("notesField").value; save(); });
+  $("logBatch").addEventListener("click",logBatch);
   $("madeOn").addEventListener("change",function(){ state.madeOn=$("madeOn").value; save(); updateReady(); });
   $("cureWeeks").addEventListener("input",function(){ state.cureWeeks=parseInt($("cureWeeks").value,10)||4; $("cureWeeksVal").textContent=state.cureWeeks; save(); updateCureSuggest(); updateReady(); });
   $("resetChecklist").addEventListener("click",function(){ if(confirm("Uncheck all steps?")){ state.checklist={}; save(); renderMake(); } });
@@ -1125,6 +1138,45 @@
     updateCureSuggest();
     updateTempSuggest();
     updateReady();
+    renderHistory();
+  }
+  function logBatch(){
+    if(!Array.isArray(state.batches)) state.batches=[];
+    var made=state.madeOn||todayISO();
+    state.batches.push({ id:uid(), madeOn:made, lot:state.lot||"",
+      cureWeeks:state.cureWeeks||4, notes:state.notes||"" });
+    if(state.batches.length>50) state.batches.shift();
+    // the checklist and notes belonged to that make — start the next one clean
+    state.checklist={}; state.notes="";
+    save(); render();
+    showToast("Batch logged — "+state.batches.length+" on record",true);
+  }
+  function renderHistory(){
+    var card=$("historyCard"), box=$("batchList"); if(!card||!box) return;
+    var list=(state.batches||[]).slice().reverse();          // newest first
+    card.hidden=list.length===0; if(!list.length) return;
+    box.innerHTML="";
+    list.forEach(function(b){
+      var row=el("div","batch-row");
+      var made=b.madeOn?new Date(b.madeOn+"T00:00:00"):null;
+      var when=(made&&!isNaN(made.getTime())) ? made.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}) : "no date";
+      var ready="";
+      if(made&&!isNaN(made.getTime())){
+        var r=new Date(made.getTime()); r.setDate(r.getDate()+(b.cureWeeks||4)*7);
+        ready=" · ready "+r.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+      }
+      var head=el("div","bh-head");
+      head.innerHTML="<b>"+escapeHtml(when)+"</b><span>"+escapeHtml((b.lot?"Lot "+b.lot:"")+ready)+"</span>";
+      row.appendChild(head);
+      if(b.notes) row.appendChild(el("div","bh-notes",escapeHtml(b.notes)));
+      var del=el("button","bh-del","&times;"); del.type="button"; del.setAttribute("aria-label","Delete this batch record");
+      del.addEventListener("click",function(){
+        state.batches=state.batches.filter(function(x){ return x.id!==b.id; });
+        save(); render(); showToast("Batch record removed",true);
+      });
+      row.appendChild(del);
+      box.appendChild(row);
+    });
   }
   function updateMethodNote(){
     setActive($("methodSeg"),"mt",state.method||"cp");
@@ -1932,6 +1984,7 @@
     if(r.lyeType==="koh") bits.push("liquid");
     if(r.method==="hp") bits.push("hot process");
     if(r.use&&r.use!=="body"){ USES.forEach(function(u){ if(u[0]===r.use) bits.push(u[1].toLowerCase()); }); }
+    var made=(r.batches||[]).length; if(made) bits.push("made "+made+"×");
     if(r.lastUsed>0){
       var days=Math.floor((Date.now()-r.lastUsed)/86400000);
       bits.push(days<=0?"opened today":days===1?"opened yesterday":"opened "+days+"d ago");
