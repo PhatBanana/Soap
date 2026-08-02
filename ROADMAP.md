@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v41 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
-15 example recipes · 423 test assertions, run on every pull request.
+**Today:** v42 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
+15 example recipes · 433 test assertions, run on every pull request.
 
 ---
 

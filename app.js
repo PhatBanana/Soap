@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v41", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v42", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -196,7 +196,7 @@
   $("recalcBtn").addEventListener("click",function(){ save(); render(); showToast("Recalculated ✓",true); });
   $("aiExplain").addEventListener("click",runAIExplain);
   function bindRange(input,labelId,key){
-    input.addEventListener("input",function(){ state[key]=parseFloat(input.value); $(labelId).textContent=input.value; refreshDerived(); save(); });
+    input.addEventListener("input",function(){ state[key]=parseFloat(input.value); $(labelId).textContent=input.value; refreshDerived(); saveSoon(); });
   }
   Array.prototype.forEach.call($("shape").children,function(b){
     b.addEventListener("click",function(){ nudge(b.dataset.goal); });
@@ -234,7 +234,7 @@
   $("barW").addEventListener("input",function(){
     var v=parseFloat($("barW").value), g=isFinite(v)?v*UNITS[weightUnit()].toG:NaN;
     state.barWeight=(isFinite(g)&&g>=10)?g:110;
-    save(); updateScaleCard();
+    saveSoon(); updateScaleCard();
   });
   $("scentSuggest").addEventListener("click",suggestScents);
   $("clearOils").addEventListener("click",clearRecipe);
@@ -248,19 +248,19 @@
   $("sfOilSelect").addEventListener("change",function(){ state.sfOil=$("sfOilSelect").value; save(); render(); });
   bindRange($("waterRatio"),"ratioVal","waterRatio");
   $("roundBtn").addEventListener("click",roundAmounts);
-  $("lotField").addEventListener("input",function(){ state.lot=$("lotField").value; save(); });
+  $("lotField").addEventListener("input",function(){ state.lot=$("lotField").value; saveSoon(); });
   $("lotGen").addEventListener("click",function(){
     var d=state.madeOn||todayISO();
     state.lot=d.replace(/-/g,"")+"-A"; $("lotField").value=state.lot; save();
   });
   $("dilution").addEventListener("input",function(){
     state.dilution=parseFloat($("dilution").value)||1; $("dilVal").textContent=fmt(state.dilution,2);
-    updateDilutePanel(); save();
+    updateDilutePanel(); saveSoon();
   });
-  $("notesField").addEventListener("input",function(){ state.notes=$("notesField").value; save(); });
+  $("notesField").addEventListener("input",function(){ state.notes=$("notesField").value; saveSoon(); });
   $("logBatch").addEventListener("click",logBatch);
   $("madeOn").addEventListener("change",function(){ state.madeOn=$("madeOn").value; save(); updateReady(); });
-  $("cureWeeks").addEventListener("input",function(){ state.cureWeeks=parseInt($("cureWeeks").value,10)||4; $("cureWeeksVal").textContent=state.cureWeeks; save(); updateCureSuggest(); updateReady(); });
+  $("cureWeeks").addEventListener("input",function(){ state.cureWeeks=parseInt($("cureWeeks").value,10)||4; $("cureWeeksVal").textContent=state.cureWeeks; saveSoon(); updateCureSuggest(); updateReady(); });
   $("resetChecklist").addEventListener("click",function(){ if(confirm("Uncheck all steps?")){ state.checklist={}; save(); renderMake(); } });
 
   /* ================= RENDER ================= */
@@ -414,7 +414,7 @@
     amtVal.addEventListener("input",function(){
       var v=parseFloat(amtVal.value); if(!isFinite(v)||v<0) return;
       if(state.unit==="pct") setOilPercent(i,v); else it.g=v*UNITS[state.unit].toG;
-      lastGoal=null; refreshDerived(amtVal); save();
+      lastGoal=null; refreshDerived(amtVal); saveSoon();
     });
     var del=el("button","del","&times;"); del.type="button"; del.setAttribute("aria-label","Remove "+it.name);
     del.addEventListener("click",function(){ pushUndo(); var nm=it.name; state.oils.splice(i,1); lastGoal=null; save(); render(); showToast("Removed "+nm); });
@@ -427,7 +427,7 @@
     var range=document.createElement("input"); range.type="range"; range.min="0"; range.max="100"; range.step="0.5";
     range.setAttribute("aria-label",it.name+" percent of oils");
     var pctLbl=el("span","pctlbl");
-    range.addEventListener("input",function(){ setOilPercent(i,parseFloat(range.value)); lastGoal=null; refreshDerived(range); save(); });
+    range.addEventListener("input",function(){ setOilPercent(i,parseFloat(range.value)); lastGoal=null; refreshDerived(range); saveSoon(); });
     sl.appendChild(range); sl.appendChild(pctLbl); row.appendChild(sl);
     oilRefs[i]={slider:range,amtVal:amtVal,amtU:amtU,pctLbl:pctLbl};
     return row;
@@ -453,7 +453,7 @@
     inp.addEventListener("blur",function(){activeInput=null;});
     inp.addEventListener("input",function(){
       var v=parseFloat(inp.value); it.g = isFinite(v)&&v>0 ? v*UNITS[weightUnit()].toG : 0;
-      refreshDerived(inp); save();
+      refreshDerived(inp); saveSoon();
     });
     ne.appendChild(inp); ne.appendChild(u); ne.appendChild(pctLbl); row.appendChild(ne);
     addRefs[i]={input:inp,pctLbl:pctLbl};
@@ -491,7 +491,7 @@
     inp.addEventListener("blur",function(){activeInput=null;});
     inp.addEventListener("input",function(){
       var v=parseFloat(inp.value); it.g = isFinite(v)&&v>0 ? v*UNITS[weightUnit()].toG : 0;
-      refreshDerived(inp); save();
+      refreshDerived(inp); saveSoon();
     });
     ne.appendChild(inp); ne.appendChild(u); ne.appendChild(pctLbl); row.appendChild(ne);
     aromaRefs[i]={input:inp,pctLbl:pctLbl,sugg:suggEl,warn:warnEl,d:d};
@@ -1971,7 +1971,7 @@
   // Ask the browser to keep our storage (recipes) from being auto-evicted.
   if(navigator.storage && navigator.storage.persist){ navigator.storage.persist().catch(function(){}); }
   function backupAll(){
-    syncCurrent(); save();
+    syncCurrent(); save(); flushSave();
     var data=localStorage.getItem(STORE_KEY)||"{}";
     var blob=new Blob([data],{type:"application/json"});
     var a=document.createElement("a"); a.href=URL.createObjectURL(blob);
@@ -1985,6 +1985,7 @@
       try{ o=JSON.parse(text); }catch(e){ alert("That file isn't valid JSON — pick a Soap Calc backup."); return; }
       if(!o||!Array.isArray(o.recipes)||o.recipes.length===0){ alert("That doesn't look like a Soap Calc backup (no recipes found)."); return; }
       if(!confirm("Restore "+o.recipes.length+" recipe(s) from this backup? This replaces the recipes currently on this device.")) return;
+      cancelWrite();                       // don't let a queued write clobber the restore
       try{ localStorage.setItem(STORE_KEY,text); location.reload(); }
       catch(e){ alert("Couldn't save the restored data."); }
     };
@@ -2550,7 +2551,7 @@
         inp.addEventListener("input",function(){
           var v=parseFloat(inp.value);
           if(isFinite(v)&&v>0) state.stock[x.key]=v*UNITS[wunit].toG; else delete state.stock[x.key];
-          save(); showCoverage();
+          saveSoon(); showCoverage();
         });
         td.appendChild(inp); td.appendChild(document.createTextNode(" "+ul));
         tr.appendChild(td); tb.appendChild(tr);
@@ -2687,7 +2688,7 @@
         var td2=document.createElement("td");
         var inp=document.createElement("input"); inp.type="number"; inp.min="0"; inp.step="any";
         inp.value=state.prices[pk]||""; inp.placeholder="0";
-        inp.addEventListener("input",function(){ var v=parseFloat(inp.value); if(isFinite(v)&&v>0) state.prices[pk]=v; else delete state.prices[pk]; save(); recompute(); });
+        inp.addEventListener("input",function(){ var v=parseFloat(inp.value); if(isFinite(v)&&v>0) state.prices[pk]=v; else delete state.prices[pk]; saveSoon(); recompute(); });
         td2.appendChild(inp); td2.appendChild(document.createTextNode(" "+state.currency+"/kg"));
         tr.appendChild(td2);
         var costCell=el("td",null,""); tr.appendChild(costCell);
@@ -2788,10 +2789,25 @@
               name:(typeof r.name==="string"&&r.name.trim())?r.name:"Untitled" };
     RECIPE_FIELDS.forEach(function(fld){ out[fld.k]= fld.list ? cleanList(r[fld.k],fld.list) : fld.coerce(r[fld.k]); });
     return out; }
-  function save(){ syncCurrent();
+  /* Persisting serialises the whole library — every recipe, batch record and cure
+     check — so doing it on every pointermove or keystroke costs more the more
+     you've saved. Discrete actions (add, delete, log a batch, switch recipe) still
+     write immediately; only the continuous streams coalesce via saveSoon().
+     Both keep syncCurrent() synchronous, so the in-memory library is always
+     current and only the write to disk is deferred. */
+  var writeTimer=null;
+  function writeStore(){
     try{ var o={ currentId:currentId, recipes:library };
       VIEW_FIELDS.forEach(function(fld){ o[fld.k]=state[fld.k]; });
       localStorage.setItem(STORE_KEY,JSON.stringify(o)); }catch(e){} }
+  function cancelWrite(){ if(writeTimer){ clearTimeout(writeTimer); writeTimer=null; } }
+  function save(){ syncCurrent(); cancelWrite(); writeStore(); }
+  function saveSoon(){ syncCurrent(); if(!writeTimer) writeTimer=setTimeout(function(){ writeTimer=null; writeStore(); },200); }
+  function flushSave(){ if(writeTimer){ cancelWrite(); writeStore(); } }
+  // The safety net: a phone can background or kill the page without warning, so
+  // anything still queued is written the moment we stop being visible.
+  window.addEventListener("pagehide",flushSave);
+  document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="hidden") flushSave(); });
   function load(){
     try{
       var raw=localStorage.getItem(STORE_KEY);

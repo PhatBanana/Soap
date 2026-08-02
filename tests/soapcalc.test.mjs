@@ -769,7 +769,11 @@ async function addOil(p, key, g) {
   await p.evaluate(() => { const s = document.getElementById("dilution"); s.value = "3"; s.dispatchEvent(new Event("input", { bubbles: true })); });
   await p.waitForTimeout(150);
   near("At 3× the water is triple the paste", await num(p, "#dilWaterOut"), paste * 3, 1);
+  // slider edits are persisted on a short debounce, so assert the guarantee that
+  // actually matters — it survives a reload — rather than the write's timing
+  await p.reload(); await p.waitForTimeout(250);
   eq("Dilution ratio persists", (await LS(p)).recipes[0].dilution, 3);
+  eq("Dilution ratio shown back", await p.evaluate(() => document.getElementById("dilution").value), "3");
   await p.close();
 }
 
@@ -1423,6 +1427,60 @@ Water:Lye Ratio 2.5`, { commit: true });
   const dupes = await rp.evaluate(() => JSON.parse(localStorage.getItem("soapcalc.v4")).recipes.filter((r) => r.name === "Lavender Dream").length);
   eq("Reload does not re-import", dupes, 1);
   await ctx.close();
+  await p.close();
+}
+
+/* =======================================================================
+   PERSISTENCE TIMING (continuous edits coalesce; nothing is lost)
+======================================================================= */
+{
+  const p = await newPage();
+  const drag = (v) => p.evaluate((x) => {
+    const s = document.querySelector("#oilList input[type=range]");
+    s.value = String(x); s.dispatchEvent(new Event("input", { bubbles: true }));
+  }, v);
+
+  // a slider drag survives a reload — the write lands even though it's deferred
+  await open(p, store({ oils:[OIL("olive",600),OIL("coconut",400)] }));
+  await drag(70);
+  await p.reload(); await p.waitForTimeout(250);
+  let r = (await LS(p)).recipes[0];
+  near("Slider edit survives a reload", r.oils[0].g / (r.oils[0].g + r.oils[1].g) * 100, 70, 0.6);
+  near("Total oils unchanged by the drag", r.oils.reduce((a, o) => a + o.g, 0), 1000, 0.5);
+
+  // dragging many times in a row still ends on the final value
+  await open(p, store({ oils:[OIL("olive",600),OIL("coconut",400)] }));
+  for (let i = 0; i < 25; i++) await drag(40 + i);
+  await p.reload(); await p.waitForTimeout(250);
+  r = (await LS(p)).recipes[0];
+  near("A long drag persists its final position",
+    r.oils[0].g / (r.oils[0].g + r.oils[1].g) * 100, 64, 0.6);
+
+  // a discrete action flushes whatever the continuous stream had queued
+  await open(p, store({ oils:[OIL("olive",500)], madeOn:"2026-07-01", cureWeeks:4 }, { tab:"make" }));
+  await p.fill("#notesField", "Typed, then logged straight away.");
+  await p.click("#logBatch");                       // no wait: the click must flush the typing
+  await p.waitForTimeout(200);
+  r = (await LS(p)).recipes[0];
+  eq("Logging a batch flushes the typing that preceded it", r.batches.length, 1);
+  eq("…and the note went with it", r.batches[0].notes, "Typed, then logged straight away.");
+
+  // adding an oil is discrete too — it must not lose a pending slider edit
+  await open(p, store({ oils:[OIL("olive",600),OIL("coconut",400)] }));
+  await drag(80);
+  await addOil(p, "castor", 50);
+  r = (await LS(p)).recipes[0];
+  eq("Adding an oil writes immediately", r.oils.length, 3);
+  near("…and keeps the slider edit made just before it",
+    r.oils[0].g / (r.oils[0].g + r.oils[1].g) * 100, 80, 0.6);
+
+  // switching recipes must not carry a pending edit onto the wrong one
+  await open(p, store({ id:"rA", name:"A", oils:[OIL("olive",600),OIL("coconut",400)] }));
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="dup"]').click(); });
+  await p.waitForTimeout(250);
+  const st = await LS(p);
+  eq("Duplicate wrote both recipes", st.recipes.length, 2);
+  ok("Duplicate is the current one", st.currentId !== "rA");
   await p.close();
 }
 
