@@ -950,6 +950,74 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   COLORANTS
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ oils:[OIL("olive",500),OIL("coconut",300),OIL("palm",200)] }));
+
+  // the new colorants are ordinary additives — addable, saved, costed, labelled
+  const opts = await p.$$eval("#baseSelect option", (es) => es.map((e) => e.value));
+  ["madder","annatto","indigo","alkanet","spirulina","frenchgreen","roseclay",
+   "cocoapowder","turmeric","paprika","ironoxide","ultramarine"].forEach((k) =>
+    ok(`Colorant ${k} offered as an additive`, opts.includes("add:" + k)));
+
+  await p.selectOption("#baseSelect", "add:madder");
+  has("Picking a colorant shows its usage note", await txt(p, "#pickPreview"), "per lb");
+  await p.fill("#amtIn", "8");
+  await p.click("#addForm button[type=submit]");
+  await p.waitForTimeout(150);
+  const add = (await LS(p)).recipes[0].additives[0];
+  eq("Colorant saved into the recipe", add.key, "madder");
+  eq("Colorant keeps its name", add.name, "Madder root powder");
+  eq("Colorant keeps its weight", add.g, 8);
+
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="label"]').click(); });
+  await p.waitForTimeout(150);
+  has("Colorant appears on the INCI label",
+    await p.evaluate(() => document.querySelector(".inci-box").textContent), "Rubia Tinctorum (Madder) Root Powder");
+  ok("Known colorant raises no INCI warning", !(await p.$(".inci-warn")));
+  await p.evaluate(() => { document.querySelector(".modal-back").remove(); document.body.style.overflow = ""; });
+
+  // the guide
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="colors"]').click(); });
+  await p.waitForTimeout(150);
+  const families = await p.$$eval("#modalRoot .ts-group", (es) => es.map((e) => e.textContent));
+  eq("Colour families in order", families.join(","),
+    "White,Yellow & orange,Red & pink,Green,Blue & purple,Brown & black,Anything else");
+  ok("Guide lists every colorant", (await p.$$("#modalRoot .ts-item")).length >= 20);
+  const doses = await p.$$eval("#modalRoot .cl-dose", (es) => es.map((e) => e.textContent));
+  eq("Every entry quotes a dose", doses.length, (await p.$$("#modalRoot .ts-item")).length);
+  ok("Doses are per pound of oils", doses.every((d) => d.includes("PPO") || d.includes("on top")));
+
+  await p.fill("#modalRoot .ts-filter", "indigo");
+  await p.waitForTimeout(100);
+  const hit = await p.$$eval("#modalRoot .ts-item", (es) => ({ n: es.length, open: es.every((e) => e.open),
+    first: es[0] ? es[0].querySelector("summary").textContent : "" }));
+  ok("Search narrows to the match", hit.n === 1);
+  ok("Search auto-expands matches", hit.open);
+  has("Search finds indigo", hit.first, "Indigo");
+
+  await p.fill("#modalRoot .ts-filter", "fades");
+  await p.waitForTimeout(100);
+  ok("Search matches on behaviour text too", (await p.$$("#modalRoot .ts-item")).length >= 2);
+
+  await p.fill("#modalRoot .ts-filter", "zzznope");
+  await p.waitForTimeout(100);
+  eq("No-match hides every colorant", (await p.$$("#modalRoot .ts-item")).length, 0);
+
+  await p.fill("#modalRoot .ts-filter", "alkanet");
+  await p.waitForTimeout(100);
+  const body = await p.evaluate(() => document.querySelector("#modalRoot .ts-item[open] .ts-body").textContent);
+  has("Entry says how to disperse it", body, "How:");
+  has("Entry says what soap does to it", body, "In soap:");
+  has("pH-shifting colorant flagged", body, "pH-sensitive");
+  has("Colorant guide notes colour is cosmetic",
+    await p.evaluate(() => document.querySelector("#modalRoot .safety").textContent), "nothing here changes the lye maths");
+  await p.close();
+}
+
+/* =======================================================================
    BATCH NOTES + BAR WRAPPER
 ======================================================================= */
 {

@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v36", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v37", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -1437,6 +1437,7 @@
       case "share": openShare(); break;
       case "trouble": openTrouble(); break;
       case "rebatch": openRebatch(); break;
+      case "colors": openColors(); break;
       case "examples": openExamples(); break;
       case "scan": $("photoInput").click(); break;
       case "import": $("csvInput").click(); break;
@@ -2048,6 +2049,44 @@
     var foot=el("div","mfoot"); var cl=el("button","primary","Close");
     cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
   }
+
+  /* ---------- colorant guide: dose, how to disperse, what survives high pH ---------- */
+  function openColors(){
+    var md=makeModal();
+    md.m.appendChild(el("h3",null,"Colorants"));
+    md.m.appendChild(el("p","sub","How much, how to mix it in, and what soap's high pH will do to it. Doses are per <b>lb (450 g) of oils</b> — “PPO”."));
+    var filter=document.createElement("input"); filter.className="ts-filter"; filter.type="search";
+    filter.placeholder="Search colours (pink, fades, clay…)"; md.m.appendChild(filter);
+    var wrap=el("div","ts-wrap"); md.m.appendChild(wrap);
+    var groups=[];
+    (window.COLORANTS||[]).forEach(function(t){
+      var g=null; groups.forEach(function(x){ if(x.family===t.family) g=x; });
+      if(!g){ g={family:t.family,items:[]}; groups.push(g); } g.items.push(t);
+    });
+    function draw(q){
+      q=(q||"").toLowerCase().trim(); wrap.innerHTML="";
+      groups.forEach(function(g){
+        var hits=g.items.filter(function(t){ return !q || (t.name+" "+t.family+" "+t.how+" "+t.behaviour).toLowerCase().indexOf(q)>=0; });
+        if(!hits.length) return;
+        wrap.appendChild(el("div","ts-group",escapeHtml(g.family)));
+        hits.forEach(function(t){
+          var d=document.createElement("details"); d.className="ts-item"; if(q) d.open=true;
+          var s=document.createElement("summary");
+          s.innerHTML=escapeHtml(t.name)+" <span class='cl-dose'>"+escapeHtml(t.dose)+"</span>";
+          d.appendChild(s);
+          d.appendChild(el("div","ts-body","<p><b>How:</b> "+escapeHtml(t.how)+"</p><p><b>In soap:</b> "+escapeHtml(t.behaviour)+"</p>"));
+          wrap.appendChild(d);
+        });
+      });
+      if(!wrap.children.length) wrap.appendChild(el("p","sub","No match — try another word (e.g. “blue”, “clay”, “fades”)."));
+    }
+    filter.addEventListener("input",function(){ draw(filter.value); });
+    draw("");
+    md.m.appendChild(el("div","safety long","⚠️ Colour is cosmetic — nothing here changes the lye maths. Add colorants to the recipe as ordinary ingredients if you want them costed and on the label. Use skin-safe, soap-stable colorants only: craft dyes, food colouring and candle pigments don't belong in soap."));
+    var foot=el("div","mfoot"); var cl=el("button","primary","Close");
+    cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
+  }
+
   function nz(list){ return list.filter(function(it){ return it.g>0; }); }
   function cardHTML(r,s,wunit,ul){
     var d=new Date().toLocaleDateString();
