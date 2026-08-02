@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v40", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v41", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -1520,6 +1520,7 @@
       case "examples": openExamples(); break;
       case "scan": $("photoInput").click(); break;
       case "import": $("csvInput").click(); break;
+      case "paste": openPaste(); break;
       case "export": exportCSV(); break;
       case "backup": backupAll(); break;
       case "restore": $("restoreInput").click(); break;
@@ -1641,17 +1642,219 @@
     else section="oil";
     return { name:name, amount:amount, unit:unit, section:section };
   }
+  // Compare across all three databases rather than taking the first hit —
+  // otherwise "Coconut Oil" is claimed by the additive "Coconut milk".
   function guessSection(name){
-    if(matchKey(AROMAS,name)) return "scent";
-    if(matchKey(ADDITIVES,name)) return "additive";
-    return "oil";
+    var o=bestIn(OILS,name).score, d=bestIn(ADDITIVES,name).score, s=bestIn(AROMAS,name).score;
+    if(s>o && s>=d) return "scent";
+    if(d>o) return "additive";
+    return "oil";                                 // ties go to oil, the common case
   }
-  function matchKey(db,name){
-    var n=name.toLowerCase().replace(/\s+/g," ").trim();
-    for(var k in db){ var dn=db[k].name.toLowerCase(); if(dn===n) return k; }
-    for(var k2 in db){ var dn2=db[k2].name.toLowerCase().replace(/\s*\(.*?\)/,"").replace(/ (eo|fo)$/,"").trim();
-      if(n===dn2 || n.indexOf(dn2)>=0 || dn2.indexOf(n)>=0) return k2; }
-    return null;
+  /* Other calculators name oils their own way — "Coconut Oil, 76 deg",
+     "Palm Kernel Flakes", "Lard, Pig Tallow (Manteca)". Score each database
+     entry by how many of its distinctive words the input covers, so the most
+     specific entry wins instead of whichever happens to come first. */
+  function cleanName(s){ return String(s||"").toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim(); }
+  // words that say nothing about *which* ingredient this is
+  var NAME_STOP={oil:1,oils:1,fat:1,fats:1,butter:0,pure:1,refined:1,unrefined:1,organic:1,
+                 virgin:1,extra:1,deg:1,degree:1,degrees:1,"76":1,"92":1,eo:1,fo:1,essential:1,fragrance:0};
+  function nameWords(s){ return cleanName(s).split(" ").filter(function(w){ return w && !NAME_STOP[w]; }); }
+  function bestIn(db,name){
+    var n=cleanName(name); if(!n) return {key:null,score:0};
+    var a=nameWords(n), best=null, bestScore=0;
+    for(var k in db){
+      var dn=cleanName(db[k].name);
+      if(dn===n) return {key:k,score:99};        // exact wins outright
+      var b=nameWords(dn); if(!a.length||!b.length) continue;
+      var hit=0; b.forEach(function(w){ if(a.indexOf(w)>=0) hit++; });
+      if(!hit) continue;
+      // reward covered words, mildly penalise the ones we missed, so
+      // "palm kernel" beats "palm" without "salt" losing to "salt (table/sea)"
+      var score=hit*3-(b.length-hit);
+      if(score>bestScore){ bestScore=score; best=k; }
+    }
+    return bestScore>=1 ? {key:best,score:bestScore} : {key:null,score:0};
+  }
+  function matchKey(db,name){ return bestIn(db,name).key; }
+
+  /* ---------- paste a recipe from another calculator ----------
+     SoapCalc, Bramble Berry, SoapmakingFriend and the rest all print a table of
+     oils with some mix of %, pounds, ounces and grams columns, plus a few
+     settings lines. There's no single file format to parse, so this reads the
+     text people actually copy out of them, and everything lands in the same
+     review screen as CSV and OCR before it touches the recipe.               */
+  var LYE_WORDS=/^(sodium hydroxide|naoh|lye|potassium hydroxide|koh)\b/i;
+  var SKIP_WORDS=/^(water|distilled water|liquid|total|totals|ice|milk\s*\/\s*water)\b/i;
+  var UNIT_RE=/(grams?|g|ounces?|oz|pounds?|lbs?|lb|kg)\b/i;
+
+  // Which of a row's numbers is the amount? A header line tells us outright.
+  function pasteColumns(line){
+    var l=" "+line.toLowerCase()+" ", cols=[];
+    var pats=[[/\bpercent\b|%/,"pct"],[/\bpounds?\b|\blbs?\b/,"lb"],
+              [/\bounces?\b|\boz\b/,"oz"],[/\bgrams?\b|\bg\b/,"g"]];
+    pats.forEach(function(p){ var m=l.search(p[0]); if(m>=0) cols.push({at:m,unit:p[1]}); });
+    if(cols.length<2) return null;                 // one column word is just prose
+    cols.sort(function(x,y){ return x.at-y.at; });
+    return cols.map(function(x){ return x.unit; });
+  }
+
+  /* Where do the columns start? Not simply at the first digit — "Coconut Oil,
+     76 deg" has one in its name. The amounts are the run of numbers at the end
+     of the line, so find the earliest point after which nothing but numbers,
+     units and separators remain. */
+  function numericTailStart(line){
+    var re=/-?\d+(?:[.,]\d+)?%?/g, m;
+    while((m=re.exec(line))!==null){
+      var rest=line.slice(m.index)
+        .replace(/-?\d+(?:[.,]\d+)?%?/g," ")
+        .replace(UNIT_RE_G," ")
+        .replace(/[\s.,:%\/|-]+/g," ").trim();
+      if(rest==="") return m.index;
+    }
+    return -1;
+  }
+  var UNIT_RE_G=/(grams?|g|ounces?|oz|pounds?|lbs?|lb|kg)\b/gi;
+
+  function parsePasted(text){
+    var lines=String(text).split(/\r?\n/), rows=[], settings={}, cols=null, sawPct=false;
+    lines.forEach(function(raw){
+      var line=raw.replace(/[|\t]+/g," ").replace(/\s+/g," ").trim();
+      if(line.length<2) return;
+
+      // settings first — these lines also carry numbers, so they must not
+      // fall through and be read as ingredients
+      var m;
+      if((m=line.match(/(?:super\s*fat|superfat|lye\s*discount)\D{0,12}(\d+(?:\.\d+)?)/i))){
+        settings.superfat=parseFloat(m[1]); return; }
+      if((m=line.match(/water\s*(?:as\s*)?(?:a\s*)?%?\s*(?:of)?\s*oils?\D{0,12}(\d+(?:\.\d+)?)/i))){
+        settings.waterPct=parseFloat(m[1]); settings.waterMode="oils"; return; }
+      if((m=line.match(/lye\s*concentration\D{0,12}(\d+(?:\.\d+)?)/i))){
+        settings.lyeConc=parseFloat(m[1]); settings.waterMode="conc"; return; }
+      if((m=line.match(/water\s*[:\/]\s*lye\s*ratio\D{0,12}(\d+(?:\.\d+)?)/i))){
+        settings.waterRatio=parseFloat(m[1]); settings.waterMode="ratio"; return; }
+
+      if(LYE_WORDS.test(line)){ settings.lyeType=/koh|potassium/i.test(line)?"koh":"naoh"; return; }
+      if(SKIP_WORDS.test(line)) return;            // water and totals are computed here
+
+      var head=pasteColumns(line);
+      if(head && !/\d/.test(line.replace(/\b(76|92)\b/g,""))){ cols=head; return; }  // header row
+
+      // an ingredient row: a name followed by its numbers
+      var cut=numericTailStart(line); if(cut<0) return;
+      var name=line.slice(0,cut).replace(/[-–—:.,]+$/,"").trim();
+      var nums=line.slice(cut).match(/-?\d+(?:[.,]\d+)?%?/g); if(!nums) return;
+      if(name.length<2) return;
+      if(LYE_WORDS.test(name)||SKIP_WORDS.test(name)) return;
+
+      var vals=nums.map(function(s){ return { pct:/%$/.test(s), n:parseFloat(s.replace("%","").replace(",",".")) }; })
+                   .filter(function(v){ return isFinite(v.n); });
+      if(!vals.length) return;
+
+      var amount, unit;
+      var explicit=line.match(UNIT_RE);
+      if(cols && vals.length>=cols.length){
+        // header order wins; prefer the most precise column we were given
+        var want=["g","oz","lb","pct"], pick=-1, pickUnit="g";
+        want.forEach(function(u){ if(pick<0){ var i=cols.indexOf(u); if(i>=0){ pick=i; pickUnit=u; } } });
+        amount=vals[pick].n; unit=pickUnit;
+      } else if(vals.length===1){
+        amount=vals[0].n; unit=vals[0].pct ? "pct" : (explicit?normUnit(explicit[1]):"g");
+      } else {
+        // no header: a trailing percent is a percent, otherwise take the last
+        // number (calculators print coarse-to-fine, so grams come last)
+        var last=vals[vals.length-1];
+        amount=last.n; unit=last.pct ? "pct" : (explicit?normUnit(explicit[1]):"g");
+      }
+      if(!(amount>0)) return;
+      if(unit==="pct") sawPct=true;
+      rows.push({ name:name, amount:amount, unit:unit, section:guessSection(name) });
+    });
+    return { rows:rows, settings:settings, percent:sawPct };
+  }
+
+  // Percentages need a batch size before they can become weights.
+  function resolvePercentRows(rows,totalG){
+    var pct=rows.filter(function(r){ return r.unit==="pct" && r.section==="oil"; });
+    var sum=pct.reduce(function(a,r){ return a+r.amount; },0);
+    return rows.map(function(r){
+      if(r.unit!=="pct") return r;
+      // scents are quoted as a % of oils; oils as a % of the oil total
+      var base = r.section==="oil" ? (sum>0?totalG/sum*r.amount:0) : totalG*r.amount/100;
+      return { name:r.name, amount:Math.round(base*100)/100, unit:"g", section:r.section };
+    });
+  }
+
+  function openPaste(){
+    var md=makeModal();
+    md.m.appendChild(el("h3",null,"Paste a recipe"));
+    md.m.appendChild(el("p","sub","Copy a recipe out of SoapCalc, Bramble Berry, SoapmakingFriend or a note and paste it here. Nothing is added until you've checked it."));
+    var ta=document.createElement("textarea"); ta.className="notes-field paste-in"; ta.rows=9;
+    ta.placeholder="Olive Oil            40      362.87\nCoconut Oil, 76 deg  30      272.16\nPalm Oil             25      226.80\nCastor Oil            5       45.36\nSuper Fat 5%";
+    md.m.appendChild(ta);
+    var totWrap=el("div","scale-row"); totWrap.hidden=true;
+    var totIn=document.createElement("input"); totIn.type="number"; totIn.step="any"; totIn.min="0";
+    totIn.id="pasteTotal"; totIn.value="1000"; totIn.inputMode="decimal";
+    totWrap.appendChild(totIn); totWrap.appendChild(el("span","u","g"));
+    var totLabel=el("div","subhead","Total oils (the paste is in percentages)"); totLabel.hidden=true;
+    md.m.appendChild(totLabel); md.m.appendChild(totWrap);
+    var status=el("div","ocr-status","");
+    md.m.appendChild(status);
+
+    var parsed=null;
+    function preview(){
+      parsed=parsePasted(ta.value);
+      var n=parsed.rows.length, keys=Object.keys(parsed.settings);
+      totLabel.hidden=totWrap.hidden=!parsed.percent;
+      status.textContent = !ta.value.trim() ? ""
+        : n ? ("Found "+n+" ingredient"+(n===1?"":"s")+(keys.length?" and "+keys.length+" setting"+(keys.length===1?"":"s"):"")+".")
+            : "Nothing recognised yet — each line needs a name and a number.";
+    }
+    ta.addEventListener("input",preview);
+
+    var foot=el("div","mfoot");
+    var cancel=el("button","ghost","Cancel");
+    cancel.addEventListener("click",function(){ closeModal(md.back); });
+    var go=el("button","primary","Read it");
+    go.addEventListener("click",function(){
+      if(!parsed) preview();
+      if(!parsed || !parsed.rows.length){ status.textContent="Nothing recognised — each line needs a name and a number."; return; }
+      var rows=parsed.rows;
+      if(parsed.percent){
+        var t=parseFloat(totIn.value);
+        if(!(t>0)){ status.textContent="Enter how much total oil you want to make."; return; }
+        rows=resolvePercentRows(rows,t);
+      }
+      var s=parsed.settings;
+      closeModal(md.back);
+      var applied=applyPastedSettings(s);
+      openConfirm(rows,"Check the import",
+        "From your pasted recipe. Fix anything that came through wrong, then add it."+
+        (applied?" Also applied: "+applied+".":""));
+    });
+    foot.appendChild(cancel); foot.appendChild(go); md.m.appendChild(foot);
+    ta.focus();
+  }
+
+  // Settings ride along with the ingredients; each is clamped by the same
+  // coercion the recipe schema uses, so a nonsense value can't get in.
+  // Run a value through the recipe schema's own coercion, so a pasted setting
+  // can never land outside the range the rest of the app enforces.
+  function coerceField(key,v){
+    for(var i=0;i<RECIPE_FIELDS.length;i++){
+      if(RECIPE_FIELDS[i].k===key) return RECIPE_FIELDS[i].coerce(v);
+    }
+    return v;
+  }
+  function applyPastedSettings(s){
+    var done=[];
+    if(isFinite(s.superfat)){ state.superfat=coerceField("superfat",s.superfat); done.push("superfat "+state.superfat+"%"); }
+    if(s.lyeType){ state.lyeType=coerceField("lyeType",s.lyeType); done.push(state.lyeType==="koh"?"KOH":"NaOH"); }
+    if(isFinite(s.waterPct)){ state.waterPct=coerceField("waterPct",s.waterPct); done.push("water "+state.waterPct+"% of oils"); }
+    if(isFinite(s.lyeConc)){ state.lyeConc=coerceField("lyeConc",s.lyeConc); done.push("lye concentration "+state.lyeConc+"%"); }
+    if(isFinite(s.waterRatio)){ state.waterRatio=coerceField("waterRatio",s.waterRatio); done.push("water:lye "+state.waterRatio+":1"); }
+    if(s.waterMode){ state.waterMode=coerceField("waterMode",s.waterMode); }
+    if(done.length){ save(); render(); }
+    return done.join(", ");
   }
 
   /* ---------- confirm modal (CSV + OCR) ---------- */
@@ -1677,8 +1880,10 @@
         var secS=document.createElement("select"); [["oil","Oil"],["additive","Additive"],["scent","Scent"]].forEach(function(s){ var o=document.createElement("option"); o.value=s[0]; o.textContent=s[1]; if(s[0]===r.section)o.selected=true; secS.appendChild(o); });
         secS.addEventListener("change",function(){ r.section=secS.value; });
         var rm=el("button","rm","&times;"); rm.type="button"; rm.addEventListener("click",function(){ rowsState.splice(idx,1); drawRows(); });
-        // layout: name (full width row) then amt/unit/section/rm
-        pr.style.gridTemplateColumns="1fr 70px 66px 78px auto";
+        // name on its own line — imported names are long, and a name you can't
+        // read makes this review screen pointless
+        nameI.style.gridColumn="1/-1";
+        pr.style.gridTemplateColumns="1fr 72px 84px auto";
         pr.appendChild(nameI); pr.appendChild(amtI); pr.appendChild(unitS); pr.appendChild(secS); pr.appendChild(rm);
         body.appendChild(pr);
       });

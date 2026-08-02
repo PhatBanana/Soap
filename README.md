@@ -59,7 +59,7 @@ phone in the kitchen or on a desktop.
   </tr>
   <tr>
     <td align="center"><img src="screenshots/25-cure-checks.png" width="240" alt="Cure and pH checks filed onto a batch record"><br><sub><b>Cure checks</b> — zap tests &amp; pH across the cure</sub></td>
-    <td></td>
+    <td align="center"><img src="screenshots/26-paste-import.png" width="240" alt="Review screen for a recipe pasted from another calculator"><br><sub><b>Paste import</b> — from SoapCalc &amp; friends, reviewed first</sub></td>
     <td></td>
   </tr>
 </table>
@@ -288,6 +288,15 @@ phone in the kitchen or on a desktop.
   name/contact and check local rules before selling).
 
 ### Get recipes in & out
+- 📋 **Paste a recipe from another calculator** — copy the recipe out of SoapCalc,
+  Bramble Berry, SoapmakingFriend or a note, paste it in, and it reads the oils and
+  the settings. It copes with the ways those tools print: a `% / lb / oz / g` column
+  table (it takes the most precise column), one-unit-per-line, or plain percentages
+  (it asks what total oil weight you want and scales). It also picks up **superfat,
+  water %, lye concentration, water:lye ratio and NaOH vs KOH**, skips the lye and
+  water lines rather than adding them as ingredients, and matches names like
+  *"Coconut Oil, 76 deg"* or *"Palm Kernel Flakes"* to the right oil. Nothing is
+  added until you've checked it on the review screen.
 - 📷 **Scan a photo** of a recipe — on-device OCR (Tesseract.js) reads it, then you
   confirm/fix the parsed lines. (First scan downloads the reader ~5 MB and needs
   internet once; after that it's cached.)
@@ -359,7 +368,7 @@ above are what ships.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **381 assertions.**
+the real app and asserts on the computed numbers and saved state. **423 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)
