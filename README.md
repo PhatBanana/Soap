@@ -55,7 +55,7 @@ phone in the kitchen or on a desktop.
   <tr>
     <td align="center"><img src="screenshots/23-rebatch.png" width="240" alt="Rebatch helper with liquid amounts and method"><br><sub><b>Rebatch</b> — how much liquid, and the method</sub></td>
     <td align="center"><img src="screenshots/19-appbar-units.png" width="240" alt="Unit picker in the app bar"><br><sub><b>Units</b> — g / oz / lb / kg / % in one tap</sub></td>
-    <td></td>
+    <td align="center"><img src="screenshots/24-colorants.png" width="240" alt="Colorant guide grouped by colour family"><br><sub><b>Colorants</b> — dose, dispersal &amp; what survives pH</sub></td>
   </tr>
 </table>
 
@@ -66,7 +66,7 @@ phone in the kitchen or on a desktop.
   kg / %** from the compact unit picker in the app bar. The **%** view shows each oil
   as a share of total oils — unit- and batch-independent, the fairest way to compare
   recipes.
-- **~40 oils, butters & fats** plus **18 additives**, focused on what a normal
+- **~40 oils, butters & fats** plus **30 additives**, focused on what a normal
   person can actually buy (grocery, pharmacy, craft store, Amazon) — olive,
   coconut, palm, castor, shea/cocoa/mango/kokum butters, sweet almond, avocado,
   sunflower (incl. high-oleic), canola, safflower, grapeseed, rice bran, sesame,
@@ -206,6 +206,14 @@ phone in the kitchen or on a desktop.
   by stage (in the pot / in the mold / curing & storing / using the bar): seizing,
   soda ash, overheating, DOS, soft or crumbly bars, poor lather, and more — each with
   the likely cause and the fix.
+- 🎨 **Colorant guide** — dose **per pound of oils**, how to disperse it (oil vs water)
+  and what soap's high pH actually does to it, grouped by colour family and searchable.
+  The honest bits are in there: turmeric and spirulina fade, alkanet shifts with pH,
+  natural reds top out at coral, most botanicals turn brown, and mica needs to be
+  CP-stable. **12 natural and mineral colorants** were added to the ingredient list too
+  (madder, annatto, indigo, alkanet, spirulina, French green and rose clay, cocoa,
+  turmeric, paprika, iron oxide, ultramarine), so they cost, stock and label like
+  anything else.
 - ♻️ **Rebatch helper** — for when a batch seizes, separates or just comes out ugly.
   Enter how much soap you're rebatching (prefilled from the current recipe's cured
   weight) and it works out the **liquid to add** for three consistencies — firm,

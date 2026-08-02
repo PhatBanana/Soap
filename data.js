@@ -146,7 +146,32 @@
     titanium:      { name:"Titanium dioxide",   kind:"dry",
                      note:"Whitener for lighter colors. Disperse in a little oil or water first to avoid specks." },
     mica:          { name:"Mica (colorant)",    kind:"dry",
-                     note:"Cosmetic color — mix into a little oil before adding at trace. Use CP-stable micas; some fade in high pH." }
+                     note:"Cosmetic color — mix into a little oil before adding at trace. Use CP-stable micas; some fade in high pH." },
+    // --- natural & mineral colorants (see COLORANTS below for dosing detail) ---
+    madder:        { name:"Madder root powder", kind:"dry",
+                     note:"1–2 tsp per lb of oils for coral to dusty rose — the most reliable natural red. Infuse in oil first; more gives brick, not brighter." },
+    annatto:       { name:"Annatto seed",       kind:"dry",
+                     note:"1–2 tsp per lb of oils, infused in warm oil, for buttery yellow to deep orange. Very pH-stable." },
+    indigo:        { name:"Indigo powder",      kind:"dry",
+                     note:"½–1 tsp per lb of oils for denim blue to near-black. Disperse in oil; a tiny bit goes a long way and it can bleed." },
+    alkanet:       { name:"Alkanet root",       kind:"dry",
+                     note:"1–2 tsp per lb of oils infused in oil. Purple to grey-blue, and shifts with pH — expect a surprise until you know your recipe." },
+    spirulina:     { name:"Spirulina powder",   kind:"dry",
+                     note:"1–2 tsp per lb of oils for a soft sage green. Fades over months, especially in sunlight." },
+    frenchgreen:   { name:"French green clay",  kind:"dry",
+                     note:"1–2 tsp per lb of oils for a muted, earthy green. Also adds slip; disperse in water first." },
+    roseclay:      { name:"Rose clay",          kind:"dry",
+                     note:"1–2 tsp per lb of oils for a dusty pink that never fades. Silky and gentle; disperse in water first." },
+    cocoapowder:   { name:"Cocoa powder",       kind:"dry",
+                     note:"1–2 tsp per lb of oils for warm brown. Kitchen-cupboard reliable; disperse in oil to avoid clumps." },
+    turmeric:      { name:"Turmeric powder",    kind:"dry",
+                     note:"1–2 tsp per lb of oils for gold to mustard. Cheap and cheerful but it fades over the cure." },
+    paprika:       { name:"Paprika powder",     kind:"dry",
+                     note:"1 tsp per lb of oils for peachy orange. Can be scratchy and irritating — go light, and not for facial bars." },
+    ironoxide:     { name:"Iron oxide pigment", kind:"dry",
+                     note:"½–1 tsp per lb of oils. Red, yellow, brown or black; completely pH-stable and won't fade. Disperse in oil or water." },
+    ultramarine:   { name:"Ultramarine pigment",kind:"dry",
+                     note:"½–1 tsp per lb of oils for true blue, violet or pink. Stable in soap; disperse in oil or water first." }
   };
 
   /* Aromas — fragrance (FO) & essential oils (EO).
@@ -214,8 +239,92 @@
     charcoal:"Charcoal Powder", glycerin:"Glycerin", aloe:"Aloe Barbadensis Leaf Juice",
     sugar:"Sucrose", salt:"Sodium Chloride", coffee:"Coffee (Coffea) Extract", coffeegrounds:"Coffee (Coffea) Powder",
     bentonite:"Bentonite", silk:"Hydrolyzed Silk", vitamine:"Tocopherol (Vitamin E)",
-    titanium:"Titanium Dioxide (CI 77891)", mica:"Mica"
+    titanium:"Titanium Dioxide (CI 77891)", mica:"Mica",
+    madder:"Rubia Tinctorum (Madder) Root Powder", annatto:"Bixa Orellana (Annatto) Seed Powder",
+    indigo:"Indigofera Tinctoria (Indigo) Leaf Powder", alkanet:"Alkanna Tinctoria Root Powder",
+    spirulina:"Spirulina Platensis Powder", frenchgreen:"Illite (French Green Clay)",
+    roseclay:"Kaolin (Rose Clay)", cocoapowder:"Theobroma Cacao (Cocoa) Powder",
+    turmeric:"Curcuma Longa (Turmeric) Root Powder", paprika:"Capsicum Annuum (Paprika) Fruit Powder",
+    ironoxide:"Iron Oxides (CI 77491, CI 77492, CI 77499)", ultramarine:"Ultramarines (CI 77007)"
   };
+
+  /* Colorants — what to use, how much, how to add it, and what soap's high pH
+     does to it. family groups the guide; dose is per lb (450 g) of oils.        */
+  g.COLORANTS = [
+    // ---- White ----
+    { name:"Titanium dioxide", family:"White", dose:"½–1 tsp PPO",
+      how:"Disperse in a little light oil (water-soluble grades in water) and blend smooth — clumps show up as white specks.",
+      behaviour:"Completely stable. Use it to lighten a base before adding another colour, or to fight the tan a vanilla-heavy fragrance will bring. Too much can cause glycerin rivers." },
+    { name:"Kaolin clay", family:"White", dose:"1 tsp PPO",
+      how:"Disperse in an equal amount of water first.",
+      behaviour:"An off-white that also adds silky slip and anchors fragrance. Not a strong whitener — reach for titanium dioxide for that." },
+    // ---- Yellow & orange ----
+    { name:"Annatto seed", family:"Yellow & orange", dose:"1–2 tsp PPO, infused",
+      how:"Warm the seeds in part of your oils (an hour on low, or a week on the shelf), strain, then use that oil in the recipe.",
+      behaviour:"The most dependable natural yellow — buttery at low doses, deep orange at high. Holds its colour through cure and sunlight." },
+    { name:"Turmeric", family:"Yellow & orange", dose:"1–2 tsp PPO",
+      how:"Disperse in oil; infusing gives a more even colour than stirring the powder in at trace.",
+      behaviour:"Bright gold at first, but it FADES over a few months, often to a dull tan. Cheap to experiment with, not the one for a gift you'll wrap in a year." },
+    { name:"Paprika", family:"Yellow & orange", dose:"~1 tsp PPO",
+      how:"Infuse in oil and strain — un-strained powder stays gritty.",
+      behaviour:"Warm peach to orange. Can be scratchy and skin-irritating at higher doses; keep it out of facial and shaving bars." },
+    { name:"Yellow iron oxide", family:"Yellow & orange", dose:"½–1 tsp PPO",
+      how:"Disperse in oil or water and blend until no streaks remain.",
+      behaviour:"A mineral pigment, not a botanical: completely pH-stable, won't fade, and gives a flat mustard-to-ochre." },
+    // ---- Red & pink ----
+    { name:"Madder root", family:"Red & pink", dose:"1–2 tsp PPO, infused",
+      how:"Infuse in oil (warm, then strain) for coral; stir the powder in at trace for a deeper, speckled rose.",
+      behaviour:"The best natural red there is, and it still lands closer to coral or dusty rose than true red. More powder gives brick and brown, not brighter — natural reds are genuinely hard." },
+    { name:"Rose clay", family:"Red & pink", dose:"1–2 tsp PPO",
+      how:"Disperse in an equal amount of water before adding at trace.",
+      behaviour:"A soft, dusty pink that never fades, plus gentle slip. The reliable pink when madder disappoints." },
+    { name:"Red iron oxide", family:"Red & pink", dose:"½–1 tsp PPO",
+      how:"Disperse in oil or water.",
+      behaviour:"Brick red to rust, entirely stable. Pink comes from using very little, or from mixing with titanium dioxide." },
+    { name:"Pink ultramarine", family:"Red & pink", dose:"½–1 tsp PPO",
+      how:"Disperse in oil or water.",
+      behaviour:"A clean pink that survives high pH — but ultramarines can react with acids, so keep them away from citric acid or vinegar in the recipe." },
+    // ---- Green ----
+    { name:"Spirulina", family:"Green", dose:"1–2 tsp PPO",
+      how:"Disperse in oil or a little water at trace.",
+      behaviour:"A soft sage that FADES over a few months, faster on a sunny windowsill. Lovely fresh; plan for it to soften." },
+    { name:"French green clay", family:"Green", dose:"1–2 tsp PPO",
+      how:"Disperse in an equal amount of water first.",
+      behaviour:"Muted, earthy green that holds. Also adds slip and a little oil absorption — good for a facial bar." },
+    { name:"Green chromium oxide", family:"Green", dose:"½–1 tsp PPO",
+      how:"Disperse in oil or water.",
+      behaviour:"A pigment, so the colour you mix is the colour you get, forever. Reads slightly olive; blend with a blue for a truer green." },
+    // ---- Blue & purple ----
+    { name:"Indigo", family:"Blue & purple", dose:"⅛–1 tsp PPO",
+      how:"Disperse in oil, and start with far less than you think — ⅛ tsp already colours a pound.",
+      behaviour:"Denim blue through to near-black at higher doses. The one natural blue that works, but it can bleed between layers in a swirl." },
+    { name:"Alkanet root", family:"Blue & purple", dose:"1–2 tsp PPO, infused",
+      how:"Infuse in oil for a week or warm for an hour, then strain.",
+      behaviour:"Genuinely pH-sensitive: purple in a well-balanced bar, drifting grey-blue when the soap is more alkaline, and pinker in a low-pH one. Expect a surprise until you've made the recipe once." },
+    { name:"Ultramarine blue / violet", family:"Blue & purple", dose:"½–1 tsp PPO",
+      how:"Disperse in oil or water.",
+      behaviour:"True blue and violet that survive soap — the practical route to purple. Avoid pairing with acidic additives, which can release a sulphur smell." },
+    // ---- Brown & black ----
+    { name:"Cocoa powder", family:"Brown & black", dose:"1–2 tsp PPO",
+      how:"Disperse in oil and blend well — dropped in dry it clumps.",
+      behaviour:"Warm, dependable brown from the kitchen cupboard. It smells of chocolate in the pot and not at all in the finished bar." },
+    { name:"Coffee grounds", family:"Brown & black", dose:"1–2 Tbsp PPO",
+      how:"Stir in at trace; used coffee grounds are less scratchy than fresh.",
+      behaviour:"Speckled brown with real exfoliation. Brewed coffee used in place of the water darkens the whole bar to tan on its own." },
+    { name:"Activated charcoal", family:"Brown & black", dose:"¼–1 tsp PPO",
+      how:"Disperse in oil; it's light and will fly everywhere, so mix it in a covered jar.",
+      behaviour:"Pale grey through to true black. Overdo it and the lather turns grey and marks a washcloth." },
+    { name:"Black iron oxide", family:"Brown & black", dose:"½–1 tsp PPO",
+      how:"Disperse in oil or water.",
+      behaviour:"A flatter, denser black than charcoal, and it doesn't grey the lather. Fully stable." },
+    // ---- Anything else ----
+    { name:"Mica", family:"Anything else", dose:"1–2 tsp PPO",
+      how:"Mix into a spoonful of light oil to a smooth slurry before adding at trace.",
+      behaviour:"Buy CP-STABLE micas: many cosmetic micas are coloured with dyes that morph or vanish at soap's pH. The shimmer largely disappears inside a bar — mica shines brightest dusted on the top." },
+    { name:"Botanicals (petals, herbs)", family:"Anything else", dose:"a pinch, on top",
+      how:"Sprinkle on the surface after pouring rather than stirring through.",
+      behaviour:"Almost everything botanical turns brown in soap — lavender buds, rose petals, citrus zest. Calendula petals are the famous exception and stay gold." }
+  ];
 
   /* General blending guidance shown in the Scents tab. */
   g.BLEND_TIPS = [

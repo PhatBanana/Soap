@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v36 · 42 oils · 18 additives · 17 aromas · 15 example recipes ·
-273 test assertions.
+**Today:** v37 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
+15 example recipes · 304 test assertions.
 
 ---
 
@@ -16,8 +16,9 @@ below is judged against that.
 ### Recipe & units
 - Enter oils and additives once; switch the whole recipe between **g / oz / lb / kg / %**
   from the app-bar unit picker.
-- **42 oils, butters & fats** and **18 additives**, focused on what you can actually buy,
-  each with a plain-language **?** description (what it brings, its standout trait, a
+- **42 oils, butters & fats** and **30 additives** (including 12 natural and mineral
+  colorants), focused on what you can actually buy, each with a plain-language
+  **?** description (what it brings, its standout trait, a
   typical usage %). Custom ingredients allowed, and flagged as outside the lye maths.
 - **Quick-add chips** for the ingredients you've been using.
 
@@ -66,6 +67,7 @@ below is judged against that.
 - **Step-by-step checklist**, **batch notes**, and an optional **lot number**.
 - **Troubleshooting** — a searchable "why did my soap do X?" guide.
 - **Rebatch helper** — liquid to add and the method for saving a failed batch.
+- **Colorant guide** — dose, dispersal and what survives soap's pH, by colour family.
 
 ### Costs & planning
 - Price book (price per kg), **batch total and cost per bar**.
@@ -118,9 +120,13 @@ recipe's cured estimate, in whatever unit you're working in) and gives the liqui
 add for a **firm**, **typical** or **pourable** mash, plus the method — and the point
 that matters: a bar that *zaps* is lye-heavy, and rebatching alone won't fix it.
 
-**5. Colorant guidance** — usage per pound of oils, natural colorants (madder, annatto,
-indigo, spirulina), and which survive soap's high pH. Same data shape as the existing
-aroma database.
+**5. Colorant guidance** — ✅ **shipped in v37**
+**🎨 Colorants** is a searchable guide grouped by colour family: dose per pound of oils,
+how to disperse it, and what high pH does to it — including the disappointments
+(turmeric and spirulina fade, alkanet shifts, natural reds stop at coral, botanicals go
+brown). **12 natural and mineral colorants** joined the ingredient list as ordinary
+additives, so they flow through costs, inventory, the shopping list and the INCI label
+with no structural change.
 
 **6. Cure / pH check log** — record zap tests and pH readings across the cure. Folds
 into the batch log.
