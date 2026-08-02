@@ -302,7 +302,12 @@
         <button type="button" class="lot-gen" id="lotGen">from date</button>
       </div>
       <textarea id="notesField" class="notes-field" rows="4" placeholder="How did it go? Jot down tweaks and results — traced fast, great lather, use less water next time…"></textarea>
-      <div class="subinfo">Saved with this recipe (private — not included when you share a link).</div>
+      <button type="button" class="recalc" id="logBatch">📋 Log this batch</button>
+      <div class="subinfo">Saved with this recipe (private — not included when you share a link). Logging files the date, lot and notes into the history below, then clears the checklist for your next make.</div>
+    </div>
+    <div class="card" id="historyCard" hidden>
+      <h2>Batch History</h2>
+      <div id="batchList"></div>
     </div>
   </section>
 

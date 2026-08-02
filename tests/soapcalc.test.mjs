@@ -281,6 +281,51 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   BATCH LOG (each make archived, not overwritten)
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ oils:[OIL("olive",600),OIL("coconut",400)],
+    madeOn:"2026-07-01", lot:"20260701-A", cureWeeks:4, checklist:{s0:true,s1:true},
+    notes:"First try — traced fast." }, { tab:"make" }));
+  ok("History hidden before anything is logged", await p.evaluate(() => document.getElementById("historyCard").hidden));
+
+  await p.click("#logBatch"); await p.waitForTimeout(250);
+  let r = (await LS(p)).recipes[0];
+  eq("Logging archives one batch", r.batches.length, 1);
+  eq("Archived date kept", r.batches[0].madeOn, "2026-07-01");
+  eq("Archived lot kept", r.batches[0].lot, "20260701-A");
+  eq("Archived notes kept", r.batches[0].notes, "First try — traced fast.");
+  eq("Working notes cleared for the next make", r.notes, "");
+  eq("Checklist cleared for the next make", Object.keys(r.checklist).length, 0);
+  ok("History card appears", !(await p.evaluate(() => document.getElementById("historyCard").hidden)));
+  has("History shows the ready date", await txt(p, "#batchList"), "ready");
+
+  // a second make must not clobber the first — the whole point
+  await p.fill("#madeOn", "2026-08-15"); await p.waitForTimeout(120);
+  await p.fill("#lotField", "20260815-A"); await p.waitForTimeout(120);
+  await p.fill("#notesField", "Second try — less water, much firmer."); await p.waitForTimeout(150);
+  await p.click("#logBatch"); await p.waitForTimeout(250);
+  r = (await LS(p)).recipes[0];
+  eq("Both makes on record", r.batches.length, 2);
+  eq("First make survives the second", r.batches[0].notes, "First try — traced fast.");
+  eq("Second make recorded", r.batches[1].madeOn, "2026-08-15");
+  const order = await p.$$eval(".batch-row .bh-head b", (bs) => bs.map((b) => b.textContent));
+  eq("History lists newest first", order.join("|"), "Aug 15, 2026|Jul 1, 2026");
+
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="library"]').click(); });
+  await p.waitForTimeout(150);
+  has("Library blurb counts the makes", await txt(p, ".lib-open span"), "made 2×");
+  await p.evaluate(() => { const b = document.querySelector(".modal-back"); if (b) b.remove(); document.body.style.overflow = ""; });
+
+  await p.evaluate(() => document.querySelector(".bh-del").click()); await p.waitForTimeout(250);
+  r = (await LS(p)).recipes[0];
+  eq("Deleting removes just that record", r.batches.length, 1);
+  eq("…and it's the newest that went", r.batches[0].madeOn, "2026-07-01");
+  await p.close();
+}
+
+/* =======================================================================
    RECIPE LIBRARY: search · sort · favourites
 ======================================================================= */
 {

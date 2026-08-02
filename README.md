@@ -181,6 +181,10 @@ phone in the kitchen or on a desktop.
 - **Batch notes** — a free-text field on the Make tab to keep a per-recipe log
   (traced fast, great lather, use less water next time…). Saved with the recipe and
   kept private — it's never included when you share a recipe by link.
+- **Batch history** — tap **Log this batch** and the date, lot, cure time and notes are
+  filed into a per-recipe history, then the checklist clears for your next make. Every
+  make is kept, so remaking a recipe never overwrites what happened last time, and the
+  library shows how many times you've made each one.
 - **Troubleshooting reference** — a searchable "why did my soap do X?" guide grouped
   by stage (in the pot / in the mold / curing & storing / using the bar): seizing,
   soda ash, overheating, DOS, soft or crumbly bars, poor lather, and more — each with

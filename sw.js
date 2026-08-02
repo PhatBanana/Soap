@@ -3,7 +3,7 @@
    latest version (no need to clear the cache to see an update); the cache is
    only used as an offline fallback. This never touches localStorage, so your
    saved recipes are unaffected by any cache update or clear. */
-var CACHE = "soapcalc-v32";
+var CACHE = "soapcalc-v33";
 var SHELL = [
   "./",
   "./index.html",
