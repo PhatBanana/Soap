@@ -235,6 +235,9 @@ input[type=range]{touch-action:pan-y}
 .mold-grid .x{color:var(--muted);font-weight:800}
 .mold-grid select{padding:11px 7px;border-radius:12px;border:2px solid var(--line);background:var(--bg-2);color:var(--ink)}
 .mold-grid+.mold-grid,#moldRound,#moldCavity{margin-top:0}
+.sf-oil{display:flex;align-items:center;gap:8px;margin-top:8px}
+.sf-oil label{font-size:.85rem;font-weight:800;color:var(--muted);flex:0 0 auto}
+.sf-oil select{flex:1;min-width:0;font-size:1rem;font-weight:700;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:var(--bg-2);color:var(--ink)}
 .mold-unit{display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--muted);font-size:.85rem;font-weight:700}
 .mold-unit select{padding:9px 8px;border-radius:12px;border:2px solid var(--line);background:var(--bg-2);color:var(--ink);font-weight:700}
 .chk{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-bottom:2px solid var(--line);cursor:pointer}

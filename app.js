@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v34", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v35", BUILD_DATE = "2026-07-25";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -49,6 +49,10 @@
     {k:"use",       def:"body", coerce:function(v){return validUse(v)?v:"body";}},
     {k:"notes",     def:"",     coerce:function(v){return typeof v==="string"?v:"";}},
     {k:"method",    def:"cp",   coerce:function(v){return v==="hp"?"hp":"cp";}},          // cold or hot process
+    // hot process only: superfat as a lye discount (which fats stay free is luck), or
+    // a chosen oil held back and stirred in after the cook (you pick what superfats it)
+    {k:"sfMode",    def:"discount", coerce:function(v){return v==="after"?"after":"discount";}},
+    {k:"sfOil",     def:"",     coerce:function(v){return (typeof v==="string"&&OILS[v])?v:"";}},
     {k:"dilution",  def:1,      coerce:function(v){return clamp(v,1,0.25,4);}},           // KOH paste : water, by weight
     {k:"waterRatio",def:2,      coerce:function(v){return clamp(v,2,1,4);}},              // water : lye, by weight
     {k:"lot",       def:"",     coerce:function(v){return typeof v==="string"?v.slice(0,32):"";}},
@@ -223,6 +227,10 @@
   Array.prototype.forEach.call($("methodSeg").children,function(b){
     b.addEventListener("click",function(){ state.method=b.dataset.mt; save(); render(); });
   });
+  Array.prototype.forEach.call($("sfModeSeg").children,function(b){
+    b.addEventListener("click",function(){ state.sfMode=b.dataset.sf; save(); render(); });
+  });
+  $("sfOilSelect").addEventListener("change",function(){ state.sfOil=$("sfOilSelect").value; save(); render(); });
   bindRange($("waterRatio"),"ratioVal","waterRatio");
   $("roundBtn").addEventListener("click",roundAmounts);
   $("lotField").addEventListener("input",function(){ state.lot=$("lotField").value; save(); });
@@ -281,6 +289,25 @@
     $("water").value=state.waterPct; $("waterVal").textContent=state.waterPct;
     $("lyeConc").value=state.lyeConc; $("concVal").textContent=state.lyeConc;
     $("purity").value=state.kohPurity; $("purVal").textContent=state.kohPurity;
+    // superfat handling only differs for hot process, so the control only shows there
+    var isHP=state.method==="hp", after=isHP&&state.sfMode==="after";
+    $("sfModeCtrl").classList.toggle("hide",!isHP);
+    if(isHP){
+      setActive($("sfModeSeg"),"sf",state.sfMode||"discount");
+      $("sfOilRow").classList.toggle("hide",!after);
+      var oh='<option value="">spread across all oils</option>';
+      state.oils.forEach(function(it){ if(it.key&&OILS[it.key]&&it.g>0)
+        oh+='<option value="'+it.key+'">'+escapeHtml(it.name)+'</option>'; });
+      $("sfOilSelect").innerHTML=oh; $("sfOilSelect").value=state.sfOil||"";
+      var L2=computeLye(), wu=weightUnit();
+      $("sfModeNote").textContent = after
+        ? (L2.reserveG>0
+            ? "Hold back "+fmt(fromG(L2.reserveG,wu),1)+" "+UNITS[wu].label+
+              (L2.reserveName?" of "+L2.reserveName:" of your oils")+
+              " and stir it in after the cook — the lye below saponifies only what goes in the pot, so you choose exactly what superfats the bar."
+            : "Set a superfat above 0% to reserve some oil.")
+        : "The lye is reduced by "+state.superfat+"%, leaving that much oil unsaponified — you don't control which fats stay free.";
+    }
     var wmode=state.waterMode||"oils";
     setActive($("waterMode"),"w",wmode);
     $("waterOilsCtrl").classList.toggle("hide",wmode!=="oils");
@@ -470,7 +497,8 @@
   /* ---------- blend / lye ---------- */
   function curRV(){ return { oils:state.oils, additives:state.additives, aromas:state.aromas,
     lyeType:state.lyeType, superfat:state.superfat, waterPct:state.waterPct, kohPurity:state.kohPurity,
-    waterMode:state.waterMode, lyeConc:state.lyeConc, waterRatio:state.waterRatio }; }
+    waterMode:state.waterMode, lyeConc:state.lyeConc, waterRatio:state.waterRatio,
+    method:state.method, sfMode:state.sfMode, sfOil:state.sfOil }; }
   function oilsGof(rv){ return sumG(rv.oils); }
   function blendFA(rv){
     rv=rv||curRV();
@@ -483,9 +511,26 @@
   }
   function computeLye(rv){
     rv=rv||curRV();
+    // Hot process, superfat added after the cook: the oils that actually go in the pot
+    // are fully saponified, and a reserve is stirred in afterwards. So the lye is sized
+    // on the in-pot oils with no discount — which differs slightly from a flat discount
+    // whenever the held-back oil's SAP isn't the blend average.
+    var afterCook = rv.method==="hp" && rv.sfMode==="after" && rv.superfat>0;
+    var reserveG=0, reserveName="", target=null;
+    if(afterCook){
+      reserveG = oilsGof(rv)*rv.superfat/100;
+      rv.oils.forEach(function(it){ if(!target && it.key && it.key===rv.sfOil && it.g>0) target=it; });
+      if(target){ reserveG=Math.min(reserveG,target.g); reserveName=target.name; }
+    }
     var naohRaw=0, hasCustom=false;
-    rv.oils.forEach(function(it){ var d=it.key?OILS[it.key]:null; if(d) naohRaw+=it.g*d.sap; else if(it.g>0) hasCustom=true; });
-    var sf=1-rv.superfat/100, lyeG, kind;
+    rv.oils.forEach(function(it){
+      var d=it.key?OILS[it.key]:null;
+      var g=it.g;
+      if(afterCook) g = target ? (it===target ? it.g-reserveG : it.g)   // hold back the chosen oil
+                              : it.g*(1-rv.superfat/100);              // or proportionally across all
+      if(d) naohRaw+=g*d.sap; else if(it.g>0) hasCustom=true;
+    });
+    var sf = afterCook ? 1 : 1-rv.superfat/100, lyeG, kind;
     if(rv.lyeType==="koh"){ lyeG=naohRaw*KOH_FACTOR*sf/(rv.kohPurity/100); kind="KOH (lye)"; }
     else { lyeG=naohRaw*sf; kind="NaOH (lye)"; }
     var oilG=oilsGof(rv);
@@ -498,7 +543,8 @@
     } else {
       waterG = oilG*rv.waterPct/100;
     }
-    return { lyeG:lyeG, waterG:waterG, oilG:oilG, kind:kind, hasCustom:hasCustom };
+    return { lyeG:lyeG, waterG:waterG, oilG:oilG, kind:kind, hasCustom:hasCustom,
+             reserveG:reserveG, reserveName:reserveName };
   }
   // single source of truth for the fatty-acid quality formulas: derived from QUALITIES,
   // plus `poly` (rancidity-prone polyunsaturates) which several advisories use.
@@ -1114,7 +1160,17 @@
     "Spoon into the mould and press down firmly; HP batter is thick, so work it into the corners to avoid air pockets.",
     "Unmould and cut once firm (a few hours to a day). It's usable in about a week — a short rest still improves it."
   ];
-  function checkSteps(){ return state.method==="hp" ? HP_STEPS : CP_STEPS; }
+  function checkSteps(){
+    if(state.method!=="hp") return CP_STEPS;
+    var steps=HP_STEPS.slice(), L=computeLye(), wu=weightUnit();
+    if(state.sfMode==="after" && L.reserveG>0){
+      // say it on the step where you'd actually be doing it
+      steps[7]="Let it cool a few minutes, then stir in your held-back "+
+        fmt(fromG(L.reserveG,wu),1)+" "+UNITS[wu].label+(L.reserveName?" of "+L.reserveName:" of oil")+
+        ", plus fragrance, additives and colour — all after the cook.";
+    }
+    return steps;
+  }
   function todayISO(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
   function renderMake(){
     $("madeOn").value = state.madeOn || "";

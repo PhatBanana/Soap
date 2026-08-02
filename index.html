@@ -128,6 +128,18 @@
         <div class="lbl"><span>Superfat</span><b><span id="sfVal">5</span>%</b></div>
         <input type="range" id="sf" min="0" max="15" step="1" value="5">
       </div>
+      <div class="ctrl hide" id="sfModeCtrl">
+        <div class="lbl"><span>Superfat is…</span></div>
+        <div class="seg sub" id="sfModeSeg">
+          <button type="button" data-sf="discount" class="active">A lye discount</button>
+          <button type="button" data-sf="after">Added after the cook</button>
+        </div>
+        <div class="sf-oil hide" id="sfOilRow">
+          <label for="sfOilSelect">Hold back</label>
+          <select id="sfOilSelect"></select>
+        </div>
+        <div class="subinfo" id="sfModeNote"></div>
+      </div>
       <div class="ctrl">
         <div class="lbl"><span>Water</span></div>
         <div class="seg sub" id="waterMode">

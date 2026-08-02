@@ -86,7 +86,7 @@ below is judged against that.
 
 ## Part 2 — What should be added
 
-### Tier 1 — the real gaps
+### Tier 1 — the real gaps  ·  ✅ all shipped (v33–v35)
 
 **1. Batch log (make history)** — ✅ **shipped in v33**
 Tap **Log this batch** and the date, lot, cure time and notes are filed into a
@@ -100,11 +100,13 @@ out anything you already have enough of, and prices only the shortfall. Inventor
 answers "can I make this today?" for the current recipe, and logging a batch draws
 down what it used. Fully optional — track nothing and everything behaves as before.
 
-**3. Hot-process superfat**
-Hot-process soapers usually add the superfat oil *after* the cook, where it stays
-intact rather than acting as a lye discount. The app models superfat only as a lye
-discount, so hot-process numbers are subtly off. Add a "superfat after cook" option:
-lye computed at near-zero discount, with the reserved oil listed separately.
+**3. Hot-process superfat** — ✅ **shipped in v35**
+Hot-process recipes can now treat superfat as either a **lye discount** or an oil
+**added after the cook**. Pick an oil to hold back and the lye is sized to fully
+saponify only what goes in the pot; the reserve is quoted back to you in the Lye card
+and on the hot-process checklist step where you'd stir it in. Holding back a specific
+oil genuinely changes the lye whenever its SAP differs from the blend average — e.g.
+reserving 50 g of shea from a 1 kg blend needs 140.2 g NaOH rather than 139.3 g.
 
 ### Tier 2 — useful, narrower
 
