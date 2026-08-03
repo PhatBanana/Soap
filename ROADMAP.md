@@ -7,7 +7,7 @@ in the kitchen, offline, with no account and nothing leaving the device. Everyth
 below is judged against that.
 
 **Today:** v46 · 42 oils · 33 additives · 22 colorants · 17 aromas ·
-17 example recipes · 535 test assertions, run on every pull request.
+17 example recipes · 581 test assertions, run on every pull request.
 
 ---
 
@@ -66,6 +66,7 @@ below is judged against that.
 - **Soaping temperatures**, with a tip that adapts to your recipe.
 - **Step-by-step checklist**, **batch notes**, and an optional **lot number**.
 - **Cure checks** — zap tests and pH readings filed onto the batch that made the bar.
+- **Brine or dry salt** — soleseife or a salt bar, with the solubility checked.
 - **Can make now** — the library badged against your cupboard, and filterable.
 - **Dual lye** — NaOH and KOH in one batch, with both weights quoted separately.
 - **Chelators** — citric acid raises the lye to cover what it neutralises; sodium
@@ -184,7 +185,7 @@ recipes and the date across the top, the picker and buttons dropped, black on wh
 and sections that don't break across pages. Inventory-covered items are struck through
 rather than greyed, because colour carries no meaning on a mono printer.
 
-### Tier 4 — chemistry the app can't currently express
+### Tier 4 — chemistry the app can't currently express  ·  ✅ all shipped (v45–v48)
 
 **11. Additives that consume lye** — ✅ **shipped in v45**
 `computeLye()` iterated the oil list and nothing else, so no additive ever touched the
@@ -234,11 +235,21 @@ Inventory stays opt-in: with an empty cupboard no badge or chip appears and the 
 looks exactly as before. A recipe none of whose ingredients you track gets **no badge** —
 saying "can make" there would be a guess, not an answer.
 
-**14. Brine for salt bars.** The app already recognises a salt bar (salt at 20%+ of
-oils) and gives it its own cure and cutting advice, but salt bars are commonly made by
-dissolving the salt into the water as a brine rather than stirring it in dry at trace,
-and there's no way to say so. Small and self-contained; touches `waterMode` and the
-existing `salt` additive.
+**14. Brine for salt bars** — ✅ **shipped in v48**
+Salt was always assumed to go in dry at trace. It can also be dissolved into the water
+first — brine soap / *soleseife* — which is a different soap, and there was no way to say
+which you meant.
+
+A **Salt goes in** control appears whenever a recipe has salt, and brine mode shows the
+strength in g of salt per 100 g of water. The value is the validation: salt stops
+dissolving around **35.9 g per 100 g** at room temperature, and the lye competes for the
+same water. The app's own *Coconut Salt Spa Bar* is 500 g of salt against 330 g of water
+— **152 g per 100 g**, over four times the ceiling — so it says plainly that it won't
+dissolve and suggests the weight that would. The cold- and hot-process checklists rewrite
+their lye step to put the salt in first.
+
+No chemistry moved: salt neither saponifies nor consumes lye, and an assertion pins that
+the lye and water are identical in both modes.
 
 ---
 

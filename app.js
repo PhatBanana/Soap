@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v47", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v48", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -40,6 +40,9 @@
     {k:"lyeType",   def:"naoh", coerce:function(v){return (v==="koh"||v==="dual")?v:"naoh";}},
     // % of the saponification handled by KOH; only read when lyeType is "dual"
     {k:"dualKoh",   def:30,     coerce:function(v){return clamp(v,30,5,95);}},
+    // salt stirred in dry at trace (a salt/spa bar) vs dissolved in the water
+    // beforehand (brine soap / soleseife) — a different soap, same ingredients
+    {k:"saltMode",  def:"trace",coerce:function(v){return v==="brine"?"brine":"trace";}},
     {k:"superfat",  def:5,      coerce:function(v){return clamp(v,5,0,15);}},
     {k:"waterPct",  def:38,     coerce:function(v){return clamp(v,38,25,50);}},
     {k:"waterMode", def:"oils", coerce:function(v){return (v==="conc"||v==="ratio")?v:"oils";}},
@@ -190,6 +193,9 @@
     $("aromaCustom").classList.toggle("hide", $("aromaSelect").value!=="__custom__");
   });
 
+  Array.prototype.forEach.call($("saltModeSeg").children,function(b){
+    b.addEventListener("click",function(){ state.saltMode=b.dataset.sm; save(); render(); });
+  });
   Array.prototype.forEach.call($("lyeType").children,function(b){
     b.addEventListener("click",function(){ state.lyeType=b.dataset.t; save(); render(); });
   });
@@ -309,6 +315,15 @@
     setActive($("lyeType"),"t",state.lyeType);
     $("purityCtrl").classList.toggle("hide",state.lyeType==="naoh");
     $("dualCtrl").classList.toggle("hide",state.lyeType!=="dual");
+    // the salt question only exists if there's salt in the recipe
+    var B=brineOf(curRV());
+    $("saltCtrl").classList.toggle("hide",!(B.salt>0));
+    if(B.salt>0){
+      setActive($("saltModeSeg"),"sm",state.saltMode||"trace");
+      $("brineHint").innerHTML = state.saltMode==="brine"
+        ? "<b>"+fmt(B.per100,1)+" g</b> of salt per 100 g of water ("+fmt(B.pctSolution,1)+"% of the solution). Salt stops dissolving around "+SALT_MAX_PER100+" g per 100 g, and the lye competes for the same water."
+        : "Stirred into the batter at trace — the usual way to make a salt or spa bar.";
+    }
     $("sf").value=state.superfat; $("sfVal").textContent=state.superfat;
     $("water").value=state.waterPct; $("waterVal").textContent=state.waterPct;
     $("lyeConc").value=state.lyeConc; $("concVal").textContent=state.lyeConc;
@@ -562,6 +577,20 @@
       if(names.indexOf(d.name)<0) names.push(d.name);
     });
     return { g:g, names:names };
+  }
+  /* Salt dissolved into the water has a ceiling: about 35.9 g per 100 g of water at
+     20°C (26.4% of the finished solution). Past that it simply won't go in, and lye
+     sharing the water lowers it further. Salt neither saponifies nor consumes lye, so
+     none of this touches computeLye — it's a question of whether the method is possible. */
+  var SALT_MAX_PER100 = 35.9;              // g NaCl per 100 g water, 20°C
+  function brineOf(rv){
+    var salt=0;
+    (rv.additives||[]).forEach(function(it){ if(it.key==="salt" && it.g>0) salt+=it.g; });
+    if(!(salt>0)) return { salt:0, per100:0, pctSolution:0 };
+    var water=computeLye(rv).waterG;
+    var per100 = water>0 ? salt/water*100 : Infinity;
+    return { salt:salt, water:water, per100:per100,
+             pctSolution: water>0 ? salt/(salt+water)*100 : 100 };
   }
   function computeLye(rv){
     rv=rv||curRV();
@@ -885,6 +914,23 @@
     if(skin && lauric>=80 && sf<15)
       add("warn","Very high coconut / lauric oil","This is "+Math.round(lauric)+"% coconut/palm-kernel — famously harsh and drying on skin at a normal superfat. Either treat it as a salt or laundry bar, or push superfat up to ~15–20%.");
 
+    // brine is only a method if the salt will actually dissolve
+    var B=brineOf(curRV());
+    if(B.salt>0 && state.saltMode==="brine"){
+      if(B.per100>SALT_MAX_PER100)
+        add("fail","That salt won't dissolve",
+          "You're asking for "+fmt(B.per100,0)+" g of salt per 100 g of water. Salt stops going in around "+SALT_MAX_PER100+" g per 100 g at room temperature, and the lye competes for the same water. Either add it dry at trace instead, or cut the salt to about "+
+          fmt(fromG(B.water*0.25,weightUnit()),0)+" "+UNITS[weightUnit()].label+" for a comfortable brine.");
+      else if(B.per100>25)
+        add("warn","Close to a saturated brine",
+          fmt(B.per100,1)+" g per 100 g of water is near the "+SALT_MAX_PER100+" g ceiling. It should dissolve in warm water, but add the salt first, let it go clear, and only then add the lye.");
+      else
+        add("ok","Brine will dissolve",
+          fmt(B.per100,1)+" g of salt per 100 g of water dissolves comfortably. Stir it into the water until clear before the lye goes in.");
+      if(saltPct>=20)
+        add("warn","That's salt-bar amounts, dissolved",
+          "At "+Math.round(saltPct)+"% of oils this is salt-bar territory rather than a brine soap, which usually lands nearer 3–8% of oils. Worth checking you meant the water and not the trace.");
+    }
     // salt bars behave differently
     if(saltBar){
       if(sf<12) add("warn","Salt bar needs more superfat","With ~"+Math.round(saltPct)+"% salt, use a high superfat (~15–20%) and plenty of coconut or it'll be drying and crumbly.");
@@ -1263,13 +1309,26 @@
     "Unmould and cut once firm (a few hours to a day). It's usable in about a week — a short rest still improves it."
   ];
   function checkSteps(){
-    if(state.method!=="hp") return CP_STEPS;
-    var steps=HP_STEPS.slice(), L=computeLye(), wu=weightUnit();
-    if(state.sfMode==="after" && L.reserveG>0){
+    var steps=(state.method!=="hp" ? CP_STEPS : HP_STEPS).slice(), L=computeLye(), wu=weightUnit();
+    if(state.method==="hp" && state.sfMode==="after" && L.reserveG>0){
       // say it on the step where you'd actually be doing it
       steps[7]="Let it cool a few minutes, then stir in your held-back "+
         fmt(fromG(L.reserveG,wu),1)+" "+UNITS[wu].label+(L.reserveName?" of "+L.reserveName:" of oil")+
         ", plus fragrance, additives and colour — all after the cook.";
+    }
+    // Brine changes the order of operations, so the checklist has to say so.
+    // Rewritten in place rather than inserted: state.checklist is keyed by index,
+    // so adding a step would shift what someone's already ticked.
+    var B=brineOf(curRV());
+    if(B.salt>0 && state.saltMode==="brine"){
+      for(var i=0;i<steps.length;i++){
+        if(/lye TO the water/i.test(steps[i])){
+          steps[i]="Dissolve "+fmt(fromG(B.salt,wu),1)+" "+UNITS[wu].label+
+            " of salt into the water and stir until clear, THEN add the lye to it "+
+            "(never the reverse) and stir until clear again.";
+          break;
+        }
+      }
     }
     return steps;
   }
@@ -2335,10 +2394,22 @@
   function b64urlEnc(str){ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
   function b64urlDec(s){ s=s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4) s+="="; return decodeURIComponent(escape(atob(s))); }
   function shareItems(list){ return list.map(function(it){ return {name:it.name,key:it.key,g:Math.round(it.g*100)/100}; }); }
+  /* A share link carries the recipe, so it's built by *excluding* what shouldn't
+     travel rather than listing what should. An allow-list quietly dropped dualKoh
+     and then saltMode — and a missing field doesn't look broken, it just hands the
+     other person a different soap. Anything private or personal to your own making
+     is named here, and the suite asserts the list. */
+  var SHARE_SKIP={
+    notes:1, batches:1, checklist:1,      // your own record of making it
+    madeOn:1, lot:1,                      // this batch, not the recipe
+    fav:1, lastUsed:1, barWeight:1        // your shelf, not theirs
+  };
   function recipeShareURL(r){
-    var payload={ name:r.name, oils:shareItems(r.oils), additives:shareItems(r.additives), aromas:shareItems(r.aromas),
-      lyeType:r.lyeType, dualKoh:r.dualKoh, superfat:r.superfat, waterPct:r.waterPct, waterMode:r.waterMode,
-      lyeConc:r.lyeConc, kohPurity:r.kohPurity, cureWeeks:r.cureWeeks, use:r.use };
+    var payload={ name:r.name };
+    RECIPE_FIELDS.forEach(function(fld){
+      if(SHARE_SKIP[fld.k]) return;
+      payload[fld.k] = fld.list ? shareItems(r[fld.k]) : r[fld.k];
+    });
     return location.origin+location.pathname+"#r="+b64urlEnc(JSON.stringify(payload));
   }
   function importSharedFromHash(){
