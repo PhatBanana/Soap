@@ -62,6 +62,7 @@ phone in the kitchen or on a desktop.
     <td align="center"><img src="screenshots/26-paste-import.png" width="240" alt="Review screen for a recipe pasted from another calculator"><br><sub><b>Paste import</b> — from SoapCalc &amp; friends, reviewed first</sub></td>
     <td align="center"><img src="screenshots/27-sap-values.png" width="240" alt="Supplier SAP value override for an oil"><br><sub><b>SAP values</b> — use your supplier's numbers</sub></td>
     <td align="center"><img src="screenshots/28-shopping-print.png" width="240" alt="Printed shopping list with tick boxes"><br><sub><b>Print</b> — a shopping list you can tick off</sub></td>
+    <td align="center"><img src="screenshots/29-dual-lye.png" width="240" alt="Dual lye with a KOH share slider and both weights"><br><sub><b>Dual lye</b> — NaOH + KOH, both weights</sub></td>
     <td></td>
   </tr>
 </table>
@@ -293,6 +294,13 @@ phone in the kitchen or on a desktop.
   and the standard cautions. A starting point for gifting or a market table (add your own
   name/contact and check local rules before selling).
 
+- ⚗️ **Dual lye — NaOH and KOH together.** Pick **Both** and a slider sets what share of
+  the saponification each lye does. KOH makes a softer, more soluble, whippable soap;
+  NaOH gives it body — the blend is what **shaving soap** and **cream soap** are built
+  on, and neither works with a single lye. Both weights are quoted separately (a
+  combined total isn't something you can weigh out), and the split flows through the
+  shopping list, inventory and the INCI label, which carries **both** salts. Two worked
+  examples included: **Soft Shaving Soap** and **Whipped Cream Soap**.
 - 🧪 **Acids are in the lye maths** — citric acid is the usual defence against DOS and
   the fix for poor lather in hard water, but it **neutralises lye** (0.6246 g NaOH per
   gram). Add it and the app raises the lye to match, says so on the Lye card and in the
@@ -394,7 +402,7 @@ obvious one: don't commit anything you wouldn't publish.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **491 assertions.**
+the real app and asserts on the computed numbers and saved state. **518 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)

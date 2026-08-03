@@ -123,6 +123,7 @@
       <div class="seg" id="lyeType">
         <button type="button" data-t="naoh" class="active">NaOH · bar soap</button>
         <button type="button" data-t="koh">KOH · liquid soap</button>
+        <button type="button" data-t="dual">Both · dual lye</button>
       </div>
       <div class="ctrl">
         <div class="lbl"><span>Superfat</span><b><span id="sfVal">5</span>%</b></div>
@@ -162,6 +163,11 @@
         <input type="range" id="waterRatio" min="1" max="4" step="0.1" value="2">
         <div class="subinfo">The old-school notation — this many parts water per part lye, by weight. 2:1 is the classic "full water".</div>
       </div>
+      <div class="ctrl hide" id="dualCtrl">
+        <div class="lbl"><span>Saponified by KOH</span><b><span id="dualKohVal">30</span>%</b></div>
+        <input type="range" id="dualKoh" min="5" max="95" step="1" value="30">
+        <div class="subinfo" style="text-align:left">More KOH means a softer, more soluble soap — the basis of shaving and cream soaps. The rest is saponified by NaOH.</div>
+      </div>
       <div class="ctrl hide" id="purityCtrl">
         <div class="lbl"><span>KOH purity</span><b><span id="purVal">90</span>%</b></div>
         <input type="range" id="purity" min="85" max="100" step="1" value="90">
@@ -171,6 +177,7 @@
         <div class="result"><div class="k">Water</div><div class="v"><span id="waterOut">0</span><span class="u" id="waterUnit">g</span></div></div>
         <div class="result"><div class="k">Total batch</div><div class="v"><span id="batchOut">0</span><span class="u" id="batchUnit">g</span></div></div>
       </div>
+      <div class="lye-split hide" id="lyeSplit"></div>
       <div class="subinfo" id="lyeInfo"></div>
       <button type="button" class="recalc" id="recalcBtn">↻ Recalculate everything</button>
       <div class="safety">⚠️ Lye is caustic — wear gloves &amp; eye protection. SAP values are references and vary by supplier; double-check before making a batch.</div>

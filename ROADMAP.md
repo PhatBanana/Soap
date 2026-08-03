@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v45 · 42 oils · 33 additives · 22 colorants · 17 aromas ·
-15 example recipes · 491 test assertions, run on every pull request.
+**Today:** v46 · 42 oils · 33 additives · 22 colorants · 17 aromas ·
+17 example recipes · 518 test assertions, run on every pull request.
 
 ---
 
@@ -66,6 +66,7 @@ below is judged against that.
 - **Soaping temperatures**, with a tip that adapts to your recipe.
 - **Step-by-step checklist**, **batch notes**, and an optional **lot number**.
 - **Cure checks** — zap tests and pH readings filed onto the batch that made the bar.
+- **Dual lye** — NaOH and KOH in one batch, with both weights quoted separately.
 - **Chelators** — citric acid raises the lye to cover what it neutralises; sodium
   citrate and sodium gluconate need no adjustment.
 - **SAP values** — override any oil with your supplier's figure; custom oils can
@@ -204,11 +205,24 @@ exactly 3 × 56.11 / 192.12. The adjustment is disclosed on the Lye card and in 
 Safety Check, an over-dose is flagged, and an acid typed in as a *custom* additive —
 which gets no adjustment — raises a stop-level warning.
 
-**12. Dual lye — NaOH and KOH in one batch.** `lyeType` coerces to exactly `"naoh"` or
-`"koh"`, so a blend is impossible today. It's how cream soap is made, and how you get a
-softer, more soluble bar. Needs a ratio field and a branch in `computeLye()` that splits
-the raw NaOH across both, reusing `KOH_FACTOR` and the existing `kohPurity`. Honestly
-the most niche of the four — worth building when someone actually wants cream soap.
+**12. Dual lye — NaOH and KOH in one batch** — ✅ **shipped in v46**
+`lyeType` used to coerce to exactly `"naoh"` or `"koh"`, which ruled out shaving and
+cream soaps entirely. A third **Both** mode adds a slider for the share of the
+saponification each lye does.
+
+It unified rather than added: all three modes are now one expression, with `kohShare` at
+0, 1 or in between, so the existing NaOH and KOH assertions were the regression test for
+the refactor. `computeLye()` returns the two weights separately, because a combined total
+isn't something you can weigh out — and every consumer that cares *which* chemical
+(inventory draw-down, shopping totals, the INCI label, which now carries both salts) reads
+the split instead of branching on `lyeType`. Shipped with two worked examples, **Soft
+Shaving Soap** and **Whipped Cream Soap**.
+
+Two latent bugs surfaced while building it, both the same shape — a hand-kept list that
+silently drops what isn't on it. `curRV()` listed recipe fields by hand, so `dualKoh`
+never reached the maths; it's now built from `RECIPE_FIELDS`. The examples modal had a
+hard-coded category list, so a new category vanished without error; unknown categories
+now render.
 
 **13. "Which recipes can I make today?"** Inventory answers this for the *current*
 recipe only: `showCoverage()` checks `shoppingTotals()` for one recipe against
