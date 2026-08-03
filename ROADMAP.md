@@ -7,7 +7,7 @@ in the kitchen, offline, with no account and nothing leaving the device. Everyth
 below is judged against that.
 
 **Today:** v46 · 42 oils · 33 additives · 22 colorants · 17 aromas ·
-17 example recipes · 518 test assertions, run on every pull request.
+17 example recipes · 522 test assertions, run on every pull request.
 
 ---
 
