@@ -457,10 +457,37 @@ input[type=range]{touch-action:pan-y}
 }
 
 /* ---------- print (recipe card) ---------- */
+.print-only{display:none}
 @media print{
   body>.wrap,.sticky,input[type=file]{display:none!important}
   .modal-back{position:static;background:none;padding:0;display:block}
   .modal{box-shadow:none;max-height:none;border-radius:0;padding:0;max-width:none}
   .print-card{border:0;padding:0}
   .no-print{display:none!important}
+  .print-only{display:block}
+
+  /* Shopping list on paper: black on white so it doesn't drink ink, a box to
+     tick against every line, and sections that don't split across pages. */
+  /* a little inset so nothing butts against the paper edge when the browser
+     is set to zero margins */
+  .shop-modal{font-size:11pt;color:#000;padding:0 2mm}
+  .shop-modal h3{font-size:16pt;margin:0 0 2mm}
+  .shop-printhead{display:flex;justify-content:space-between;gap:8mm;align-items:baseline;
+    border-bottom:1pt solid #000;padding-bottom:2mm;margin-bottom:4mm;font-size:10pt}
+  .shop-modal .shop-sec{break-inside:avoid;page-break-inside:avoid}
+  .shop-modal .shop-h{color:#000;font-size:9pt;margin:5mm 0 1mm;border-bottom:.5pt solid #999}
+  .shop-modal .shop-row{border-bottom:.5pt dotted #999;padding:1.6mm 0;font-size:11pt;
+    break-inside:avoid;page-break-inside:avoid;align-items:flex-start}
+  .shop-modal .sr-tick{flex:0 0 auto;width:4mm;height:4mm;border:1pt solid #000;
+    border-radius:.7mm;margin:.6mm 3mm 0 0;display:inline-block}
+  .shop-modal .shop-row .sr-name{flex:1}
+  .shop-modal .shop-row .sr-have,.shop-modal .shop-row .sr-cost{color:#555}
+  /* colour can't carry meaning on a mono printer, so say it in text instead */
+  .shop-modal .shop-row.covered{opacity:1;color:#777}
+  /* strike the ingredient name only, not the need/have detail under it */
+  .shop-modal .shop-row.covered .sr-label{text-decoration:line-through}
+  .shop-modal .shop-row.covered .sr-amt{color:#777}
+  .shop-modal .shop-row.covered .sr-tick{border-style:dotted;border-color:#999}
+  .shop-modal .shop-tot{border-top:1pt solid #000;margin-top:5mm;padding-top:2mm;font-size:11pt}
+  .shop-modal .shop-tot .big{color:#000;font-size:14pt}
 }

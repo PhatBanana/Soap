@@ -1431,6 +1431,70 @@ Water:Lye Ratio 2.5`, { commit: true });
 }
 
 /* =======================================================================
+   SHOPPING LIST IN PRINT
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ id:"r1", name:"Kitchen Bar", oils:[OIL("olive",500),OIL("coconut",300)],
+    additives:[{name:"Kaolin clay",key:"kaolin",g:20}] }, { stock:{ olive: 5000 } }));
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="shopping"]').click(); });
+  await p.waitForTimeout(200);
+
+  const btns = await p.$$eval("#modalRoot .mfoot button", (bs) => bs.map((b) => b.textContent));
+  ok("Shopping list offers Print", btns.some((b) => b.includes("Print")));
+
+  eq("Every line has a tick box",
+    (await p.$$("#modalRoot .sr-tick")).length, (await p.$$("#modalRoot .shop-row")).length);
+  ok("Something is covered by inventory", (await p.$$("#modalRoot .shop-row.covered")).length > 0);
+
+  // on screen the print furniture stays out of the way
+  const screen = await p.evaluate(() => ({
+    tick: getComputedStyle(document.querySelector("#modalRoot .sr-tick")).display,
+    head: getComputedStyle(document.querySelector(".shop-printhead")).display,
+    picker: getComputedStyle(document.querySelector(".shop-pick")).display
+  }));
+  eq("Tick boxes are print-only", screen.tick, "none");
+  eq("Print header is print-only", screen.head, "none");
+  ok("Recipe picker is visible on screen", screen.picker !== "none");
+
+  // …and swaps over on paper
+  await p.emulateMedia({ media: "print" });
+  await p.waitForTimeout(120);
+  const print = await p.evaluate(() => {
+    const cs = (sel) => getComputedStyle(document.querySelector(sel));
+    const row = document.querySelector("#modalRoot .shop-row.covered");
+    return {
+      tick: cs("#modalRoot .sr-tick").display,
+      head: cs(".shop-printhead").display,
+      headText: document.querySelector(".shop-printhead").textContent,
+      picker: cs(".shop-pick").display,
+      foot: cs("#modalRoot .mfoot").display,
+      blurb: cs("#modalRoot .sub.no-print").display,
+      sectionBreak: cs("#modalRoot .shop-sec").breakInside,
+      ink: cs("#modalRoot .shop-row:not(.covered)").color,
+      struck: getComputedStyle(row.querySelector(".sr-label")).textDecorationLine,
+      detail: getComputedStyle(row.querySelector(".sr-have")).textDecorationLine,
+      detailBlock: getComputedStyle(row.querySelector(".sr-have")).display
+    };
+  });
+  eq("Tick boxes appear in print", print.tick, "block");
+  eq("Print header appears", print.head, "flex");
+  has("Print header names the recipe", print.headText, "Kitchen Bar");
+  eq("Picker is hidden on paper", print.picker, "none");
+  eq("Buttons are hidden on paper", print.foot, "none");
+  eq("Screen-only blurb is hidden on paper", print.blurb, "none");
+  eq("Sections don't split across pages", print.sectionBreak, "avoid");
+  eq("A normal line prints black, not the app's browns", print.ink, "rgb(0, 0, 0)");
+  // colour can't carry meaning on a mono printer, so covered items are struck through
+  eq("Covered item's name is struck through", print.struck, "line-through");
+  eq("…but its need/have detail isn't", print.detail, "none");
+  eq("…and that detail keeps its own line", print.detailBlock, "block");
+
+  await p.emulateMedia({ media: null });
+  await p.close();
+}
+
+/* =======================================================================
    SUPPLIER SAP VALUES (overrides + custom oils that carry their own)
 ======================================================================= */
 {
