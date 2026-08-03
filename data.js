@@ -118,7 +118,15 @@
     honey:         { name:"Honey",            kind:"liquid",
                      note:"~1 tsp per lb (450 g) of oils. Boosts lather & draws moisture, but can overheat/volcano — soap cool." },
     sodiumlactate: { name:"Sodium lactate",   kind:"liquid",
-                     note:"~1 tsp per lb of oils (≈3% of oils). Hardens bars for easier unmolding. Stir into cooled lye water." },
+                     note:"~1 tsp per lb of oils (≈3% of oils). Hardens bars for easier unmolding. Stir into cooled lye water. Already a salt, so it doesn't touch the lye." },
+    // --- chelators. Only citric acid is an *acid*: it neutralises lye, so it carries
+    //     a lyeFactor (g NaOH consumed per g) and the app sizes the lye up to match.
+    citric:        { name:"Citric acid",      kind:"dry", lyeFactor:0.6246,
+                     note:"0.5–2% of oils. Guards against DOS and rescues lather in hard water. It NEUTRALISES LYE — dissolve it in the water before the lye goes in, and note the app has already raised the lye to compensate." },
+    sodiumcitrate: { name:"Sodium citrate",   kind:"dry",
+                     note:"1–3% of oils. The same chelator as citric acid but already neutralised, so it needs no lye adjustment at all — the simpler choice. Dissolve in the water." },
+    sodiumgluconate:{name:"Sodium gluconate", kind:"dry",
+                     note:"0.5–1% of oils. Lye-neutral chelator, very good in hard water and gentle on lather. Dissolve in the water." },
     oatmeal:       { name:"Colloidal oatmeal",kind:"dry",
                      note:"1–2 Tbsp per lb of oils. Soothing with gentle exfoliation. Add at trace." },
     kaolin:        { name:"Kaolin clay",      kind:"dry",
@@ -245,7 +253,8 @@
     spirulina:"Spirulina Platensis Powder", frenchgreen:"Illite (French Green Clay)",
     roseclay:"Kaolin (Rose Clay)", cocoapowder:"Theobroma Cacao (Cocoa) Powder",
     turmeric:"Curcuma Longa (Turmeric) Root Powder", paprika:"Capsicum Annuum (Paprika) Fruit Powder",
-    ironoxide:"Iron Oxides (CI 77491, CI 77492, CI 77499)", ultramarine:"Ultramarines (CI 77007)"
+    ironoxide:"Iron Oxides (CI 77491, CI 77492, CI 77499)", ultramarine:"Ultramarines (CI 77007)",
+    citric:"Citric Acid", sodiumcitrate:"Sodium Citrate", sodiumgluconate:"Sodium Gluconate"
   };
 
   /* Colorants — what to use, how much, how to add it, and what soap's high pH

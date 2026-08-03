@@ -293,6 +293,12 @@ phone in the kitchen or on a desktop.
   and the standard cautions. A starting point for gifting or a market table (add your own
   name/contact and check local rules before selling).
 
+- 🧪 **Acids are in the lye maths** — citric acid is the usual defence against DOS and
+  the fix for poor lather in hard water, but it **neutralises lye** (0.6246 g NaOH per
+  gram). Add it and the app raises the lye to match, says so on the Lye card and in the
+  Safety Check, and never does it silently. Superfat doesn't discount that part, because
+  the acid consumes its full amount regardless. **Sodium citrate** and **sodium
+  gluconate** are the same chelators pre-neutralised, so they need no adjustment at all.
 - 🧪 **Your supplier's SAP values** — every calculator warns that reference SAP values
   vary by supplier; this one lets you do something about it. Put your spec sheet's
   figure in and the lye is sized on that instead, entered as **mg KOH/g** (what
@@ -388,7 +394,7 @@ obvious one: don't commit anything you wouldn't publish.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **468 assertions.**
+the real app and asserts on the computed numbers and saved state. **491 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)
