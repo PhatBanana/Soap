@@ -61,6 +61,7 @@ phone in the kitchen or on a desktop.
     <td align="center"><img src="screenshots/25-cure-checks.png" width="240" alt="Cure and pH checks filed onto a batch record"><br><sub><b>Cure checks</b> — zap tests &amp; pH across the cure</sub></td>
     <td align="center"><img src="screenshots/26-paste-import.png" width="240" alt="Review screen for a recipe pasted from another calculator"><br><sub><b>Paste import</b> — from SoapCalc &amp; friends, reviewed first</sub></td>
     <td align="center"><img src="screenshots/27-sap-values.png" width="240" alt="Supplier SAP value override for an oil"><br><sub><b>SAP values</b> — use your supplier's numbers</sub></td>
+    <td align="center"><img src="screenshots/28-shopping-print.png" width="240" alt="Printed shopping list with tick boxes"><br><sub><b>Print</b> — a shopping list you can tick off</sub></td>
     <td></td>
   </tr>
 </table>
@@ -245,6 +246,10 @@ phone in the kitchen or on a desktop.
 ### Costs & shopping
 - Enter each ingredient's **price per kg** (saved and reused across recipes) and
   see the **batch total** and **cost per bar**, in your chosen currency.
+- 🖨 **Print the shopping list** — a proper paper list: a **tick box against every
+  line**, the recipes and date across the top, black on white so it doesn't drink ink,
+  and sections that don't split across pages. Anything inventory already covers is
+  struck through rather than colour-coded, so it still reads on a mono printer.
 - 🛒 **Shopping list** — tick the recipes you plan to make and it totals everything
   you need to buy: each oil, additive and scent **summed across all of them**, plus
   the **NaOH and KOH kept separate** (they're different chemicals) and the total
@@ -376,7 +381,7 @@ above are what ships.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **451 assertions.**
+the real app and asserts on the computed numbers and saved state. **468 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)

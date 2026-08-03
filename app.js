@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v43", BUILD_DATE = "2026-08-02";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v44", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -2721,9 +2721,12 @@
   function openShopping(){
     syncCurrent();
     var md=makeModal(), picked={}; picked[currentId]=true;
+    md.m.classList.add("shop-modal");
     md.m.appendChild(el("h3",null,"Shopping list"));
-    md.m.appendChild(el("p","sub","Tick the recipes you plan to make and it totals up everything you need to buy."));
-    var pick=el("div","shop-pick"); md.m.appendChild(pick);
+    md.m.appendChild(el("p","sub no-print","Tick the recipes you plan to make and it totals up everything you need to buy."));
+    // on paper the picker is noise, so the chosen recipes are restated instead
+    var phead=el("div","shop-printhead print-only"); md.m.appendChild(phead);
+    var pick=el("div","shop-pick no-print"); md.m.appendChild(pick);
     library.forEach(function(r){
       var lab=el("label","shop-rec");
       var cb=document.createElement("input"); cb.type="checkbox"; cb.checked=!!picked[r.id];
@@ -2737,22 +2740,28 @@
       Array.prototype.forEach.call(pick.querySelectorAll("input"),function(cb,i){ cb.checked=!!picked[library[i].id]; });
       draw();
     });
+    all.classList.add("no-print");
     md.m.appendChild(all);
     var out=el("div"); md.m.appendChild(out);
     var foot=el("div","mfoot");
     var cp=el("button","ghost","📋 Copy"); foot.appendChild(cp);
+    var pr=el("button","ghost","🖨 Print"); pr.addEventListener("click",function(){ window.print(); }); foot.appendChild(pr);
     var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl);
+    foot.classList.add("no-print");
     md.m.appendChild(foot);
 
     function draw(){
       var chosen=library.filter(function(r){ return picked[r.id]; });
       out.innerHTML="";
-      if(!chosen.length){ out.appendChild(el("div","ocr-status","Tick at least one recipe.")); cp.disabled=true; return; }
-      cp.disabled=false;
+      if(!chosen.length){ out.appendChild(el("div","ocr-status","Tick at least one recipe.")); cp.disabled=pr.disabled=true; phead.textContent=""; return; }
+      cp.disabled=pr.disabled=false;
+      phead.innerHTML="<b>"+escapeHtml(chosen.map(function(r){ return r.name; }).join(" · "))+"</b>"+
+        "<span>"+new Date().toLocaleDateString()+"</span>";
       var T=shoppingTotals(chosen), wunit=weightUnit(), ul=UNITS[wunit].label, cur=state.currency||"$", total=0, lines=[];
       function section(title,items){
         if(!items.length) return;
-        out.appendChild(el("div","shop-h",title));
+        var sec=el("div","shop-sec"); out.appendChild(sec);
+        sec.appendChild(el("div","shop-h",title));
         lines.push(title.toUpperCase());
         items.forEach(function(x){
           var pk=priceKeyOf(x), have=state.stock[pk];
@@ -2763,10 +2772,11 @@
           var price=state.prices[pk], cost=price>0 ? buyG/1000*price : 0; total+=cost;
           var main = covered ? "<span class='sr-amt'>have enough</span>"
             : "<span class='sr-amt'>"+amt+(cost>0?" <span class='sr-cost'>"+cur+fmt(cost,2)+"</span>":"")+"</span>";
-          row.innerHTML="<span class='sr-name'>"+escapeHtml(x.name)+
+          row.innerHTML="<span class='sr-tick print-only'></span>"+
+            "<span class='sr-name'><span class='sr-label'>"+escapeHtml(x.name)+"</span>"+
             (tracked?"<span class='sr-have'>need "+fmt(fromG(x.g,wunit),UNITS[wunit].dp)+" · have "+fmt(fromG(have,wunit),UNITS[wunit].dp)+"</span>":"")+
             "</span>"+main;
-          out.appendChild(row);
+          sec.appendChild(row);
           lines.push("  "+x.name+": "+(covered?"have enough":amt+(cost>0?"  ("+cur+fmt(cost,2)+")":""))+
             (tracked&&!covered?"  [need "+fmt(fromG(x.g,wunit),UNITS[wunit].dp)+", have "+fmt(fromG(have,wunit),UNITS[wunit].dp)+"]":""));
         });

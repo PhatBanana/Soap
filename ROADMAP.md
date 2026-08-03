@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v43 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
-15 example recipes · 451 test assertions, run on every pull request.
+**Today:** v44 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
+15 example recipes · 468 test assertions, run on every pull request.
 
 ---
 
@@ -77,6 +77,7 @@ below is judged against that.
 ### Costs & planning
 - Price book (price per kg), **batch total and cost per bar**.
 - **Shopping list** across several recipes, with NaOH and KOH totalled separately.
+  Printable, with a tick box against every line.
 
 ### Library & output
 - Saved recipes with **search, sort and favourites**; compare any two.
@@ -173,7 +174,11 @@ any oil, from any supplier, with their number. Overrides are surfaced on the Lye
 and in the Safety Check, because non-standard numbers you've forgotten about are worse
 than no numbers.
 
-**10. Print stylesheet for the shopping list.**
+**10. Print stylesheet for the shopping list** — ✅ **shipped in v44**
+A 🖨 Print button and a real paper layout: a tick box against every line, the chosen
+recipes and the date across the top, the picker and buttons dropped, black on white,
+and sections that don't break across pages. Inventory-covered items are struck through
+rather than greyed, because colour carries no meaning on a mono printer.
 
 ---
 
