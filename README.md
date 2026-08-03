@@ -64,6 +64,7 @@ phone in the kitchen or on a desktop.
     <td align="center"><img src="screenshots/28-shopping-print.png" width="240" alt="Printed shopping list with tick boxes"><br><sub><b>Print</b> — a shopping list you can tick off</sub></td>
     <td align="center"><img src="screenshots/29-dual-lye.png" width="240" alt="Dual lye with a KOH share slider and both weights"><br><sub><b>Dual lye</b> — NaOH + KOH, both weights</sub></td>
     <td align="center"><img src="screenshots/30-library-canmake.png" width="240" alt="Library showing which recipes the cupboard covers"><br><sub><b>Can make now</b> — the library against your cupboard</sub></td>
+    <td align="center"><img src="screenshots/31-brine.png" width="240" alt="Salt dissolved in the water with the brine strength shown"><br><sub><b>Brine</b> — will that salt actually dissolve?</sub></td>
     <td></td>
   </tr>
 </table>
@@ -299,6 +300,12 @@ phone in the kitchen or on a desktop.
   and the standard cautions. A starting point for gifting or a market table (add your own
   name/contact and check local rules before selling).
 
+- 🧂 **Brine or dry salt** — salt can be stirred into the batter at trace (a salt/spa
+  bar) or dissolved into the water first (**brine soap / soleseife**), and they make
+  quite different soaps. Pick which, and the app shows the brine strength in **g of salt
+  per 100 g of water** and tells you if it simply won't dissolve — salt stops going in
+  around **35.9 g per 100 g** at room temperature, and the lye competes for the same
+  water. The checklist rewrites itself to put the salt in before the lye.
 - ⚗️ **Dual lye — NaOH and KOH together.** Pick **Both** and a slider sets what share of
   the saponification each lye does. KOH makes a softer, more soluble, whippable soap;
   NaOH gives it body — the blend is what **shaving soap** and **cream soap** are built
@@ -407,7 +414,7 @@ obvious one: don't commit anything you wouldn't publish.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **535 assertions.**
+the real app and asserts on the computed numbers and saved state. **581 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)

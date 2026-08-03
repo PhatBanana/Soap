@@ -163,6 +163,14 @@
         <input type="range" id="waterRatio" min="1" max="4" step="0.1" value="2">
         <div class="subinfo">The old-school notation — this many parts water per part lye, by weight. 2:1 is the classic "full water".</div>
       </div>
+      <div class="ctrl hide" id="saltCtrl">
+        <div class="lbl"><span>Salt goes in</span></div>
+        <div class="seg sub" id="saltModeSeg">
+          <button type="button" data-sm="trace" class="active">Dry, at trace</button>
+          <button type="button" data-sm="brine">Dissolved in the water</button>
+        </div>
+        <div class="subinfo" id="brineHint" style="text-align:left"></div>
+      </div>
       <div class="ctrl hide" id="dualCtrl">
         <div class="lbl"><span>Saponified by KOH</span><b><span id="dualKohVal">30</span>%</b></div>
         <input type="range" id="dualKoh" min="5" max="95" step="1" value="30">

@@ -1363,6 +1363,15 @@ Water:Lye Ratio 2.5`, { commit: true });
   const url = await p.evaluate(() => document.querySelector(".share-url").value);
   const payload = await p.evaluate((u) => { let s = u.split("#r=")[1].replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return decodeURIComponent(escape(atob(s))); }, url);
   ok("Share link omits private notes", !payload.includes("Traced fast"));
+  // the payload is built by exclusion, so pin exactly what is and isn't personal —
+  // a field silently missing here hands the other person a different soap
+  const shared = JSON.parse(payload);
+  ["notes","batches","checklist","madeOn","lot","fav","lastUsed","barWeight"].forEach((k) =>
+    ok(`Share link omits ${k}`, !(k in shared)));
+  ["oils","additives","aromas","lyeType","dualKoh","saltMode","superfat","waterPct",
+   "waterMode","lyeConc","kohPurity","cureWeeks","use","method","sfMode","sfOil",
+   "dilution","waterRatio"].forEach((k) =>
+    ok(`Share link carries ${k}`, k in shared));
   await p.evaluate(() => { const bk = document.querySelector(".modal-back"); if (bk) bk.remove(); document.body.style.overflow = ""; });
 
   // bar wrapper content
@@ -1491,6 +1500,88 @@ Water:Lye Ratio 2.5`, { commit: true });
   eq("…and that detail keeps its own line", print.detailBlock, "block");
 
   await p.emulateMedia({ media: null });
+  await p.close();
+}
+
+/* =======================================================================
+   BRINE FOR SALT BARS (soleseife vs a dry salt bar)
+======================================================================= */
+{
+  const p = await newPage();
+  const SALT = (g) => [{ name:"Salt (table/sea)", key:"salt", g }];
+  // 1000 g oils at 33% water = 330 g water, so the arithmetic is easy to check
+  const salty = (g, mode, extra = {}, view = {}) => store(Object.assign({
+    oils:[OIL("coconut",1000)], superfat:15, waterPct:33, additives:SALT(g), saltMode:mode }, extra), view);
+  const titles = () => p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
+
+  // the control only exists if there's salt to decide about
+  await open(p, store({ oils:[OIL("coconut",1000)] }));
+  ok("No salt → no salt-mode control", await p.$eval("#saltCtrl", (e) => e.classList.contains("hide")));
+  await open(p, salty(80, "trace"));
+  ok("Salt present → the control appears", !(await p.$eval("#saltCtrl", (e) => e.classList.contains("hide"))));
+
+  // THE POINT: salt has a solubility ceiling, and a salt bar blows straight through it.
+  // 500 g salt in 330 g water = 151.5 g per 100 g, over four times what dissolves.
+  await open(p, salty(500, "brine"));
+  has("Brine strength is quoted per 100 g of water", await txt(p, "#brineHint"), "151.5 g");
+  ok("An impossible brine is a stop, not a shrug", (await titles()).includes("That salt won't dissolve"));
+  has("…and it says how much would fit",
+    await p.$$eval("#safetyList .safety-item", (es) => {
+      const e = es.find((x) => /won't dissolve/.test(x.textContent)); return e ? e.textContent : ""; }), "83 g");
+  ok("…and that this is salt-bar territory", (await titles()).includes("That's salt-bar amounts, dissolved"));
+
+  // the same recipe made the normal way is fine
+  await open(p, salty(500, "trace"));
+  has("Dry at trace explains itself", await txt(p, "#brineHint"), "at trace");
+  ok("…and raises no dissolving problem", !(await titles()).includes("That salt won't dissolve"));
+
+  // a realistic soleseife dissolves comfortably: 80 g in 330 g = 24.2
+  await open(p, salty(80, "brine", { superfat:5 }));
+  has("A real brine is quoted too", await txt(p, "#brineHint"), "24.2 g");
+  ok("…and passes", (await titles()).includes("Brine will dissolve"));
+  ok("…without the salt-bar note", !(await titles()).includes("That's salt-bar amounts, dissolved"));
+
+  // just under the ceiling warns rather than passing silently
+  await open(p, salty(100, "brine", { superfat:5 }));       // 30.3 per 100 g
+  ok("Near saturation warns", (await titles()).includes("Close to a saturated brine"));
+
+  // salt neither saponifies nor consumes lye, so the mode must change no chemistry
+  await open(p, salty(500, "trace"));
+  const lyeTrace = await num(p, "#lyeVal"), waterTrace = await num(p, "#waterOut");
+  await open(p, salty(500, "brine"));
+  eq("Brine mode does not change the lye", await num(p, "#lyeVal"), lyeTrace);
+  eq("…nor the water", await num(p, "#waterOut"), waterTrace);
+
+  // the checklist has to say when the salt goes in
+  await open(p, salty(80, "brine", { superfat:5 }, { tab:"make" }));
+  const brineSteps = await p.$$eval("#checklist label", (es) => es.map((e) => e.textContent));
+  ok("Brine rewrites the lye step", brineSteps.some((s) => /Dissolve 80 g of salt/.test(s)));
+  has("…to put the salt in first", brineSteps.find((s) => /Dissolve 80 g/.test(s)), "THEN add the lye");
+  await open(p, salty(80, "trace", { superfat:5 }, { tab:"make" }));
+  const traceSteps = await p.$$eval("#checklist label", (es) => es.map((e) => e.textContent));
+  ok("Dry mode leaves the step alone", !traceSteps.some((s) => /Dissolve .* salt/.test(s)));
+  // checklist ticks are keyed by index, so the step count must not move
+  eq("Step count is identical either way", brineSteps.length, traceSteps.length);
+
+  // it's a property of the recipe, so it travels
+  await open(p, salty(80, "brine", { id:"rB", name:"Brine Share", superfat:5 }));
+  const url = await p.evaluate(() => {
+    document.getElementById("menuBtn").click(); document.querySelector('[data-a="share"]').click();
+    return document.querySelector(".share-url").value;
+  });
+  const ctx = await browser.newContext();
+  const rp = await ctx.newPage();
+  await rp.goto(url); await rp.waitForTimeout(400);
+  eq("Shared recipe keeps the salt mode", await rp.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("soapcalc.v4"));
+    return (s.recipes.find((x) => x.name === "Brine Share") || {}).saltMode;
+  }), "brine");
+  await ctx.close();
+
+  // and a junk value can't get in
+  await open(p, salty(80, "sideways", { superfat:5 }));
+  await addOil(p, "castor", 10);
+  eq("An unknown salt mode falls back to trace", (await LS(p)).recipes[0].saltMode, "trace");
   await p.close();
 }
 
