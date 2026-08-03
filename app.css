@@ -148,6 +148,15 @@ input[type=range]{touch-action:pan-y}
 .result .v .u{font-size:.8rem;color:var(--muted);font-weight:700;margin-left:2px}
 .result.hero{grid-column:1/-1;background:var(--coral-soft)}
 .result.hero .v{color:var(--coral-d)}
+.lib-chip{border:2px solid var(--line);background:var(--bg-2);color:var(--muted);font-family:inherit;
+  font-weight:800;font-size:.8rem;border-radius:999px;padding:7px 14px;margin:0 0 4px;cursor:pointer}
+.lib-chip.on{background:var(--coral);border-color:var(--coral);color:#fff}
+/* .lib-open span is display:block for the blurb line, so the badge has to opt
+   back into inline to sit beside the name rather than under it */
+.lib-open .lib-can,.lib-open .lib-short{display:inline-block;margin:0 0 0 8px;font-size:.68rem;
+  font-weight:800;border-radius:999px;padding:2px 8px;vertical-align:middle;white-space:nowrap}
+.lib-can{background:var(--green-soft);color:var(--green-d)}
+.lib-short{background:var(--amber-soft);color:var(--coral-d)}
 .lye-split{display:flex;gap:10px;margin-top:10px}
 .lye-split span{flex:1;background:var(--coral-soft);color:var(--coral-d);border-radius:12px;padding:9px 10px;
   text-align:center;font-size:.82rem;font-weight:700;font-variant-numeric:tabular-nums}

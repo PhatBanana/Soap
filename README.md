@@ -63,6 +63,7 @@ phone in the kitchen or on a desktop.
     <td align="center"><img src="screenshots/27-sap-values.png" width="240" alt="Supplier SAP value override for an oil"><br><sub><b>SAP values</b> — use your supplier's numbers</sub></td>
     <td align="center"><img src="screenshots/28-shopping-print.png" width="240" alt="Printed shopping list with tick boxes"><br><sub><b>Print</b> — a shopping list you can tick off</sub></td>
     <td align="center"><img src="screenshots/29-dual-lye.png" width="240" alt="Dual lye with a KOH share slider and both weights"><br><sub><b>Dual lye</b> — NaOH + KOH, both weights</sub></td>
+    <td align="center"><img src="screenshots/30-library-canmake.png" width="240" alt="Library showing which recipes the cupboard covers"><br><sub><b>Can make now</b> — the library against your cupboard</sub></td>
     <td></td>
   </tr>
 </table>
@@ -256,6 +257,10 @@ phone in the kitchen or on a desktop.
   the **NaOH and KOH kept separate** (they're different chemicals) and the total
   distilled water. Priced ingredients show a line cost and an **estimated total**, and
   the whole list is copyable to take to the shop.
+- 🧺 **Which recipes can I make today?** — once you're tracking inventory, every recipe
+  in the library shows **✓ can make** or **short N**, with a chip to filter down to just
+  the ones you're covered for. A recipe none of whose ingredients you track gets no
+  badge at all — that's a don't-know, not a yes.
 - 📦 **Inventory** — record what's in the cupboard and the shopping list only asks you
   to buy **what you're actually short of**: each line shows *need · have → buy*,
   anything you have enough of is greyed out, and the total counts only the shortfall.
@@ -402,7 +407,7 @@ obvious one: don't commit anything you wouldn't publish.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **522 assertions.**
+the real app and asserts on the computed numbers and saved state. **535 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)

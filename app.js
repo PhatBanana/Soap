@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v46", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v47", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -2584,6 +2584,12 @@
       seg.appendChild(b);
     });
     md.m.appendChild(seg);
+    // the filter only exists once you're tracking something — with an empty cupboard
+    // there's nothing to compare against and the library looks exactly as it did
+    var onlyMakeable=false;
+    var chip=el("button","lib-chip","🧺 Can make now"); chip.type="button";
+    chip.addEventListener("click",function(){ onlyMakeable=!onlyMakeable; draw(); });
+    md.m.appendChild(chip);
     var list=el("div"); md.m.appendChild(list);
     var foot=el("div","mfoot"); var cl=el("button","primary","Close");
     cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
@@ -2591,22 +2597,53 @@
     function draw(){
       setActive(seg,"ls",state.librarySort||"name");
       var q=find.value.toLowerCase().trim();
+      var tracking=Object.keys(state.stock||{}).length>0;
+      if(!tracking) onlyMakeable=false;
+      chip.classList.toggle("hide",!tracking);
+      chip.classList.toggle("on",onlyMakeable);
       var rows=sortedLibrary().filter(function(r){ return !q || r.name.toLowerCase().indexOf(q)>=0; });
+      if(onlyMakeable) rows=rows.filter(function(r){ var S=stockShortfall(r); return S.known>0 && !S.short.length; });
       list.innerHTML="";
-      if(!rows.length){ list.appendChild(el("div","ocr-status","No recipe matches “"+escapeHtml(find.value)+"”.")); return; }
+      if(!rows.length){ list.appendChild(el("div","ocr-status",
+        onlyMakeable ? "Nothing in the library is fully covered by what you have."
+                     : "No recipe matches “"+escapeHtml(find.value)+"”.")); return; }
       rows.forEach(function(r){
         var row=el("div","lib-row"+(r.id===currentId?" on":""));
         var star=el("button","lib-star"+(r.fav?" on":""), r.fav?"★":"☆"); star.type="button";
         star.setAttribute("aria-label",(r.fav?"Unstar ":"Star ")+r.name);
         star.addEventListener("click",function(ev){ ev.stopPropagation(); r.fav=!r.fav; save(); rebuildRecipeSelect(); draw(); });
         var open=el("button","lib-open"); open.type="button";
-        open.innerHTML="<b>"+escapeHtml(r.name)+"</b><span>"+escapeHtml(recipeBlurb(r))+"</span>";
+        var badge="";
+        if(tracking){
+          var S=stockShortfall(r);
+          badge = S.short.length ? "<span class='lib-short'>short "+S.short.length+"</span>"
+                : S.known        ? "<span class='lib-can'>✓ can make</span>"
+                : "";                        // nothing of this recipe is tracked
+        }
+        open.innerHTML="<b>"+escapeHtml(r.name)+badge+"</b><span>"+escapeHtml(recipeBlurb(r))+"</span>";
         open.addEventListener("click",function(){ closeModal(md.back); switchRecipe(r.id); });
         row.appendChild(star); row.appendChild(open); list.appendChild(row);
       });
     }
     find.addEventListener("input",draw);
     draw();
+  }
+
+  /* What a recipe is short of, against whatever you're tracking. Ingredients you
+     haven't entered are invisible here — that's what keeps inventory opt-in. */
+  function stockShortfall(r){
+    var tracked=Object.keys(state.stock||{}).length;
+    if(!tracked || !r) return { tracked:false, short:[] };
+    var T=shoppingTotals([r]), short=[], known=0;
+    [].concat(T.oils,T.adds,T.scents,lyeRows(T,true)).forEach(function(x){
+      var have=state.stock[priceKeyOf(x)];
+      if(have===undefined) return;                         // untracked — can't judge
+      known++;
+      if(have < x.g-0.01) short.push({ name:x.name, g:x.g-have });
+    });
+    // known is what stops "can make" being claimed about a recipe none of whose
+    // ingredients we're tracking — that isn't a yes, it's a don't-know
+    return { tracked:true, known:known, short:short };
   }
 
   /* ---------- inventory: what's in the cupboard ---------- */
@@ -2761,14 +2798,9 @@
     }
     function showCoverage(){
       var r=libById(currentId); if(!r){ cover.textContent=""; return; }
-      var T=shoppingTotals([r]), short=[];
-      [].concat(T.oils,T.adds,T.scents,lyeRows(T,true)).forEach(function(x){
-        var have=state.stock[priceKeyOf(x)];
-        if(have===undefined) return;                       // untracked — can't judge
-        if(have < x.g-0.01) short.push(x.name+" (short "+fmt(fromG(x.g-have,wunit),1)+" "+ul+")");
-      });
-      var tracked=Object.keys(state.stock||{}).length;
-      cover.textContent = !tracked ? "Nothing tracked yet — fill in what you have above."
+      var S=stockShortfall(r);
+      var short=S.short.map(function(x){ return x.name+" (short "+fmt(fromG(x.g,wunit),1)+" "+ul+")"; });
+      cover.textContent = !S.tracked ? "Nothing tracked yet — fill in what you have above."
         : short.length ? "“"+r.name+"”: short on "+short.join(", ")+"."
         : "“"+r.name+"”: you have enough of everything you're tracking. ✓";
     }
