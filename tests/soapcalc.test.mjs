@@ -1495,6 +1495,123 @@ Water:Lye Ratio 2.5`, { commit: true });
 }
 
 /* =======================================================================
+   DUAL LYE (NaOH + KOH in one batch)
+======================================================================= */
+{
+  const p = await newPage();
+  const KOHF = 1.40274, BASE = 134;
+  const splitG = () => p.$$eval("#lyeSplit b", (bs) => bs.map((b) => parseFloat(b.textContent)));
+
+  // the two endpoints must be untouched by the unified expression that replaced
+  // the old if/else — these are the regression test for the refactor
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0 }));
+  near("Pure NaOH unchanged", await num(p, "#lyeVal"), BASE, 0.05);
+  eq("…and shows no split", (await p.$$("#lyeSplit b")).length, 0);
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, lyeType:"koh", kohPurity:90 }));
+  near("Pure KOH unchanged", await num(p, "#lyeVal"), BASE*KOHF/0.9, 0.05);
+  eq("…and shows no split either", (await p.$$("#lyeSplit b")).length, 0);
+
+  // a real blend: assert both halves, so a wrong split can't hide inside a right total
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, lyeType:"dual", dualKoh:50, kohPurity:90 }));
+  let [naoh, koh] = await splitG();
+  near("Dual 50%: the NaOH half", naoh, BASE*0.5, 0.05);
+  near("Dual 50%: the KOH half", koh, BASE*0.5*KOHF/0.9, 0.05);
+  near("Dual 50%: total is the sum", await num(p, "#lyeVal"), BASE*0.5 + BASE*0.5*KOHF/0.9, 0.05);
+  has("Lye card names both", await txt(p, "#lyeK"), "NaOH + KOH");
+
+  // the share really moves the split
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, lyeType:"dual", dualKoh:80, kohPurity:90 }));
+  [naoh, koh] = await splitG();
+  near("An 80% share shifts the NaOH half", naoh, BASE*0.2, 0.05);
+  near("…and the KOH half", koh, BASE*0.8*KOHF/0.9, 0.05);
+
+  // purity is a property of the KOH you bought, so it must not touch the NaOH half
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, lyeType:"dual", dualKoh:50, kohPurity:100 }));
+  const [naoh100, koh100] = await splitG();
+  near("Purity leaves the NaOH half alone", naoh100, BASE*0.5, 0.05);
+  near("…and scales only the KOH half", koh100, BASE*0.5*KOHF, 0.05);
+
+  // the acid adjustment from item 11 rides along and splits the same way
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, lyeType:"dual", dualKoh:50, kohPurity:90,
+    additives:[{ name:"Citric acid", key:"citric", g:10 }] }));
+  [naoh, koh] = await splitG();
+  near("Acid raises the NaOH half", naoh, (BASE + 10*0.6246)*0.5, 0.05);
+  near("…and the KOH half", koh, (BASE + 10*0.6246)*0.5*KOHF/0.9, 0.05);
+
+  // …and is still outside the superfat discount when the lye is split
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:5, lyeType:"dual", dualKoh:50, kohPurity:90,
+    additives:[{ name:"Citric acid", key:"citric", g:10 }] }));
+  [naoh] = await splitG();
+  near("Superfat still doesn't discount the acid in a dual recipe",
+    naoh, (BASE*0.95 + 10*0.6246)*0.5, 0.05);
+
+  // downstream: a dual batch needs buying and stocking as two chemicals
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, lyeType:"dual", dualKoh:50 }));
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="shopping"]').click(); });
+  await p.waitForTimeout(220);
+  const lyeLines = await p.$$eval("#modalRoot .shop-row .sr-name", (es) =>
+    es.map((e) => e.textContent).filter((t) => /hydroxide/i.test(t)));
+  eq("Shopping list buys both lyes", lyeLines.length, 2);
+  await p.evaluate(() => { document.querySelector("#modalRoot .modal-back").remove(); document.body.style.overflow = ""; });
+
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, lyeType:"dual", dualKoh:50,
+    madeOn:"2026-07-01" }, { tab:"make", stock:{
+      "c:sodium hydroxide (naoh)": 500, "c:potassium hydroxide (koh)": 500 } }));
+  await p.click("#logBatch"); await p.waitForTimeout(250);
+  const stock = (await LS(p)).stock;
+  ok("Logging a dual batch draws down NaOH", stock["c:sodium hydroxide (naoh)"] < 500);
+  ok("…and KOH", stock["c:potassium hydroxide (koh)"] < 500);
+
+  // a dual-lye soap genuinely contains both salts
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, lyeType:"dual", dualKoh:50 }));
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="label"]').click(); });
+  await p.waitForTimeout(180);
+  const inci = await p.evaluate(() => document.querySelector(".inci-box").textContent);
+  has("INCI lists the sodium salt", inci, "Sodium Olivate");
+  has("…and the potassium salt", inci, "Potassium Olivate");
+  await p.evaluate(() => { document.querySelector("#modalRoot .modal-back").remove(); document.body.style.overflow = ""; });
+
+  // the share link must carry the share, or the recipient gets a different soap
+  await open(p, store({ id:"rS", name:"Dual Share", oils:[OIL("olive",1000)],
+    lyeType:"dual", dualKoh:70 }));
+  const url = await p.evaluate(() => {
+    document.getElementById("menuBtn").click(); document.querySelector('[data-a="share"]').click();
+    return document.querySelector(".share-url").value;
+  });
+  const ctx = await browser.newContext();
+  const rp = await ctx.newPage();
+  await rp.goto(url); await rp.waitForTimeout(400);
+  const got = await rp.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("soapcalc.v4"));
+    const r = s.recipes.find((x) => x.name === "Dual Share");
+    return { lyeType: r.lyeType, dualKoh: r.dualKoh };
+  });
+  eq("Shared recipe keeps the dual mode", got.lyeType, "dual");
+  eq("…and the KOH share", got.dualKoh, 70);
+  await ctx.close();
+
+  // the worked examples exist and load as dual
+  await open(p, store({ oils:[] }));
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="examples"]').click(); });
+  await p.waitForTimeout(200);
+  const groups = await p.$$eval("#modalRoot .ex-h", (es) => es.map((e) => e.textContent));
+  ok("Examples has a dual-lye group", groups.some((g) => /Shaving/.test(g)));
+  await p.evaluate(() => {
+    [...document.querySelectorAll("#modalRoot .ex-item")].find((b) => /Soft Shaving/.test(b.textContent)).click();
+  });
+  await p.waitForTimeout(300);
+  const ex = await p.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("soapcalc.v4"));
+    return s.recipes.find((r) => r.id === s.currentId);
+  });
+  eq("Shaving example loads as dual lye", ex.lyeType, "dual");
+  eq("…with its KOH share", ex.dualKoh, 60);
+  eq("…and the shave use profile", ex.use, "shave");
+  ok("…and its oils", ex.oils.length >= 4);
+  await p.close();
+}
+
+/* =======================================================================
    ACIDS THAT CONSUME LYE (citric acid and the lye-neutral chelators)
 ======================================================================= */
 {

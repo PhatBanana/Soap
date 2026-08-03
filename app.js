@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v45", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v46", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -37,7 +37,9 @@
     {k:"oils",      list:OILS,      def:function(){return [];}},
     {k:"additives", list:ADDITIVES, def:function(){return [];}},
     {k:"aromas",    list:AROMAS,    def:function(){return [];}},
-    {k:"lyeType",   def:"naoh", coerce:function(v){return v==="koh"?"koh":"naoh";}},
+    {k:"lyeType",   def:"naoh", coerce:function(v){return (v==="koh"||v==="dual")?v:"naoh";}},
+    // % of the saponification handled by KOH; only read when lyeType is "dual"
+    {k:"dualKoh",   def:30,     coerce:function(v){return clamp(v,30,5,95);}},
     {k:"superfat",  def:5,      coerce:function(v){return clamp(v,5,0,15);}},
     {k:"waterPct",  def:38,     coerce:function(v){return clamp(v,38,25,50);}},
     {k:"waterMode", def:"oils", coerce:function(v){return (v==="conc"||v==="ratio")?v:"oils";}},
@@ -252,6 +254,7 @@
   });
   $("sfOilSelect").addEventListener("change",function(){ state.sfOil=$("sfOilSelect").value; save(); render(); });
   bindRange($("waterRatio"),"ratioVal","waterRatio");
+  bindRange($("dualKoh"),"dualKohVal","dualKoh");
   $("roundBtn").addEventListener("click",roundAmounts);
   $("lotField").addEventListener("input",function(){ state.lot=$("lotField").value; saveSoon(); });
   $("lotGen").addEventListener("click",function(){
@@ -304,11 +307,13 @@
 
     // lye controls state
     setActive($("lyeType"),"t",state.lyeType);
-    $("purityCtrl").classList.toggle("hide",state.lyeType!=="koh");
+    $("purityCtrl").classList.toggle("hide",state.lyeType==="naoh");
+    $("dualCtrl").classList.toggle("hide",state.lyeType!=="dual");
     $("sf").value=state.superfat; $("sfVal").textContent=state.superfat;
     $("water").value=state.waterPct; $("waterVal").textContent=state.waterPct;
     $("lyeConc").value=state.lyeConc; $("concVal").textContent=state.lyeConc;
     $("purity").value=state.kohPurity; $("purVal").textContent=state.kohPurity;
+    $("dualKoh").value=state.dualKoh; $("dualKohVal").textContent=state.dualKoh;
     // superfat handling only differs for hot process, so the control only shows there
     var isHP=state.method==="hp", after=isHP&&state.sfMode==="after";
     $("sfModeCtrl").classList.toggle("hide",!isHP);
@@ -515,10 +520,10 @@
   }
 
   /* ---------- blend / lye ---------- */
-  function curRV(){ return { oils:state.oils, additives:state.additives, aromas:state.aromas,
-    lyeType:state.lyeType, superfat:state.superfat, waterPct:state.waterPct, kohPurity:state.kohPurity,
-    waterMode:state.waterMode, lyeConc:state.lyeConc, waterRatio:state.waterRatio,
-    method:state.method, sfMode:state.sfMode, sfOil:state.sfOil }; }
+  // Built from the schema rather than a hand-kept list: adding a recipe field used
+  // to mean remembering to add it here too, and forgetting silently fell back to
+  // the default instead of erroring.
+  function curRV(){ var rv={}; RECIPE_FIELDS.forEach(function(f){ rv[f.k]=state[f.k]; }); return rv; }
   function oilsGof(rv){ return sumG(rv.oils); }
   function blendFA(rv){
     rv=rv||curRV();
@@ -582,14 +587,22 @@
       else if(it.g>0) hasCustom=true;             // no data and no SAP given: genuinely excluded
       if(!d && sapV>0 && it.g>0) customSap=true;
     });
-    var sf = afterCook ? 1 : 1-rv.superfat/100, lyeG, kind;
+    var sf = afterCook ? 1 : 1-rv.superfat/100;
     // Superfat discounts the saponifying lye only. An acid consumes its full
     // stoichiometric amount whatever the superfat, so its term stays outside the
     // discount — and sitting before the KOH conversion makes that case fall out too
     // (0.6246 x KOH_FACTOR = 0.8762, i.e. 3 x 56.11 / 192.12).
     var acid=acidLyeOf(rv);
-    if(rv.lyeType==="koh"){ lyeG=(naohRaw*sf+acid.g)*KOH_FACTOR/(rv.kohPurity/100); kind="KOH (lye)"; }
-    else { lyeG=naohRaw*sf+acid.g; kind="NaOH (lye)"; }
+    var sapLye=naohRaw*sf+acid.g;                 // what's needed, in NaOH-equivalent grams
+    // One expression covers all three modes. kohShare is the fraction of the
+    // saponification done by KOH: 0 for a bar, 1 for liquid soap, anything between
+    // for the dual-lye blends that shaving and cream soaps are built on.
+    var kohShare = rv.lyeType==="koh" ? 1
+                 : rv.lyeType==="dual" ? clamp(rv.dualKoh,30,5,95)/100 : 0;
+    var naohG=sapLye*(1-kohShare);
+    var kohG =sapLye*kohShare*KOH_FACTOR/(rv.kohPurity/100);
+    var lyeG=naohG+kohG;
+    var kind = kohShare===0 ? "NaOH (lye)" : kohShare===1 ? "KOH (lye)" : "NaOH + KOH";
     var oilG=oilsGof(rv);
     var waterG;
     if(rv.waterMode==="conc"){
@@ -603,6 +616,7 @@
     return { lyeG:lyeG, waterG:waterG, oilG:oilG, kind:kind, hasCustom:hasCustom,
       customSap:customSap, overrides:overriddenKeys(rv),
       acidG:acid.g, acidNames:acid.names,
+      naohG:naohG, kohG:kohG, kohShare:kohShare,
              reserveG:reserveG, reserveName:reserveName };
   }
   // single source of truth for the fatty-acid quality formulas: derived from QUALITIES,
@@ -660,7 +674,11 @@
     var show = state.tab==="base" && state.oils.length>0;
     box.classList.toggle("hide",!show); if(!show) return;
     var L=computeLye(), wunit=weightUnit(), ul=UNITS[wunit].label;
-    box.innerHTML="<span><b>"+fmt(fromG(L.lyeG,wunit),2)+"</b> "+ul+" "+(state.lyeType==="koh"?"KOH":"NaOH")+"</span>"+
+    var lyeBits = L.kohShare>0 && L.kohShare<1
+      ? "<span><b>"+fmt(fromG(L.naohG,wunit),2)+"</b> "+ul+" NaOH</span>"+
+        "<span><b>"+fmt(fromG(L.kohG,wunit),2)+"</b> "+ul+" KOH</span>"
+      : "<span><b>"+fmt(fromG(L.lyeG,wunit),2)+"</b> "+ul+" "+(state.lyeType==="koh"?"KOH":"NaOH")+"</span>";
+    box.innerHTML=lyeBits+
       "<span><b>"+fmt(fromG(L.waterG,wunit),1)+"</b> "+ul+" water</span>"+
       "<span><b>"+fmt(fromG(currentBatchG(),wunit),1)+"</b> "+ul+" batch</span>";
   }
@@ -671,6 +689,10 @@
     $("waterOut").textContent=fmt(fromG(L.waterG,wunit),1); $("waterUnit").textContent=UNITS[wunit].label;
     var batch=currentBatchG();
     $("batchOut").textContent=fmt(fromG(batch,wunit),1); $("batchUnit").textContent=UNITS[wunit].label;
+    var split=$("lyeSplit"), isDual=L.kohShare>0 && L.kohShare<1;
+    split.classList.toggle("hide",!isDual);
+    if(isDual) split.innerHTML="<span><b>"+fmt(fromG(L.naohG,wunit),2)+"</b> "+UNITS[wunit].label+" NaOH</span>"+
+      "<span><b>"+fmt(fromG(L.kohG,wunit),2)+"</b> "+UNITS[wunit].label+" KOH</span>";
     var conc=(L.lyeG+L.waterG)>0?L.lyeG/(L.lyeG+L.waterG)*100:0;
     var waterOfOils=L.oilG>0?L.waterG/L.oilG*100:0;
     var info=(state.waterMode==="oils"
@@ -833,7 +855,7 @@
           var d=it.key?ADDITIVES[it.key]:null; return a+((d&&d.lyeFactor>0)?it.g:0); },0)/tot*100 : 0;
         add("ok","Lye raised for "+L.acidNames.join(" & "),
           "An acid neutralises lye, so the batch needs "+fmt(L.acidG,2)+" g extra "+
-          (state.lyeType==="koh"?"KOH":"NaOH")+" on top of what the oils want. Superfat doesn't discount that part — it's the amount the acid consumes. Dissolve the acid in the water before the lye goes in.");
+          (state.lyeType==="koh"?"KOH":state.lyeType==="dual"?"lye (split across both)":"NaOH")+" on top of what the oils want. Superfat doesn't discount that part — it's the amount the acid consumes. Dissolve the acid in the water before the lye goes in.");
         if(acidPct>3) add("warn","That's a lot of acid",
           "At "+fmt(acidPct,1)+"% of oils you're neutralising a large share of the lye. 0.5–2% is the usual range for chelating; more just means more lye for no extra benefit.");
       }
@@ -1304,7 +1326,7 @@
       list.forEach(function(it){ take(it,it.g); });
     });
     var L=computeLye(r);
-    take(r.lyeType==="koh"?LYE_KOH:LYE_NAOH, L.lyeG);   // water isn't stocked
+    take(LYE_NAOH, L.naohG); take(LYE_KOH, L.kohG);      // water isn't stocked
     return touched;
   }
   function renderHistory(){
@@ -1623,7 +1645,8 @@
     target.oils=mapItems(ex.oils,OILS);
     target.additives=mapItems(ex.additives,ADDITIVES);
     target.aromas=mapItems(ex.aromas,AROMAS);
-    target.lyeType = ex.lye==="koh" ? "koh" : "naoh";
+    target.lyeType = (ex.lye==="koh"||ex.lye==="dual") ? ex.lye : "naoh";
+    target.dualKoh = clamp(ex.dualKoh,30,5,95);
     target.superfat = clamp(ex.sf,5,0,15);
     target.waterPct = clamp(ex.water,38,25,50);
     target.kohPurity = clamp(ex.koh,90,85,100);
@@ -1635,7 +1658,14 @@
     md.m.appendChild(el("h3",null,"Example recipes"));
     md.m.appendChild(el("p","sub","Tap one to add it as a new saved recipe you can tweak."));
     var out=el("div"); md.m.appendChild(out);
-    var groups=[["Bar","Bar soaps"],["Liquid","Liquid soaps"],["Dish","Dish soap"],["Laundry","Laundry soap"]];
+    var groups=[["Bar","Bar soaps"],["Liquid","Liquid soaps"],["Dual lye","Shaving &amp; cream soaps"],
+                ["Dish","Dish soap"],["Laundry","Laundry soap"]];
+    // anything with a category the list doesn't know about still gets shown —
+    // a new example should never silently vanish because a label was forgotten
+    var known={}; groups.forEach(function(gp){ known[gp[0]]=1; });
+    (window.EXAMPLES||[]).forEach(function(e){
+      if(e.cat && !known[e.cat]){ known[e.cat]=1; groups.push([e.cat,e.cat]); }
+    });
     groups.forEach(function(gp){
       var items=(window.EXAMPLES||[]).filter(function(e){ return e.cat===gp[0]; });
       if(!items.length) return;
@@ -2211,11 +2241,20 @@
   // Build the finished-bar INCI ingredient list: saponified oils (Sodium/Potassium …),
   // water, naturally-occurring glycerin, then additives and fragrance, in descending weight order.
   function inciLabel(){
-    var L=computeLye(), total=totalOilsG(), salt=(state.lyeType==="koh"?"Potassium ":"Sodium ");
+    var L=computeLye(), total=totalOilsG();
+    // A dual-lye soap really does contain both salts, so it gets both entries,
+    // weighted by the share each lye saponified — the descending sort then places
+    // them the way a label should read.
+    var salts = L.kohShare>=1 ? [["Potassium ",1]]
+              : L.kohShare<=0 ? [["Sodium ",1]]
+              : [["Sodium ",1-L.kohShare],["Potassium ",L.kohShare]];
     var entries=[], missing=[], glyAdd=0;
     state.oils.forEach(function(it){ if(!(it.g>0)) return;
       var base=it.key?OIL_INCI[it.key]:null;
-      if(base){ entries.push({name: base.charAt(0)==="=" ? base.slice(1) : salt+base, w:it.g}); }
+      if(base){
+        if(base.charAt(0)==="=") entries.push({name:base.slice(1), w:it.g});
+        else salts.forEach(function(s){ entries.push({name:s[0]+base, w:it.g*s[1]}); });
+      }
       else { entries.push({name:it.name+" (verify INCI)", w:it.g}); missing.push(it.name); }
     });
     if(L.waterG>0) entries.push({name:"Aqua (Water)", w:L.waterG});
@@ -2298,7 +2337,7 @@
   function shareItems(list){ return list.map(function(it){ return {name:it.name,key:it.key,g:Math.round(it.g*100)/100}; }); }
   function recipeShareURL(r){
     var payload={ name:r.name, oils:shareItems(r.oils), additives:shareItems(r.additives), aromas:shareItems(r.aromas),
-      lyeType:r.lyeType, superfat:r.superfat, waterPct:r.waterPct, waterMode:r.waterMode,
+      lyeType:r.lyeType, dualKoh:r.dualKoh, superfat:r.superfat, waterPct:r.waterPct, waterMode:r.waterMode,
       lyeConc:r.lyeConc, kohPurity:r.kohPurity, cureWeeks:r.cureWeeks, use:r.use };
     return location.origin+location.pathname+"#r="+b64urlEnc(JSON.stringify(payload));
   }
@@ -2521,6 +2560,7 @@
     var n=r.oils.filter(function(it){ return it.g>0; }).length;
     var bits=[n+" oil"+(n===1?"":"s")];
     if(r.lyeType==="koh") bits.push("liquid");
+    else if(r.lyeType==="dual") bits.push("dual lye");
     if(r.method==="hp") bits.push("hot process");
     if(r.use&&r.use!=="body"){ USES.forEach(function(u){ if(u[0]===r.use) bits.push(u[1].toLowerCase()); }); }
     var made=(r.batches||[]).length; if(made) bits.push("made "+made+"×");
@@ -2591,7 +2631,9 @@
       r.oils.forEach(function(it){ if(it.g>0) add(it); });
       r.additives.forEach(function(it){ if(it.g>0) add(it); });
       r.aromas.forEach(function(it){ if(it.g>0) add(it); });
-      add(r.lyeType==="koh" ? LYE_KOH : LYE_NAOH);
+      var LL=computeLye(r);
+      if(LL.naohG>0) add(LYE_NAOH);
+      if(LL.kohG>0) add(LYE_KOH);
     });
     Object.keys(state.stock||{}).forEach(function(k){ if(!seen[k]) out.push({key:k,name:k.indexOf("c:")===0?k.slice(2):k}); });
     return out;
@@ -2746,7 +2788,7 @@
       r.additives.forEach(function(it){ if(it.g>0) bump(adds,it); });
       r.aromas.forEach(function(it){ if(it.g>0) bump(scents,it); });
       var L=computeLye(r);                       // a library recipe already has every field computeLye needs
-      if(r.lyeType==="koh") koh+=L.lyeG; else naoh+=L.lyeG;
+      naoh+=L.naohG; koh+=L.kohG;               // dual recipes contribute to both
       water+=L.waterG;
     });
     function sorted(map){ return Object.keys(map).map(function(k){ return map[k]; })

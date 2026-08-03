@@ -412,6 +412,17 @@
   /* Example / starter recipes. Oils sum ~1000 g (easy to rescale). Keys map to
      OILS / ADDITIVES / AROMAS above. Loading one adds it as a saved recipe.     */
   g.EXAMPLES = [
+    // ---- Dual lye (NaOH + KOH) ----
+    // KOH makes a softer, more soluble, whippable soap; NaOH gives it body. The
+    // blend is what shaving and cream soaps are built on — neither works with one lye.
+    { name:"Soft Shaving Soap", cat:"Dual lye", lye:"dual", dualKoh:60, koh:90, sf:5, water:38,
+      oils:{stearic:300,coconut:250,olive:200,shea:150,castor:100},
+      additives:{bentonite:20,kaolin:20,glycerin:30}, aromas:{cedarwood:15,lavender:15},
+      note:"The soft, brush-loaded kind rather than a hard puck — see “Shaving Bar” for that. Stearic-heavy and whips to a dense, slick lather. The 60% KOH share keeps it soft enough to load a brush; the clays add the slip a razor needs. Long cure — it improves for months." },
+    { name:"Whipped Cream Soap", cat:"Dual lye", lye:"dual", dualKoh:85, koh:90, sf:8, water:38,
+      oils:{stearic:250,olive:350,coconut:200,shea:100,castor:100},
+      additives:{glycerin:50,sodiumlactate:20}, aromas:{ylang:10,geranium:10},
+      note:"Mostly KOH, so it never sets hard — whip it after the cook and it stays a soft, frosting-like cream. High superfat and glycerin keep it rich. Age it a few weeks before whipping." },
     // ---- Bar soaps (NaOH) ----
     { name:"Classic Gentle Bar", cat:"Bar", lye:"naoh", sf:5, water:38,
       oils:{olive:400,coconut:250,palm:200,shea:100,castor:50}, aromas:{lavender:30},
