@@ -7,7 +7,7 @@ in the kitchen, offline, with no account and nothing leaving the device. Everyth
 below is judged against that.
 
 **Today:** v46 · 42 oils · 33 additives · 22 colorants · 17 aromas ·
-17 example recipes · 522 test assertions, run on every pull request.
+17 example recipes · 535 test assertions, run on every pull request.
 
 ---
 
@@ -66,6 +66,7 @@ below is judged against that.
 - **Soaping temperatures**, with a tip that adapts to your recipe.
 - **Step-by-step checklist**, **batch notes**, and an optional **lot number**.
 - **Cure checks** — zap tests and pH readings filed onto the batch that made the bar.
+- **Can make now** — the library badged against your cupboard, and filterable.
 - **Dual lye** — NaOH and KOH in one batch, with both weights quoted separately.
 - **Chelators** — citric acid raises the lye to cover what it neutralises; sodium
   citrate and sodium gluconate need no adjustment.
@@ -224,11 +225,14 @@ never reached the maths; it's now built from `RECIPE_FIELDS`. The examples modal
 hard-coded category list, so a new category vanished without error; unknown categories
 now render.
 
-**13. "Which recipes can I make today?"** Inventory answers this for the *current*
-recipe only: `showCoverage()` checks `shoppingTotals()` for one recipe against
-`state.stock`. Sweeping the whole library is a small extension over the same helpers,
-surfaced in the library list beside the existing search, sort and favourites. A
-nice-to-have rather than a gap.
+**13. "Which recipes can I make today?"** — ✅ **shipped in v47**
+Inventory answered this for the open recipe only. The per-recipe check moved out of the
+inventory modal into `stockShortfall()`, and the library now badges every recipe **✓ can
+make** or **short N**, with a chip to filter to just the covered ones.
+
+Inventory stays opt-in: with an empty cupboard no badge or chip appears and the library
+looks exactly as before. A recipe none of whose ingredients you track gets **no badge** —
+saying "can make" there would be a guess, not an answer.
 
 **14. Brine for salt bars.** The app already recognises a salt bar (salt at 20%+ of
 oils) and gives it its own cure and cutting advice, but salt bars are commonly made by

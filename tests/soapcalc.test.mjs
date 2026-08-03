@@ -1495,6 +1495,68 @@ Water:Lye Ratio 2.5`, { commit: true });
 }
 
 /* =======================================================================
+   WHICH RECIPES CAN I MAKE TODAY?
+======================================================================= */
+{
+  const p = await newPage();
+  const lib = async (view) => {
+    await open(p, Object.assign({ unit:"g", tab:"base", scaleMode:"batch", currentId:"a", recipes:[
+      recipe({ id:"a", name:"Plenty",      oils:[OIL("olive",300),OIL("coconut",200)] }),
+      recipe({ id:"b", name:"Short one",   oils:[OIL("olive",300),OIL("coconut",900)] }),
+      recipe({ id:"c", name:"Untracked",   oils:[OIL("shea",300)] })
+    ] }, view));
+    await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="library"]').click(); });
+    await p.waitForTimeout(180);
+  };
+  const names = () => p.$$eval("#modalRoot .lib-open b", (es) => es.map((e) => e.childNodes[0].textContent.trim()));
+  const badge = (n) => p.$$eval("#modalRoot .lib-open b", (es, name) => {
+    const el = es.find((e) => e.childNodes[0].textContent.trim() === name);
+    const b = el && el.querySelector(".lib-can, .lib-short");
+    return b ? b.textContent.trim() : null;
+  }, n);
+  const close = () => p.evaluate(() => { const b = document.querySelector("#modalRoot .modal-back"); if (b) b.remove(); document.body.style.overflow = ""; });
+
+  // inventory is opt-in: with an empty cupboard the library is exactly as it was
+  await lib({});
+  eq("No inventory → no badges", (await p.$$("#modalRoot .lib-can, #modalRoot .lib-short")).length, 0);
+  ok("No inventory → no filter chip", await p.$eval("#modalRoot .lib-chip", (e) => e.classList.contains("hide")));
+  eq("…and every recipe still lists", (await names()).length, 3);
+  await close();
+
+  // tracking olive and coconut, enough for one recipe but not the other
+  await lib({ stock:{ olive:1000, coconut:500 } });
+  ok("Tracking → the filter chip appears", !(await p.$eval("#modalRoot .lib-chip", (e) => e.classList.contains("hide"))));
+  has("A covered recipe says so", await badge("Plenty"), "can make");
+  has("A short recipe says how many", await badge("Short one"), "short 1");
+  // claiming "can make" about a recipe we track nothing from would be a guess
+  eq("A recipe with nothing tracked gets no badge", await badge("Untracked"), null);
+
+  await p.click("#modalRoot .lib-chip"); await p.waitForTimeout(150);
+  eq("The filter keeps only what's actually covered", (await names()).join(","), "Plenty");
+  ok("…and shows as active", await p.$eval("#modalRoot .lib-chip", (e) => e.classList.contains("on")));
+  await p.click("#modalRoot .lib-chip"); await p.waitForTimeout(150);
+  eq("Toggling it off restores the list", (await names()).length, 3);
+  await close();
+
+  // short by a hair still counts as short
+  await lib({ stock:{ olive:1000, coconut:199 } });
+  has("Being 1 g short is short", await badge("Plenty"), "short 1");
+  await close();
+
+  // the lye is stocked like anything else, so it can be the thing you're short of
+  await lib({ stock:{ "c:sodium hydroxide (naoh)": 1 } });
+  has("Running out of lye shows up too", await badge("Plenty"), "short 1");
+  await close();
+
+  // the inventory modal's own readout still works after the extraction
+  await open(p, store({ oils:[OIL("olive",300)] }, { stock:{ olive:1000 } }));
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="stock"]').click(); });
+  await p.waitForTimeout(180);
+  has("Inventory still reports coverage", await p.$eval("#modalRoot .subinfo", (e) => e.textContent), "enough of everything");
+  await p.close();
+}
+
+/* =======================================================================
    DUAL LYE (NaOH + KOH in one batch)
 ======================================================================= */
 {
