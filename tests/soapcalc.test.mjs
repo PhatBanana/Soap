@@ -1966,6 +1966,68 @@ Water:Lye Ratio 2.5`, { commit: true });
 }
 
 /* =======================================================================
+   DESKTOP LAYOUT
+   Measured in the browser, not grepped out of app.css — a test that only checks
+   a declaration is present passes just as happily when the declaration does
+   nothing. Both faults below were visible on screen and invisible to the suite.
+======================================================================= */
+{
+  // fault 1: the bar, tabs and mini summary were capped at 680px and centred inside a
+  // 1080px wrap, so the header started 184px right of the cards under it.
+  const edges = (p) => p.evaluate(() => {
+    const box = (s) => { const e = document.querySelector(s); if (!e) return null;
+      const r = e.getBoundingClientRect(); return { l: Math.round(r.left), r: Math.round(r.right) }; };
+    const card = [...document.querySelectorAll("#tab-base>.card")].find((c) => !c.hidden);
+    const cr = card.getBoundingClientRect();
+    // the wrap's *content* box — it carries side padding, which the cards sit inside
+    const w = document.querySelector(".wrap"), wr = w.getBoundingClientRect(), ws = getComputedStyle(w);
+    return { appbar: box(".appbar"), tabs: box(".tabs"), mini: box(".mini"),
+             wrap: { l: Math.round(wr.left + parseFloat(ws.paddingLeft)),
+                     r: Math.round(wr.right - parseFloat(ws.paddingRight)) },
+             card: { l: Math.round(cr.left), r: Math.round(cr.right) },
+             overflow: document.documentElement.scrollWidth > window.innerWidth,
+             cols: getComputedStyle(document.getElementById("tab-base")).columnCount };
+  });
+
+  for (const width of [1024, 1280, 1440, 1920]) {
+    const p = await newPage();
+    await p.setViewportSize({ width, height: 1000 });
+    await open(p, store({ oils: [OIL("olive", 500), OIL("coconut", 300)] }));
+    const e = await edges(p);
+    eq(`Header shares the content's left edge at ${width}px`, e.appbar.l, e.card.l);
+    eq(`Tabs share the content's left edge at ${width}px`, e.tabs.l, e.card.l);
+    eq(`Mini summary shares the content's left edge at ${width}px`, e.mini.l, e.card.l);
+    eq(`Header spans the full wrap at ${width}px`, e.appbar.r, e.wrap.r);
+    ok(`No horizontal overflow at ${width}px`, !e.overflow);
+    eq(`A full recipe gets two columns at ${width}px`, e.cols, "2");
+    await p.close();
+  }
+
+  // fault 2: multicol reserves both columns whatever is in them, so the empty state —
+  // one card, the rest still hidden — sat in a half-width column beside blank space.
+  {
+    const p = await newPage();
+    await p.setViewportSize({ width: 1440, height: 1000 });
+    await open(p, store({ oils: [] }));
+    const e = await edges(p);
+    eq("Empty state falls back to one column", e.cols, "1");
+    eq("The lone card spans the full wrap width", e.card.r - e.card.l, e.wrap.r - e.wrap.l);
+    await p.close();
+  }
+
+  // below the breakpoint nothing about this applies — one column, full-width cards
+  {
+    const p = await newPage();
+    await p.setViewportSize({ width: 420, height: 900 });
+    await open(p, store({ oils: [OIL("olive", 500), OIL("coconut", 300)] }));
+    const e = await edges(p);
+    eq("Phone width stays single-column", e.cols, "auto");
+    ok("No horizontal overflow at 420px", !e.overflow);
+    await p.close();
+  }
+}
+
+/* =======================================================================
    RELEASE HYGIENE (the version/cache coupling that keeps phones off stale copies)
 ======================================================================= */
 {

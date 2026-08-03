@@ -453,8 +453,23 @@ input[type=range]{touch-action:pan-y}
 /* ---------- wide screens: two columns ---------- */
 @media (min-width:900px){
   .wrap{max-width:1080px}
-  .appbar,.tabs,.mini{max-width:680px;margin-left:auto;margin-right:auto}
+  /* The bar, the tabs and the mini summary share the content's measure. They used to be
+     capped at 680px and centred inside a 1080px wrap, which put their left edge 184px
+     right of where the cards start — the header read as belonging to a narrower page
+     than the thing underneath it. */
   #tab-base,#tab-scents,#tab-make{column-count:2;column-gap:20px}
+  /* Drop back to one column when there is only one card to put in it. Multicol reserves
+     both columns regardless, so the empty state — a lone "Oils & Ingredients" card before
+     any oil is added — sat in a half-width left column with the other half blank, which
+     reads as a broken page. Cards are hidden with the `hidden` attribute, so
+     :not([hidden]) is what counts the real ones.
+     Written as :not(:has(…)) rather than :has(…) on purpose: :not() is not forgiving, so
+     a browser without :has() drops this rule entirely and keeps the two columns it has
+     always had. The empty state stays imperfect there instead of the whole layout
+     collapsing to one column everywhere. */
+  #tab-base:not(:has(>.card:not([hidden])~.card:not([hidden]))),
+  #tab-scents:not(:has(>.card:not([hidden])~.card:not([hidden]))),
+  #tab-make:not(:has(>.card:not([hidden])~.card:not([hidden]))){column-count:1}
   #tab-base>.card,#tab-scents>.card,#tab-make>.card{break-inside:avoid;overflow:hidden}
 }
 
