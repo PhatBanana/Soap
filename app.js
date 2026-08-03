@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v44", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v45", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -544,6 +544,20 @@
     (rv.oils||[]).forEach(function(it){ if(it.g>0 && it.key && ov[it.key]>0 && out.indexOf(it.key)<0) out.push(it.key); });
     return out;
   }
+  /* Acids in the recipe neutralise lye, so the batch needs extra on top of what the
+     oils want. Citric acid is the one that matters: 3 carboxyl groups against a molar
+     mass of 192.12, so 0.6246 g NaOH per gram. Keyed additives only — a custom one has
+     no data, and safetyChecks() warns when that looks like it's been missed. */
+  function acidLyeOf(rv){
+    var g=0, names=[];
+    (rv.additives||[]).forEach(function(it){
+      var d=it.key?ADDITIVES[it.key]:null;
+      if(!d || !(d.lyeFactor>0) || !(it.g>0)) return;
+      g+=it.g*d.lyeFactor;
+      if(names.indexOf(d.name)<0) names.push(d.name);
+    });
+    return { g:g, names:names };
+  }
   function computeLye(rv){
     rv=rv||curRV();
     // Hot process, superfat added after the cook: the oils that actually go in the pot
@@ -569,8 +583,13 @@
       if(!d && sapV>0 && it.g>0) customSap=true;
     });
     var sf = afterCook ? 1 : 1-rv.superfat/100, lyeG, kind;
-    if(rv.lyeType==="koh"){ lyeG=naohRaw*KOH_FACTOR*sf/(rv.kohPurity/100); kind="KOH (lye)"; }
-    else { lyeG=naohRaw*sf; kind="NaOH (lye)"; }
+    // Superfat discounts the saponifying lye only. An acid consumes its full
+    // stoichiometric amount whatever the superfat, so its term stays outside the
+    // discount — and sitting before the KOH conversion makes that case fall out too
+    // (0.6246 x KOH_FACTOR = 0.8762, i.e. 3 x 56.11 / 192.12).
+    var acid=acidLyeOf(rv);
+    if(rv.lyeType==="koh"){ lyeG=(naohRaw*sf+acid.g)*KOH_FACTOR/(rv.kohPurity/100); kind="KOH (lye)"; }
+    else { lyeG=naohRaw*sf+acid.g; kind="NaOH (lye)"; }
     var oilG=oilsGof(rv);
     var waterG;
     if(rv.waterMode==="conc"){
@@ -583,6 +602,7 @@
     }
     return { lyeG:lyeG, waterG:waterG, oilG:oilG, kind:kind, hasCustom:hasCustom,
       customSap:customSap, overrides:overriddenKeys(rv),
+      acidG:acid.g, acidNames:acid.names,
              reserveG:reserveG, reserveName:reserveName };
   }
   // single source of truth for the fatty-acid quality formulas: derived from QUALITIES,
@@ -660,6 +680,7 @@
     if(isPct) info+=" · shown in "+UNITS[wunit].name;
     if(L.hasCustom) info+=" · custom oils excluded";
     if(L.customSap) info+=" · custom SAP in use";
+    if(L.acidG>0) info+=" · +"+fmt(fromG(L.acidG,wunit),2)+" "+UNITS[wunit].label+" for "+L.acidNames.join(" & ");
     if(L.overrides.length) info+=" · "+L.overrides.length+" supplier SAP value"+(L.overrides.length===1?"":"s");
     var liquidAdd=state.additives.some(function(it){ return it.key&&ADDITIVES[it.key].kind==="liquid"&&it.g>0; });
     if(liquidAdd) info+=" · liquid additives replace part of the water";
@@ -807,6 +828,20 @@
       add("fail","Can't verify the lye","No oils with SAP data, so the app can't confirm the lye is balanced. Add oils from the list (custom oils have no data).");
     } else {
       if(L.hasCustom) add("warn","Custom oils aren't in the lye math","The lye is sized only for oils that have data, so your true superfat is higher and unverified. Add the SAP value from the bottle in SAP values, or look it up, before you make this.");
+      if(L.acidG>0){
+        var acidPct=tot>0 ? state.additives.reduce(function(a,it){
+          var d=it.key?ADDITIVES[it.key]:null; return a+((d&&d.lyeFactor>0)?it.g:0); },0)/tot*100 : 0;
+        add("ok","Lye raised for "+L.acidNames.join(" & "),
+          "An acid neutralises lye, so the batch needs "+fmt(L.acidG,2)+" g extra "+
+          (state.lyeType==="koh"?"KOH":"NaOH")+" on top of what the oils want. Superfat doesn't discount that part — it's the amount the acid consumes. Dissolve the acid in the water before the lye goes in.");
+        if(acidPct>3) add("warn","That's a lot of acid",
+          "At "+fmt(acidPct,1)+"% of oils you're neutralising a large share of the lye. 0.5–2% is the usual range for chelating; more just means more lye for no extra benefit.");
+      }
+      // a custom additive carries no data, so it silently gets no adjustment
+      var missedAcid=state.additives.filter(function(it){
+        return !it.key && it.g>0 && /citric|acetic|vinegar|lactic acid|glycolic/i.test(it.name||""); });
+      if(missedAcid.length) add("fail","Acid isn't in the lye math",
+        "“"+missedAcid[0].name+"” was entered as a custom additive, so the app can't know it neutralises lye — the batch will be short. Remove it and pick the matching entry from the ingredient list instead.");
       if(L.customSap) add("ok","Custom oil using the SAP you entered","A custom oil is in the lye maths on your own SAP figure. The number is only as good as the source you took it from — check it against the supplier's spec sheet.");
       if(L.overrides.length) add("warn","Supplier SAP values in use",
         "The lye for "+L.overrides.map(function(k){ return OILS[k].name; }).join(", ")+

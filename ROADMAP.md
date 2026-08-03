@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v44 · 42 oils · 30 additives · 22 colorants · 17 aromas ·
-15 example recipes · 468 test assertions, run on every pull request.
+**Today:** v45 · 42 oils · 33 additives · 22 colorants · 17 aromas ·
+15 example recipes · 491 test assertions, run on every pull request.
 
 ---
 
@@ -66,6 +66,8 @@ below is judged against that.
 - **Soaping temperatures**, with a tip that adapts to your recipe.
 - **Step-by-step checklist**, **batch notes**, and an optional **lot number**.
 - **Cure checks** — zap tests and pH readings filed onto the batch that made the bar.
+- **Chelators** — citric acid raises the lye to cover what it neutralises; sodium
+  citrate and sodium gluconate need no adjustment.
 - **SAP values** — override any oil with your supplier's figure; custom oils can
   carry their own and count toward the lye.
 - **Troubleshooting** — a searchable "why did my soap do X?" guide.
@@ -182,24 +184,25 @@ rather than greyed, because colour carries no meaning on a mono printer.
 
 ### Tier 4 — chemistry the app can't currently express
 
-**11. Additives that consume lye** — citric acid, sodium citrate, vinegar.
-`computeLye()` iterates the oil list and nothing else, so **no additive has ever touched
-the lye**. That's correct for almost all of them — sodium lactate really is lye-neutral
-— but not for acids. Citric acid is the standard defence against DOS and the usual fix
-for poor lather in hard water, and the troubleshooting guide already steers you toward
-preventing DOS; but citric acid **neutralises NaOH**, so today you can add it and the
-app will quietly keep the lye unchanged and hand you a lye-light, oily bar with no
-warning anywhere.
+**11. Additives that consume lye** — ✅ **shipped in v45**
+`computeLye()` iterated the oil list and nothing else, so no additive ever touched the
+lye. Correct for almost all of them — sodium lactate really is lye-neutral — but not for
+acids, and citric acid is the standard defence against DOS. You could add it and the app
+would quietly keep the lye unchanged, leaving the batch short.
 
-The numbers are settled, not estimates: citric acid has three carboxyl groups against a
-molar mass of 192.12, so it consumes **0.6246 g NaOH per gram**; acetic acid (60.05)
-consumes **0.6661**, which makes 5% vinegar **0.0333 g NaOH per gram of vinegar**.
+**Citric acid** now carries a `lyeFactor` of **0.6246** (3 carboxyl groups, MW 192.12)
+and the lye is sized up to match, with **sodium citrate** and **sodium gluconate** added
+as the pre-neutralised alternatives that need no adjustment. `acidLyeOf()` is the single
+place that decides, following the `sapOf()` precedent.
 
-Shape: a `lyeFactor` on the relevant entries in `g.ADDITIVES`, one extra pass in
-`computeLye()` adding `Σ(additive g × lyeFactor)` to the raw NaOH **before** superfat is
-applied, and a Safety Check entry naming the adjustment so it's never silent. Follow the
-precedent set by `sapOf()` — one function decides, rather than a second rule scattered
-through the maths.
+The detail worth recording: the acid's lye sits **outside** the superfat discount and
+**before** the KOH conversion. An earlier draft of this entry said "before superfat is
+applied", which is wrong — superfat leaves oil unsaponified and has nothing to do with
+neutralising an acid, so discounting it would leave the batch short. Placing it before
+the KOH conversion also makes that case fall out for free: 0.6246 × 1.40274 = 0.8762,
+exactly 3 × 56.11 / 192.12. The adjustment is disclosed on the Lye card and in the
+Safety Check, an over-dose is flagged, and an acid typed in as a *custom* additive —
+which gets no adjustment — raises a stop-level warning.
 
 **12. Dual lye — NaOH and KOH in one batch.** `lyeType` coerces to exactly `"naoh"` or
 `"koh"`, so a blend is impossible today. It's how cream soap is made, and how you get a

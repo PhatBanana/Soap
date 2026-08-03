@@ -1495,6 +1495,85 @@ Water:Lye Ratio 2.5`, { commit: true });
 }
 
 /* =======================================================================
+   ACIDS THAT CONSUME LYE (citric acid and the lye-neutral chelators)
+======================================================================= */
+{
+  const p = await newPage();
+  const KOHF = 1.40274, BASE = 134, CITRIC = 0.6246;
+  const acid = (key, g) => [{ name:key, key, g }];
+
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0 }));
+  near("Baseline lye, no additives", await num(p, "#lyeVal"), BASE, 0.05);
+
+  // citric acid neutralises lye, so the batch needs more of it
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, additives:acid("citric",10) }));
+  near("Citric acid raises the lye", await num(p, "#lyeVal"), BASE + 10*CITRIC, 0.05);
+
+  // THE POINT OF THIS FEATURE: superfat is a discount on the *saponifying* lye.
+  // An acid consumes its full stoichiometric amount whatever the superfat, so its
+  // term must sit outside the discount. Pinned exactly so it can't drift back in.
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:5, additives:acid("citric",10) }));
+  near("Superfat does not discount the acid's lye",
+    await num(p, "#lyeVal"), BASE*0.95 + 10*CITRIC, 0.05);          // 133.55
+  ok("…and it is NOT the discounted-together figure",
+    Math.abs(await num(p, "#lyeVal") - (BASE + 10*CITRIC)*0.95) > 0.2);  // not 133.23
+
+  // sitting before the KOH conversion makes that case fall out for free:
+  // 0.6246 x 1.40274 = 0.8762 = 3 x 56.11 / 192.12
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, lyeType:"koh", kohPurity:90,
+    additives:acid("citric",10) }));
+  near("KOH recipes get the acid adjustment too",
+    await num(p, "#lyeVal"), (BASE + 10*CITRIC)*KOHF/0.9, 0.05);
+
+  // the pre-neutralised chelators are exactly that
+  for (const k of ["sodiumcitrate","sodiumgluconate"]) {
+    await open(p, store({ oils:[OIL("olive",1000)], superfat:0, additives:acid(k,30) }));
+    near(`${k} leaves the lye alone`, await num(p, "#lyeVal"), BASE, 0.05);
+  }
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, additives:acid("sodiumlactate",30) }));
+  near("Sodium lactate stays lye-neutral", await num(p, "#lyeVal"), BASE, 0.05);
+
+  // an adjustment you can't see is worse than none
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, additives:acid("citric",10) }));
+  has("Lye card names the adjustment", await txt(p, "#lyeInfo"), "for Citric acid");
+  has("…with the amount", await txt(p, "#lyeInfo"), "6.25");
+  let titles = await p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
+  ok("Safety Check reports the raise", titles.includes("Lye raised for Citric acid"));
+  ok("…and doesn't cry wolf at a normal dose", !titles.includes("That's a lot of acid"));
+
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0, additives:acid("citric",50) }));
+  titles = await p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
+  ok("5% of oils is flagged as too much acid", titles.includes("That's a lot of acid"));
+
+  // the real failure mode: typed as a custom additive, so the app has no data for it
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0,
+    additives:[{ name:"Citric acid", key:null, g:10 }] }));
+  near("A custom-typed acid can't adjust the lye", await num(p, "#lyeVal"), BASE, 0.05);
+  titles = await p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
+  ok("…so it's called out as a failure", titles.includes("Acid isn't in the lye math"));
+  eq("…at stop-level severity",
+    await p.$$eval("#safetyList .safety-item", (es) => {
+      const el = es.find((e) => e.querySelector(".si-title").textContent === "Acid isn't in the lye math");
+      return el ? el.className.replace("safety-item ", "") : null;
+    }), "fail");
+
+  // plumbing: they're ordinary additives everywhere else
+  await open(p, store({ oils:[OIL("olive",500)] }));
+  const opts = await p.$$eval("#baseSelect optgroup", (gs) => gs.map((g) => ({
+    label: g.label, values: Array.from(g.children).map((o) => o.value) })));
+  ["citric","sodiumcitrate","sodiumgluconate"].forEach((k) => {
+    ok(`${k} is in the additive group`, opts[1].values.includes("add:" + k));
+    ok(`${k} is not filed as a colorant`, !opts[2].values.includes("add:" + k));
+  });
+  await open(p, store({ oils:[OIL("olive",1000)], additives:acid("citric",10) }));
+  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="label"]').click(); });
+  await p.waitForTimeout(150);
+  has("Citric acid appears on the INCI label",
+    await p.evaluate(() => document.querySelector(".inci-box").textContent), "Citric Acid");
+  await p.close();
+}
+
+/* =======================================================================
    SUPPLIER SAP VALUES (overrides + custom oils that carry their own)
 ======================================================================= */
 {
