@@ -378,6 +378,13 @@ batch. Lye is caustic: wear gloves and eye protection.**
 Hosted free on GitHub Pages from `main`. There is **no build step** — the files
 above are what ships.
 
+**This repo is public on purpose.** GitHub Pages only publishes from a public repo on
+the free plan, so public is the price of free hosting. It costs nothing in privacy:
+there is no server and no account, and every recipe, batch log, price and inventory
+figure lives in your own browser's localStorage — none of it is in this repo. What's
+public is the code, the README and the screenshots. The only rule that follows is the
+obvious one: don't commit anything you wouldn't publish.
+
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
