@@ -6,11 +6,13 @@
 # aren't billed as storage. If a failure ever needs more than the log to
 # diagnose, reproduce it locally with `npm test` rather than adding uploads here.
 #
-# Runs inside the official Playwright image so the browser is already there.
-# Downloading it per run meant a CDN hiccup could turn the build red for reasons
-# that had nothing to do with the code, and a red tick you learn to ignore is
-# worse than no tick at all. The image tag must match the playwright version in
-# package-lock.json — the test suite asserts that, so it can't quietly drift.
+# Runs inside the official Playwright image, which ships the browser, so the job
+# never fetches one from cdn.playwright.dev — that CDN geo-blocked a run once and
+# turned the build red for reasons unrelated to the code. This trades one download
+# for another rather than removing it: the image pull measures ~8s slower per run
+# than the browser download did, on a registry co-located with the runners. It's a
+# reliability trade, not a speed one. The image tag must match the playwright
+# version in package-lock.json — the test suite asserts that, so it can't drift.
 name: Tests
 
 on:

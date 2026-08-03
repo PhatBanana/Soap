@@ -422,12 +422,15 @@ deliberately uploads **no artifacts** — no traces, no screenshots — so it co
 no repository storage; the pass/fail and the log are enough, and anything needing
 more is reproduced locally with `npm test`.
 
-It runs inside the **official Playwright container image**, so the browser is
-already present and nothing is downloaded per run. Fetching it each time meant a
-CDN hiccup could turn the build red for reasons unrelated to the code, and a red
-tick you learn to ignore is worse than no tick at all. The image tag and the
-`playwright` version in `package-lock.json` must match — the suite asserts it, so
-bumping one without the other fails locally rather than mysteriously in CI.
+It runs inside the **official Playwright container image**, which ships the browser
+so the job never fetches one from `cdn.playwright.dev`. That CDN geo-blocked a run
+once, turning the build red for reasons unrelated to the code — and a red tick you
+learn to ignore is worse than no tick at all. This doesn't remove a download so
+much as move it to Microsoft's registry, which sits alongside the Azure-hosted
+runners; measured, the image pull costs about 8s more per run than the browser
+download did. Reliability, not speed. The image tag and the `playwright` version in
+`package-lock.json` must match — the suite asserts it, so bumping one without the
+other fails locally rather than mysteriously in CI.
 
 ## What's next
 See **[ROADMAP.md](ROADMAP.md)** for the full picture — everything the app does today,
