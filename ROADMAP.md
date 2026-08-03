@@ -141,7 +141,7 @@ They list oldest-first with the week worked out from the make date, so a bar rea
 *week 1: ⚡ zaps, pH 11* → *week 4: ✓ no zap, pH 9*. Stored on the batch record rather
 than in a parallel list, so it backs up, restores and sanitizes with everything else.
 
-### Tier 3 — platform
+### Tier 3 — platform  ·  ✅ shipped (v41–v44)
 
 **7. CI running the test suite on pull requests** — ✅ **shipped**
 Every pull request now runs the full suite. The storage worry that kept this off the
@@ -179,6 +179,45 @@ A 🖨 Print button and a real paper layout: a tick box against every line, the 
 recipes and the date across the top, the picker and buttons dropped, black on white,
 and sections that don't break across pages. Inventory-covered items are struck through
 rather than greyed, because colour carries no meaning on a mono printer.
+
+### Tier 4 — chemistry the app can't currently express
+
+**11. Additives that consume lye** — citric acid, sodium citrate, vinegar.
+`computeLye()` iterates the oil list and nothing else, so **no additive has ever touched
+the lye**. That's correct for almost all of them — sodium lactate really is lye-neutral
+— but not for acids. Citric acid is the standard defence against DOS and the usual fix
+for poor lather in hard water, and the troubleshooting guide already steers you toward
+preventing DOS; but citric acid **neutralises NaOH**, so today you can add it and the
+app will quietly keep the lye unchanged and hand you a lye-light, oily bar with no
+warning anywhere.
+
+The numbers are settled, not estimates: citric acid has three carboxyl groups against a
+molar mass of 192.12, so it consumes **0.6246 g NaOH per gram**; acetic acid (60.05)
+consumes **0.6661**, which makes 5% vinegar **0.0333 g NaOH per gram of vinegar**.
+
+Shape: a `lyeFactor` on the relevant entries in `g.ADDITIVES`, one extra pass in
+`computeLye()` adding `Σ(additive g × lyeFactor)` to the raw NaOH **before** superfat is
+applied, and a Safety Check entry naming the adjustment so it's never silent. Follow the
+precedent set by `sapOf()` — one function decides, rather than a second rule scattered
+through the maths.
+
+**12. Dual lye — NaOH and KOH in one batch.** `lyeType` coerces to exactly `"naoh"` or
+`"koh"`, so a blend is impossible today. It's how cream soap is made, and how you get a
+softer, more soluble bar. Needs a ratio field and a branch in `computeLye()` that splits
+the raw NaOH across both, reusing `KOH_FACTOR` and the existing `kohPurity`. Honestly
+the most niche of the four — worth building when someone actually wants cream soap.
+
+**13. "Which recipes can I make today?"** Inventory answers this for the *current*
+recipe only: `showCoverage()` checks `shoppingTotals()` for one recipe against
+`state.stock`. Sweeping the whole library is a small extension over the same helpers,
+surfaced in the library list beside the existing search, sort and favourites. A
+nice-to-have rather than a gap.
+
+**14. Brine for salt bars.** The app already recognises a salt bar (salt at 20%+ of
+oils) and gives it its own cure and cutting advice, but salt bars are commonly made by
+dissolving the salt into the water as a brine rather than stirring it in dry at trace,
+and there's no way to say so. Small and self-contained; touches `waterMode` and the
+existing `salt` additive.
 
 ---
 
