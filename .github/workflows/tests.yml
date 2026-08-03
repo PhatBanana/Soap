@@ -5,6 +5,14 @@
 # nothing costs none of it — the pass/fail and the log are all we need, and logs
 # aren't billed as storage. If a failure ever needs more than the log to
 # diagnose, reproduce it locally with `npm test` rather than adding uploads here.
+#
+# Runs inside the official Playwright image, which ships the browser, so the job
+# never fetches one from cdn.playwright.dev — that CDN geo-blocked a run once and
+# turned the build red for reasons unrelated to the code. This trades one download
+# for another rather than removing it: the image pull measures ~8s slower per run
+# than the browser download did, on a registry co-located with the runners. It's a
+# reliability trade, not a speed one. The image tag must match the playwright
+# version in package-lock.json — the test suite asserts that, so it can't drift.
 name: Tests
 
 on:
@@ -22,6 +30,8 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -34,10 +44,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The suite launches Chromium itself; --with-deps pulls the system libs
-      # the bare download needs on ubuntu-latest.
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      # No browser install step: the image ships Chromium and its system libs,
+      # and the suite falls through to Playwright's default resolution to find it.
 
       # Starts its own static server, drives the real app, and exits non-zero
       # on any failed assertion.

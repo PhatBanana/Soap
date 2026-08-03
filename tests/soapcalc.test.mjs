@@ -1838,6 +1838,18 @@ Water:Lye Ratio 2.5`, { commit: true });
   ["index.html", "app.css", "app.js", "data.js", "manifest.webmanifest"].forEach((f) =>
     ok(`Shell covers ${f}`, files.includes(f)));
 
+  // CI runs in a pinned Playwright image, so its tag and the lockfile's playwright
+  // version have to move together — mismatch means "Executable doesn't exist" in CI
+  // and nowhere else. Same class of hand-kept pairing as APP_VERSION / sw.js.
+  const wf   = fs.readFileSync(path.join(ROOT, ".github/workflows/tests.yml"), "utf8");
+  const lock = JSON.parse(fs.readFileSync(path.join(ROOT, "package-lock.json"), "utf8"));
+  const imgV = (wf.match(/image:\s*mcr\.microsoft\.com\/playwright:v([\d.]+)-/) || [])[1];
+  const lockV = ((lock.packages || {})["node_modules/playwright"] || {}).version;
+  ok("CI pins a Playwright image", !!imgV, String(imgV));
+  ok("Lockfile pins playwright", !!lockV, String(lockV));
+  eq("CI image matches the lockfile's playwright (tests.yml vs package-lock.json)", imgV, lockV);
+  ok("CI does not download a browser per run", !/playwright install/.test(wf));
+
   // and the footer must show the version, since that's how a stale copy gets spotted
   const p = await newPage();
   await open(p, store({ oils:[OIL("olive",500)] }));
