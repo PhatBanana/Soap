@@ -6,8 +6,11 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v46 · 42 oils · 33 additives · 22 colorants · 17 aromas ·
-17 example recipes · 581 test assertions, run on every pull request.
+**Today:** v50 · 42 oils · 33 additives · 22 colorants · 17 aromas ·
+17 example recipes · 680 test assertions, run on every pull request.
+
+<sub>Those counts are checked against `data.js` by the test suite, so they can't
+quietly drift — they had, which is why the check exists.</sub>
 
 ---
 
@@ -16,7 +19,7 @@ below is judged against that.
 ### Recipe & units
 - Enter oils and additives once; switch the whole recipe between **g / oz / lb / kg / %**
   from the app-bar unit picker.
-- **42 oils, butters & fats** and **30 additives** (including 12 natural and mineral
+- **42 oils, butters & fats** and **33 additives** (including 12 natural and mineral
   colorants), focused on what you can actually buy, each with a plain-language
   **?** description (what it brings, its standout trait, a
   typical usage %). Custom ingredients allowed, and flagged as outside the lye maths.
@@ -94,12 +97,21 @@ below is judged against that.
 - **Installable PWA**, fully offline, auto-updating, with a version footer.
 - **Backup / restore** everything as JSON.
 - Collapsible cards, sticky lye/batch summary, theme toggle, **multi-level undo**.
+- **Searchable menu** — the ☰ sheet is 26 actions deep, so it takes a query, matched
+  against synonyms as well as labels (`csv` finds Import, `print` finds all four
+  printable outputs).
+- **The screen stays on while you're making soap** — held from the first ticked
+  checklist step until you leave the Make tab, and always visible and switchable.
 - A **behaviour test suite** covering the chemistry, safety rules, scaling and storage,
   run automatically on every pull request.
 
 ---
 
-## Part 2 — What should be added
+## Part 2 — The build log
+
+Everything below shipped. Kept rather than folded away, because the interesting part is
+usually what each one turned out to require — the chemistry that was nearly wrong, the
+refactor that unified three cases, the bugs that surfaced on the way.
 
 ### Tier 1 — the real gaps  ·  ✅ all shipped (v33–v35)
 
@@ -185,7 +197,7 @@ recipes and the date across the top, the picker and buttons dropped, black on wh
 and sections that don't break across pages. Inventory-covered items are struck through
 rather than greyed, because colour carries no meaning on a mono printer.
 
-### Tier 4 — chemistry the app can't currently express  ·  ✅ all shipped (v45–v48)
+### Tier 4 — chemistry the app couldn't express  ·  ✅ all shipped (v45–v48)
 
 **11. Additives that consume lye** — ✅ **shipped in v45**
 `computeLye()` iterated the oil list and nothing else, so no additive ever touched the
@@ -250,6 +262,44 @@ their lye step to put the salt in first.
 
 No chemistry moved: salt neither saponifies nor consumes lye, and an assertion pins that
 the lye and water are identical in both modes.
+
+**15. A UX pass** — ✅ **shipped in v50**
+With the chemistry finished, the remaining friction was in the shell around it.
+
+The ☰ sheet had quietly become the app's junk drawer: **26 actions in 6 groups**, with
+*View* alone holding ten unrelated things. It now takes a query — matched against each
+button's `data-kw` as well as its label, because the word you'd type usually isn't the
+word on the button (`csv` for Import, `inci` for the label, `print` for all four
+printable outputs). The pattern wasn't new; the same `.ts-filter` search already sat in
+three modals and had simply never been pointed at the longest list in the app. An
+assertion now requires **every button to be findable by typing its own label** — the
+hand-kept-list guard, applied before that class of bug could happen again rather than
+after.
+
+And the screen no longer sleeps mid-batch. `navigator.wakeLock` is held from the first
+ticked checklist step until you leave the Make tab — not merely while the tab is open,
+since you visit it to read the temperature guidance without soaping. It's stated on
+screen with a switch beside it rather than run invisibly: silent battery drain that the
+user can't see or stop would be the wrong trade in an app whose target user is someone's
+mum.
+
+The version and ingredient counts quoted in this file and the README are now **checked
+against `data.js` on every run**. They had drifted — this document claimed v46, "581
+assertions" and "30 additives" against a v49 app with 33, and the README was further out
+still at "~40 oils". Hand-typed numbers that nothing verifies is the exact failure mode
+this repo keeps rediscovering.
+
+---
+
+## Part 3 — What's next
+
+Short and honest: the fourteen numbered items are done, so this is what's actually left.
+
+- **More oils and fragrance oils** (the open half of item 9). Supplier SAP overrides
+  removed the hard ceiling — any oil, any supplier, with their number — so this is now
+  about convenience rather than capability, and it's the only thread never closed.
+- **Nothing else is queued.** New entries should earn their place against the scope at
+  the top of this file, not be added because the list looks short.
 
 ---
 

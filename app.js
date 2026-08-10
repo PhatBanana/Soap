@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v49", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v50", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -109,7 +109,10 @@
     // ingredient keys you've added lately, newest first — drives the quick-add chips
     {k:"recent",         coerce:function(v){return Array.isArray(v)?v.filter(function(x){return typeof x==="string";}).slice(0,8):[];}},
     {k:"theme",          coerce:function(v){return (v==="light"||v==="dark")?v:"auto";}},
-    {k:"librarySort",    coerce:function(v){return ["name","recent","added"].indexOf(v)>=0?v:"name";}}
+    {k:"librarySort",    coerce:function(v){return ["name","recent","added"].indexOf(v)>=0?v:"name";}},
+    // keep the screen on while you're actually making soap. Lives here rather than on the
+    // recipe because it describes the device you're standing at, not what you're making.
+    {k:"keepAwake",      coerce:function(v){return v!==false;}}
   ];
 
   var library=[];      // [{ id, name } + the RECIPE_FIELDS above]
@@ -290,6 +293,7 @@
     else if(state.tab==="scents") renderScents();
     else renderMake();
     updateMiniSummary();   // the scents/make renderers don't run refreshDerived
+    syncWakeLock();        // leaving the Make tab has to drop the lock
   }
 
   function renderBase(){
@@ -1344,7 +1348,9 @@
       cb.addEventListener("change",function(){
         if(cb.checked){ state.checklist[id]=true; lab.classList.add("done"); }
         else { delete state.checklist[id]; lab.classList.remove("done"); }
-        save(); updateChecklistProgress();
+        // no re-render on this path, so the lock has to be nudged here too — ticking the
+        // first step is exactly when it should come on
+        save(); updateChecklistProgress(); syncWakeLock();
       });
       lab.appendChild(cb); lab.appendChild(el("span","txt",step)); box.appendChild(lab);
     });
@@ -1488,6 +1494,49 @@
   function updateChecklistProgress(){
     var steps=checkSteps(), done=steps.filter(function(_,i){ return state.checklist["s"+i]; }).length;
     $("checkProgress").textContent = done+" of "+steps.length+" steps done";
+  }
+
+  /* ---------- keep the screen on during a make ----------
+     The whole premise of this app is a phone propped on the kitchen counter. Step 4 of the
+     checklist, gloves on, lye in the jug, wet hands — and the screen locks. */
+  var wakeSentinel=null, wakeReq=false;
+  // A make, not merely the tab being open: you visit Make to read the temperature guidance
+  // without soaping. Ticking the first step is the moment a batch actually starts.
+  function makeInProgress(){
+    return state.tab==="make" && Object.keys(state.checklist).length>0;
+  }
+  function wantWake(){ return !!(navigator.wakeLock && state.keepAwake && makeInProgress()); }
+  function syncWakeLock(){
+    var want=wantWake();
+    if(want && !wakeReq){
+      wakeReq=true;
+      // Rejects legitimately on low battery — that's "no thanks", not an error to report.
+      navigator.wakeLock.request("screen").then(function(s){
+        if(!wantWake()){ wakeReq=false; s.release(); return; }   // state moved on while we waited
+        wakeSentinel=s;
+        s.addEventListener("release",function(){ wakeSentinel=null; wakeReq=false; });
+      }).catch(function(){ wakeReq=false; });
+    } else if(!want && wakeSentinel){
+      var s=wakeSentinel; wakeSentinel=null; wakeReq=false;
+      try{ s.release(); }catch(e){}
+    }
+    renderWakeNote();
+  }
+  // The browser drops the lock whenever the page hides, so without this it silently stops
+  // working the first time you glance away.
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState==="visible"){ wakeReq=!!wakeSentinel; syncWakeLock(); }
+  });
+  function renderWakeNote(){
+    var box=$("wakeNote"); if(!box) return;
+    var show = !!navigator.wakeLock && makeInProgress();
+    box.classList.toggle("hide",!show); if(!show) return;
+    box.innerHTML = state.keepAwake
+      ? "🔆 Screen stays on while you work · <button type=\"button\" class=\"link\" id=\"wakeOff\">turn off</button>"
+      : "💤 Screen may sleep while you work · <button type=\"button\" class=\"link\" id=\"wakeOff\">keep it on</button>";
+    $("wakeOff").addEventListener("click",function(){
+      state.keepAwake=!state.keepAwake; save(); syncWakeLock();
+    });
   }
   function suggestedCure(){
     var B=blendFA(); if(B.tot<=0) return null;
@@ -2153,11 +2202,44 @@
   // an overlay with display:none !important).
   function forceVisible(elm,disp){ if(!elm) return; elm.style.setProperty("display",disp,"important"); elm.style.setProperty("visibility","visible","important"); }
   var sheetPrevFocus=null;
+
+  /* The menu is the longest list in the app — 26 actions and still growing — so it gets
+     the same search box the troubleshooting and colorant guides already use. Matching
+     includes each button's data-kw, because the word you'd type often isn't the word on
+     the button: "csv" for Import, "print" for the wrapper, "inci" for the label. */
+  function sheetBtns(){ return Array.prototype.slice.call($("sheet").querySelectorAll(".sheet-btn")); }
+  function sheetHay(b){ return (b.textContent+" "+(b.dataset.kw||"")).toLowerCase(); }
+  function sheetMatches(){
+    // "hide" is the install button's own not-available state — never let search reveal it
+    return sheetBtns().filter(function(b){ return !b.hidden && !b.classList.contains("hide"); });
+  }
+  function filterSheet(q){
+    q=(q||"").toLowerCase().trim();
+    sheetBtns().forEach(function(b){ b.hidden = !!q && sheetHay(b).indexOf(q)<0; });
+    // a group whose buttons all went away must take its heading with it, or the sheet
+    // fills up with labels standing over nothing
+    Array.prototype.forEach.call($("sheet").querySelectorAll(".sheet-group"),function(g){
+      g.hidden = !g.querySelector(".sheet-btn:not([hidden]):not(.hide)");
+    });
+    $("sheetEmpty").classList.toggle("hide", sheetMatches().length>0);
+  }
+  $("sheetFilter").addEventListener("input",function(){ filterSheet(this.value); });
+  $("sheetFilter").addEventListener("keydown",function(e){
+    if(e.key!=="Enter") return;
+    var hits=sheetMatches();
+    if(hits.length===1){ e.preventDefault(); hits[0].click(); }
+  });
+
   function openSheet(){
     var b=$("sheetBack"); b.classList.remove("hide");
     forceVisible(b,"flex"); forceVisible($("sheet"),"block");
+    // Reset the search every time. A sheet that reopens still filtered by last time's
+    // query looks exactly like an app that has lost half its menu.
+    $("sheetFilter").value=""; filterSheet("");
     document.body.style.overflow="hidden";
     sheetPrevFocus=document.activeElement;
+    // Focus the first button, not the search field: autofocusing a search box on a phone
+    // throws the keyboard over the menu you opened it to read.
     setTimeout(function(){ var f=$("sheet").querySelector("button"); if(f) f.focus(); },0);
   }
   function closeSheet(){ var b=$("sheetBack"); b.classList.add("hide"); b.style.setProperty("display","none","important"); document.body.style.overflow="";

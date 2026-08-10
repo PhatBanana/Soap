@@ -319,6 +319,7 @@
       <h2>Step-by-step <span class="link" id="resetChecklist">reset</span></h2>
       <div id="checklist"></div>
       <div class="subinfo" id="checkProgress"></div>
+      <div class="subinfo wake-note hide" id="wakeNote"></div>
       <div class="safety">⚠️ Always add lye TO the water (never water to lye), in a ventilated space, with gloves &amp; eye protection.</div>
     </div>
     <div class="card" id="notesLogCard">
@@ -346,51 +347,53 @@
   <div class="sheet" id="sheet" role="menu" aria-label="Actions">
     <div class="sheet-handle" aria-hidden="true"></div>
     <div class="sheet-title" id="sheetTitle">Soap Calc</div>
-    <div class="sheet-grid">
+    <input type="search" id="sheetFilter" class="ts-filter" placeholder="Search actions…" aria-label="Search actions" autocomplete="off">
+    <div class="sheet-empty hide" id="sheetEmpty">No actions match.</div>
+    <div class="sheet-grid" id="sheetGrid">
       <div class="sheet-group">
         <div class="sheet-h">Recipe</div>
-        <button type="button" class="sheet-btn" data-a="library"><span class="si">📚</span>All recipes</button>
+        <button type="button" class="sheet-btn" data-a="library" data-kw="library saved list"><span class="si">📚</span>All recipes</button>
         <button type="button" class="sheet-btn" data-a="new"><span class="si">＋</span>New recipe</button>
-        <button type="button" class="sheet-btn" data-a="dup"><span class="si">⧉</span>Duplicate</button>
-        <button type="button" class="sheet-btn" data-a="rename"><span class="si">✎</span>Rename</button>
+        <button type="button" class="sheet-btn" data-a="dup" data-kw="copy clone"><span class="si">⧉</span>Duplicate</button>
+        <button type="button" class="sheet-btn" data-a="rename" data-kw="name title"><span class="si">✎</span>Rename</button>
       </div>
       <div class="sheet-group">
         <div class="sheet-h">View</div>
-        <button type="button" class="sheet-btn" data-a="compare"><span class="si">⇄</span>Compare</button>
-        <button type="button" class="sheet-btn" data-a="costs"><span class="si">💲</span>Costs</button>
-        <button type="button" class="sheet-btn" data-a="stock"><span class="si">📦</span>Inventory</button>
-        <button type="button" class="sheet-btn" data-a="sap"><span class="si">🧪</span>SAP values</button>
-        <button type="button" class="sheet-btn" data-a="shopping"><span class="si">🛒</span>Shopping list</button>
-        <button type="button" class="sheet-btn" data-a="theme"><span class="si" id="themeIcon">🌗</span><span id="themeLabel">Theme: auto</span></button>
-        <button type="button" class="sheet-btn" data-a="card"><span class="si">📋</span>Recipe card</button>
-        <button type="button" class="sheet-btn" data-a="label"><span class="si">🏷️</span>Ingredient label</button>
-        <button type="button" class="sheet-btn" data-a="wrapper"><span class="si">🎁</span>Bar wrapper</button>
-        <button type="button" class="sheet-btn" data-a="share"><span class="si">🔗</span>Share by link</button>
+        <button type="button" class="sheet-btn" data-a="compare" data-kw="side by side difference"><span class="si">⇄</span>Compare</button>
+        <button type="button" class="sheet-btn" data-a="costs" data-kw="price money per bar"><span class="si">💲</span>Costs</button>
+        <button type="button" class="sheet-btn" data-a="stock" data-kw="cupboard have supplies"><span class="si">📦</span>Inventory</button>
+        <button type="button" class="sheet-btn" data-a="sap" data-kw="saponification supplier override"><span class="si">🧪</span>SAP values</button>
+        <button type="button" class="sheet-btn" data-a="shopping" data-kw="buy need print"><span class="si">🛒</span>Shopping list</button>
+        <button type="button" class="sheet-btn" data-a="theme" data-kw="dark light mode"><span class="si" id="themeIcon">🌗</span><span id="themeLabel">Theme: auto</span></button>
+        <button type="button" class="sheet-btn" data-a="card" data-kw="print summary"><span class="si">📋</span>Recipe card</button>
+        <button type="button" class="sheet-btn" data-a="label" data-kw="inci print ingredients"><span class="si">🏷️</span>Ingredient label</button>
+        <button type="button" class="sheet-btn" data-a="wrapper" data-kw="print gift packaging"><span class="si">🎁</span>Bar wrapper</button>
+        <button type="button" class="sheet-btn" data-a="share" data-kw="url send copy"><span class="si">🔗</span>Share by link</button>
       </div>
       <div class="sheet-group">
         <div class="sheet-h">Guides</div>
-        <button type="button" class="sheet-btn" data-a="trouble"><span class="si">🔧</span>Troubleshooting</button>
-        <button type="button" class="sheet-btn" data-a="rebatch"><span class="si">♻️</span>Rebatch</button>
-        <button type="button" class="sheet-btn" data-a="colors"><span class="si">🎨</span>Colorants</button>
+        <button type="button" class="sheet-btn" data-a="trouble" data-kw="problem help fix seize ash dos"><span class="si">🔧</span>Troubleshooting</button>
+        <button type="button" class="sheet-btn" data-a="rebatch" data-kw="save failed batch remelt"><span class="si">♻️</span>Rebatch</button>
+        <button type="button" class="sheet-btn" data-a="colors" data-kw="colour dye mica pigment"><span class="si">🎨</span>Colorants</button>
       </div>
       <div class="sheet-group">
         <div class="sheet-h">Add ingredients</div>
-        <button type="button" class="sheet-btn" data-a="examples"><span class="si">🧪</span>Example recipes</button>
-        <button type="button" class="sheet-btn" data-a="scan"><span class="si">📷</span>Scan photo</button>
-        <button type="button" class="sheet-btn" data-a="paste"><span class="si">📋</span>Paste a recipe</button>
-        <button type="button" class="sheet-btn" data-a="import"><span class="si">📄</span>Import CSV</button>
+        <button type="button" class="sheet-btn" data-a="examples" data-kw="sample starter template"><span class="si">🧪</span>Example recipes</button>
+        <button type="button" class="sheet-btn" data-a="scan" data-kw="ocr camera photo"><span class="si">📷</span>Scan photo</button>
+        <button type="button" class="sheet-btn" data-a="paste" data-kw="import soapcalc text"><span class="si">📋</span>Paste a recipe</button>
+        <button type="button" class="sheet-btn" data-a="import" data-kw="csv file open"><span class="si">📄</span>Import CSV</button>
       </div>
       <div class="sheet-group">
         <div class="sheet-h">Save &amp; share</div>
-        <button type="button" class="sheet-btn" data-a="export"><span class="si">⬇️</span>Export CSV</button>
-        <button type="button" class="sheet-btn" data-a="backup"><span class="si">💾</span>Back up all</button>
-        <button type="button" class="sheet-btn" data-a="restore"><span class="si">📂</span>Restore</button>
+        <button type="button" class="sheet-btn" data-a="export" data-kw="csv file download"><span class="si">⬇️</span>Export CSV</button>
+        <button type="button" class="sheet-btn" data-a="backup" data-kw="json everything save"><span class="si">💾</span>Back up all</button>
+        <button type="button" class="sheet-btn" data-a="restore" data-kw="json load import"><span class="si">📂</span>Restore</button>
       </div>
       <div class="sheet-group">
         <div class="sheet-h">More</div>
-        <button type="button" class="sheet-btn hide" id="sheetInstall" data-a="install"><span class="si">⬇️</span>Install app</button>
-        <button type="button" class="sheet-btn danger" data-a="delete"><span class="si">🗑</span>Delete recipe</button>
-        <button type="button" class="sheet-btn danger" data-a="clear"><span class="si">🧹</span>Clear recipe</button>
+        <button type="button" class="sheet-btn hide" id="sheetInstall" data-a="install" data-kw="pwa home screen"><span class="si">⬇️</span>Install app</button>
+        <button type="button" class="sheet-btn danger" data-a="delete" data-kw="remove"><span class="si">🗑</span>Delete recipe</button>
+        <button type="button" class="sheet-btn danger" data-a="clear" data-kw="empty reset start over"><span class="si">🧹</span>Clear recipe</button>
       </div>
     </div>
     <button type="button" class="sheet-close" id="sheetClose">Close</button>
