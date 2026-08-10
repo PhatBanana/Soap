@@ -62,6 +62,9 @@ function store(recOverrides = {}, view = {}) {
     recipes:[recipe(recOverrides)] }, view);
 }
 const pageErrors = [];
+// assertion counts quoted in the docs, collected by the release-hygiene block and
+// checked at the end of the run, once the real total exists
+let docClaims = [];
 async function newPage() {
   const p = await browser.newPage();
   p.on("pageerror", (e) => pageErrors.push("PE: " + e.message));
@@ -559,12 +562,12 @@ async function addOil(p, key, g) {
      "Milk & Honey|Liquid Hand Soap|Aloe Facial Bar|Zesty Lemon Bar");
   eq("Sort choice persists", (await LS(p)).librarySort, "recent");
 
-  await p.fill(".ts-filter", "liquid"); await p.waitForTimeout(150);
+  await p.fill("#modalRoot .ts-filter", "liquid"); await p.waitForTimeout(150);
   eq("Search filters by name", (await names()).join("|"), "Liquid Hand Soap");
-  await p.fill(".ts-filter", "zzznope"); await p.waitForTimeout(150);
+  await p.fill("#modalRoot .ts-filter", "zzznope"); await p.waitForTimeout(150);
   eq("No match shows nothing", (await names()).length, 0);
   ok("No match shows a message", !!(await p.$(".ocr-status")));
-  await p.fill(".ts-filter", ""); await p.waitForTimeout(150);
+  await p.fill("#modalRoot .ts-filter", ""); await p.waitForTimeout(150);
 
   await p.evaluate(() => {
     const row = [...document.querySelectorAll(".lib-row")].find((r) => r.querySelector("b").textContent === "Aloe Facial Bar");
@@ -867,7 +870,7 @@ async function addOil(p, key, g) {
 
   // save shape unchanged (backup/restore compatibility)
   const keys = Object.keys(await LS(p)).sort().join(",");
-  eq("Save shape keys", keys, "collapsed,currency,currentId,lastWeightUnit,librarySort,moldShape,prices,recent,recipes,sapOverrides,scaleMode,scaleUnit,stock,tab,theme,unit");
+  eq("Save shape keys", keys, "collapsed,currency,currentId,keepAwake,lastWeightUnit,librarySort,moldShape,prices,recent,recipes,sapOverrides,scaleMode,scaleUnit,stock,tab,theme,unit");
   await p.close();
 }
 
@@ -980,19 +983,19 @@ async function addOil(p, key, g) {
   eq("Troubleshooting groups", groups.join(","), "In the pot,In the mold,Curing & storing,Using the bar");
   ok("Troubleshooting lists entries", (await p.$$(".ts-item")).length >= 12);
 
-  await p.fill(".ts-filter", "soda ash");
+  await p.fill("#modalRoot .ts-filter", "soda ash");
   await p.waitForTimeout(100);
   const filtered = await p.$$eval(".ts-item", (es) => ({ n: es.length, allOpen: es.every((e) => e.open), first: es[0] ? es[0].querySelector("summary").textContent : "" }));
   ok("Filter narrows the list", filtered.n >= 1 && filtered.n <= 3);
   ok("Filter auto-expands matches", filtered.allOpen);
   has("Filter finds the soda-ash entry", filtered.first, "soda ash");
 
-  await p.fill(".ts-filter", "zzznope");
+  await p.fill("#modalRoot .ts-filter", "zzznope");
   await p.waitForTimeout(100);
   eq("No-match hides all items", (await p.$$(".ts-item")).length, 0);
   ok("No-match shows a message", !!(await p.$(".ts-wrap .sub")));
 
-  await p.fill(".ts-filter", "");
+  await p.fill("#modalRoot .ts-filter", "");
   await p.waitForTimeout(80);
   await p.click(".ts-item summary");
   const body = await p.evaluate(() => { const d = document.querySelector(".ts-item[open] .ts-body"); return d ? d.textContent : ""; });
@@ -1966,6 +1969,155 @@ Water:Lye Ratio 2.5`, { commit: true });
 }
 
 /* =======================================================================
+   MENU SEARCH
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ oils:[OIL("olive",500)] }));
+  const openMenu = () => p.evaluate(() => document.getElementById("menuBtn").click());
+  const type = async (q) => { await p.fill("#sheetFilter", q); await p.waitForTimeout(80); };
+  // what's actually on screen — the install button carries .hide when unavailable
+  const shown = () => p.evaluate(() => [...document.querySelectorAll("#sheet .sheet-btn")]
+    .filter((b) => !b.hidden && !b.classList.contains("hide"))
+    .map((b) => b.textContent.trim()));
+  const groups = () => p.evaluate(() => [...document.querySelectorAll("#sheet .sheet-group")]
+    .filter((g) => !g.hidden).length);
+
+  await openMenu();
+  const all = await shown();
+  ok("Menu opens with every action listed", all.length >= 20, String(all.length));
+  eq("…and every group", await groups(), 6);
+
+  await type("wrapper");
+  eq("Search narrows to one action", (await shown()).length, 1);
+  eq("…the right one", (await shown())[0].includes("Bar wrapper"), true);
+  eq("Empty groups take their headings with them", await groups(), 1);
+  ok("No 'no matches' line while something matches",
+    await p.evaluate(() => document.getElementById("sheetEmpty").classList.contains("hide")));
+
+  // the whole point of data-kw: the word you'd type isn't on the button
+  await type("csv");
+  const csv = await shown();
+  eq("data-kw finds actions by the word you'd actually type", csv.length, 2);
+  ok("…Import CSV among them", csv.some((t) => t.includes("Import")), csv.join("|"));
+  await type("print");
+  const printable = await shown();
+  ok("…and 'print' finds all four printable outputs", printable.length === 4, printable.join("|"));
+
+  await type("zzznope");
+  eq("No matches hides every action", (await shown()).length, 0);
+  ok("…and says so", await p.evaluate(() =>
+    !document.getElementById("sheetEmpty").classList.contains("hide")));
+
+  await type("");
+  eq("Clearing the search restores everything", (await shown()).length, all.length);
+
+  // Every button must be findable by typing its own label. The hand-kept-list bug
+  // (curRV, the examples categories, recipeShareURL) has bitten this repo repeatedly;
+  // this is that guard for the menu.
+  for (const label of all) {
+    const word = label.replace(/[^\w\s]/g, " ").trim().split(/\s+/)[0];
+    await type(word);
+    const hits = await shown();
+    ok(`Menu search finds "${label}" by "${word}"`,
+      hits.some((t) => t === label), hits.join("|"));
+  }
+
+  // a query left over from last time looks exactly like an app that lost its menu
+  await type("wrapper");
+  await p.evaluate(() => document.getElementById("sheetClose").click());
+  await p.waitForTimeout(80);
+  await openMenu();
+  eq("Reopening the menu clears the search", await p.inputValue("#sheetFilter"), "");
+  eq("…and shows everything again", (await shown()).length, all.length);
+
+  // Enter on a lone match runs it: the desktop path is menu → type → Enter
+  await type("wrapper");
+  await p.press("#sheetFilter", "Enter");
+  await p.waitForTimeout(250);
+  ok("Enter on a single match runs that action",
+    await p.evaluate(() => !!document.querySelector("#modalRoot .modal")));
+  ok("…and closes the menu",
+    await p.evaluate(() => document.getElementById("sheetBack").classList.contains("hide")));
+  await p.close();
+}
+
+/* =======================================================================
+   SCREEN WAKE LOCK
+   Driven against a stub navigator.wakeLock. The real lock depends on the
+   headless browser's power state, which would make this flaky and would test
+   Chromium rather than our decision about when to hold it.
+======================================================================= */
+{
+  const p = await newPage();
+  await p.addInitScript(() => {
+    window.__wake = { requests: 0, releases: 0, held: false };
+    // navigator.wakeLock is a prototype accessor — plain assignment silently no-ops
+    const stub = { request() {
+      window.__wake.requests++; window.__wake.held = true;
+      return Promise.resolve({
+        release() { window.__wake.held = false; window.__wake.releases++; return Promise.resolve(); },
+        addEventListener() {}
+      });
+    } };
+    Object.defineProperty(navigator, "wakeLock", { configurable: true, get: () => stub });
+  });
+  const wake = () => p.evaluate(() => window.__wake);
+  const tick = async (n) => { await p.evaluate((i) =>
+    document.querySelectorAll("#checklist .chk input")[i].click(), n); await p.waitForTimeout(120); };
+
+  await open(p, store({ oils:[OIL("olive",500)] }, { tab:"make" }));
+  eq("Opening the Make tab alone does not hold the screen", (await wake()).held, false);
+  ok("…and says nothing about it",
+    await p.evaluate(() => document.getElementById("wakeNote").classList.contains("hide")));
+
+  await tick(0);
+  eq("Ticking the first step holds the screen", (await wake()).held, true);
+  has("…and tells you it is doing so", await txt(p, "#wakeNote"), "stays on");
+
+  await p.evaluate(() => document.querySelector('.tabs button[data-tab="base"]').click());
+  await p.waitForTimeout(150);
+  eq("Leaving the Make tab releases it", (await wake()).held, false);
+
+  await p.evaluate(() => document.querySelector('.tabs button[data-tab="make"]').click());
+  await p.waitForTimeout(150);
+  eq("Coming back re-takes it, the make still being open", (await wake()).held, true);
+
+  await p.evaluate(() => document.getElementById("wakeOff").click());
+  await p.waitForTimeout(150);
+  eq("Turning it off releases it", (await wake()).held, false);
+  eq("…and the choice is saved, not just applied", (await LS(p)).keepAwake, false);
+  has("…with a way back on", await txt(p, "#wakeNote"), "keep it on");
+
+  await p.reload(); await p.waitForTimeout(250);
+  eq("…and survives a reload", (await wake()).held, false);
+
+  await p.evaluate(() => document.getElementById("wakeOff").click());
+  await p.waitForTimeout(150);
+  eq("Turning it back on re-takes the lock", (await wake()).held, true);
+
+  // unticking the last step ends the make
+  await tick(0);
+  eq("Clearing the last tick ends the make and releases", (await wake()).held, false);
+  await p.close();
+}
+
+{
+  // no wakeLock API at all: no note, no errors, everything else works
+  const p = await newPage();
+  await p.addInitScript(() => {
+    Object.defineProperty(navigator, "wakeLock", { configurable: true, get: () => undefined });
+  });
+  await open(p, store({ oils:[OIL("olive",500)] }, { tab:"make" }));
+  await p.evaluate(() => document.querySelectorAll("#checklist .chk input")[0].click());
+  await p.waitForTimeout(150);
+  ok("Without the API the screen note stays hidden",
+    await p.evaluate(() => document.getElementById("wakeNote").classList.contains("hide")));
+  eq("…and the checklist still records the step", Object.keys((await LS(p)).recipes[0].checklist).length, 1);
+  await p.close();
+}
+
+/* =======================================================================
    DESKTOP LAYOUT
    Measured in the browser, not grepped out of app.css — a test that only checks
    a declaration is present passes just as happily when the declaration does
@@ -2065,9 +2217,61 @@ Water:Lye Ratio 2.5`, { commit: true });
   eq("CI image matches the lockfile's playwright (tests.yml vs package-lock.json)", imgV, lockV);
   ok("CI does not download a browser per run", !/playwright install/.test(wf));
 
-  // and the footer must show the version, since that's how a stale copy gets spotted
+  // The docs quote how much is in the app. Those numbers are hand-typed and had already
+  // drifted — the roadmap claimed v46 and "30 additives" against a v49 app with 33 —
+  // so they get the same treatment as APP_VERSION / sw.js.
+  const roadmap = fs.readFileSync(path.join(ROOT, "ROADMAP.md"), "utf8");
+  const readme  = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
+
   const p = await newPage();
   await open(p, store({ oils:[OIL("olive",500)] }));
+
+  // counted off the loaded page rather than by parsing data.js — the browser has already
+  // done that parsing, and correctly
+  const counts = await p.evaluate(() => ({
+    oils:      Object.keys(window.OILS).length,
+    additives: Object.keys(window.ADDITIVES).length,
+    aromas:    Object.keys(window.AROMAS).length,
+    colorants: window.COLORANTS.length,
+    examples:  window.EXAMPLES.length
+  }));
+
+  // every "N oils" / "N additives" / … claim in either document, whatever the wording.
+  // Quoted and code-spanned text is dropped first: the roadmap cites the wrong numbers it
+  // used to carry ("30 additives", "~40 oils") as part of explaining why this check
+  // exists, and a citation is not a claim.
+  const claimable = (s) => s.replace(/"[^"]*"/g, " ").replace(/`[^`]*`/g, " ")
+                            .replace(/[“][^”]*[”]/g, " ");
+  const claims = [["oils", /(\d+) oils/g], ["additives", /(\d+) additives/g],
+                  ["aromas", /(\d+) aromas/g], ["colorants", /(\d+) colorants/g],
+                  ["examples", /(\d+) example recipes/g]];
+  let claimsSeen = 0;
+  [["ROADMAP.md", claimable(roadmap)], ["README.md", claimable(readme)]].forEach(([file, src]) => {
+    claims.forEach(([what, re]) => {
+      [...src.matchAll(re)].forEach((m) => {
+        claimsSeen++;
+        eq(`${file} states the real ${what} count`, Number(m[1]), counts[what]);
+      });
+    });
+  });
+  // a guard on the guard: if the wording changes so no claim matches, the loop above
+  // passes by doing nothing at all
+  ok("The docs do make countable claims", claimsSeen >= 5, String(claimsSeen));
+
+  // the roadmap's "Today:" line names a version — it must be this one
+  const roadmapV = (roadmap.match(/\*\*Today:\*\*\s*(v\d+)/) || [])[1];
+  ok("ROADMAP states a version", !!roadmapV, String(roadmapV));
+  eq("ROADMAP's version matches the app", roadmapV, appV);
+
+  // The assertion totals quoted in the docs are pinned as a ceiling, not an equality:
+  // overstating what the suite covers is a lie, but forcing every test-adding PR to edit
+  // two markdown files would be friction with no safety payoff. Checked at the end of the
+  // run, where the real total is known.
+  docClaims = [["ROADMAP.md", roadmap], ["README.md", readme]]
+    .flatMap(([file, src]) => [...src.matchAll(/(\d+) (?:test )?assertions/g)]
+      .map((m) => [file, Number(m[1])]));
+
+  // and the footer must show the version, since that's how a stale copy gets spotted
   const stamp = await txt(p, "#buildStamp");
   has("Footer shows the app version", stamp, appV);
   has("Footer shows the build date", stamp, built);
@@ -2079,6 +2283,17 @@ ok("No console/page errors during tests", pageErrors.length === 0, pageErrors.jo
 
 await browser.close();
 server.close();
+
+// The docs' assertion counts, checked here because only now is the real figure known.
+// A ceiling, not an equality — see the note where docClaims is collected. Snapshot the
+// total first, so these checks don't count themselves.
+// (the +1 and the per-claim ones are the checks on this line and the next, which will
+// themselves be counted — so the ceiling is the number the run actually prints)
+const finalTotal = pass + fails.length + 1 + docClaims.length;
+ok("The docs quote an assertion count", docClaims.length >= 1, String(docClaims.length));
+docClaims.forEach(([file, said]) =>
+  ok(`${file} does not overstate the suite`, said <= finalTotal,
+     `says ${said}, suite runs ${finalTotal}`));
 
 const total = pass + fails.length;
 console.log(`\n${pass}/${total} assertions passed`);

@@ -76,7 +76,7 @@ phone in the kitchen or on a desktop.
   kg / %** from the compact unit picker in the app bar. The **%** view shows each oil
   as a share of total oils — unit- and batch-independent, the fairest way to compare
   recipes.
-- **~40 oils, butters & fats** plus **30 additives**, focused on what a normal
+- **42 oils, butters & fats** plus **33 additives**, focused on what a normal
   person can actually buy (grocery, pharmacy, craft store, Amazon) — olive,
   coconut, palm, castor, shea/cocoa/mango/kokum butters, sweet almond, avocado,
   sunflower (incl. high-oleic), canola, safflower, grapeseed, rice bran, sesame,
@@ -354,6 +354,15 @@ phone in the kitchen or on a desktop.
   the numbers move as you tweak.
 - **Theme** — follows your device by default; tap **Theme** in the ⋯ menu to cycle
   auto → light → dark and force one.
+- **Searchable menu** — the ☰ menu holds 26 actions, so it has a search box. It matches
+  synonyms as well as labels, because the word you'd type usually isn't the word on the
+  button: **csv** finds Import and Export, **print** finds all four printable outputs,
+  **inci** finds the ingredient label. On a keyboard, type and press Enter when one
+  action is left.
+- 🔆 **The screen stays on while you're making soap** — from the moment you tick the
+  first checklist step until you leave the **Make** tab. Phone propped on the counter,
+  gloves on, lye in the jug: the screen locking is the one thing this app could fix and
+  wasn't. It says so on screen, with a switch to turn it off.
 - **Multi-level undo** — removing an ingredient, scaling, rounding, nudging or
   clearing can all be stepped back (up to 10 changes), and the Undo button shows how
   many are left.
@@ -414,7 +423,7 @@ obvious one: don't commit anything you wouldn't publish.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **581 assertions.**
+the real app and asserts on the computed numbers and saved state. **680 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)

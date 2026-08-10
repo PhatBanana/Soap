@@ -259,6 +259,8 @@ input[type=range]{touch-action:pan-y}
 .chk input{width:24px;height:24px;flex:0 0 auto;accent-color:var(--teal);margin-top:1px}
 .chk .txt{font-size:.98rem}
 .chk.done .txt{color:var(--muted);text-decoration:line-through}
+.wake-note{margin-top:4px}
+.wake-note .link{font-size:.8rem}
 
 /* ---------- action sheet ---------- */
 .sheet-back{position:fixed;inset:0;z-index:60;background:rgba(30,20,12,.55);display:flex;align-items:flex-end;justify-content:center}
@@ -267,6 +269,8 @@ input[type=range]{touch-action:pan-y}
 @media (min-width:560px){.sheet{border-radius:26px}}
 .sheet-handle{width:46px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 8px}
 .sheet-title{text-align:center;font-weight:800;font-size:1.15rem;margin-bottom:14px}
+.sheet #sheetFilter{margin-bottom:14px}
+.sheet-empty{color:var(--muted);font-size:.86rem;text-align:center;font-weight:600;padding:18px 0}
 .sheet-grid{display:grid;grid-template-columns:1fr;gap:16px}
 /* two across, so 25 actions don't become 25 phone-widths of scrolling */
 .sheet-group{display:grid;grid-template-columns:1fr 1fr;gap:7px;align-content:start}
