@@ -2,6 +2,7 @@
   "name": "soap-calc",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Installable, offline soap-making calculator (static PWA). No build step; the app itself is plain HTML/CSS/JS.",
   "scripts": {
     "test": "node tests/soapcalc.test.mjs"

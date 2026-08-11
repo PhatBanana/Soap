@@ -1,9 +1,11 @@
 /* Soap Calc — behavior test suite.
  *
- * The app is a single closured IIFE with no exports, so we test real behavior
- * through a headless browser: inject a saved state, reload, and assert on the
- * computed numbers / DOM / persisted localStorage. Self-contained — it starts
- * its own static server and needs only `playwright` + a Chromium build.
+ * Behaviour is tested through a headless browser — inject a saved state, reload,
+ * and assert on the computed numbers / DOM / persisted localStorage — because that
+ * is what users actually get. Reference data is imported directly instead, now that
+ * it's ES modules: no reason to round-trip a table through a page to count it.
+ * Self-contained — it starts its own static server and needs only `playwright`
+ * plus a Chromium build.
  *
  *   npm test          (see package.json)
  *   node tests/soapcalc.test.mjs
@@ -61,6 +63,13 @@ function store(recOverrides = {}, view = {}) {
   return Object.assign({ unit:"g", tab:"base", scaleMode:"batch", currentId:"r1",
     recipes:[recipe(recOverrides)] }, view);
 }
+// Imported, not read off window: the app has no globals now, and asserting on the
+// source is both faster and clearer. Assertions that the page really *loaded* the data
+// are made against rendered output instead — a stronger check than window poking.
+const { OILS, OIL_INCI } = await import("../src/data/oils.js");
+const { ADDITIVES, COLORANTS, AROMAS } = await import("../src/data/ingredients.js");
+const { EXAMPLES, TROUBLESHOOTING } = await import("../src/data/guides.js");
+
 const pageErrors = [];
 // assertion counts quoted in the docs, collected by the release-hygiene block and
 // checked at the end of the run, once the real total exists
@@ -1343,9 +1352,9 @@ Water:Lye Ratio 2.5`, { commit: true });
   await menu("trouble"); await p.waitForTimeout(150);
   const counts = await p.evaluate(() => ({
     rendered: document.querySelectorAll("#modalRoot .see-btn").length,
-    declared: window.TROUBLESHOOTING.filter((t) => t.see).length,
     entries: document.querySelectorAll("#modalRoot .ts-item").length
   }));
+  counts.declared = TROUBLESHOOTING.filter((t) => t.see).length;
   eq("Every declared cross-link renders", counts.rendered, counts.declared);
   ok("…and only some entries have one", counts.rendered > 0 && counts.rendered < counts.entries);
   await close();
@@ -2387,13 +2396,15 @@ Water:Lye Ratio 2.5`, { commit: true });
    RELEASE HYGIENE (the version/cache coupling that keeps phones off stale copies)
 ======================================================================= */
 {
-  const appSrc = fs.readFileSync(path.join(ROOT, "app.js"), "utf8");
+  const appSrc = fs.readFileSync(path.join(ROOT, "src/main.js"), "utf8");
+  // the version and build date live with the rest of the persisted-shape constants
+  const schemaSrc = fs.readFileSync(path.join(ROOT, "src/core/schema.js"), "utf8");
   const swSrc  = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
-  const appV   = (appSrc.match(/APP_VERSION\s*=\s*"(v\d+)"/) || [])[1];
+  const appV   = (schemaSrc.match(/APP_VERSION\s*=\s*"(v\d+)"/) || [])[1];
   const swV    = (swSrc.match(/CACHE\s*=\s*"soapcalc-(v\d+)"/) || [])[1];
-  const built  = (appSrc.match(/BUILD_DATE\s*=\s*"([\d-]+)"/) || [])[1];
+  const built  = (schemaSrc.match(/BUILD_DATE\s*=\s*"([\d-]+)"/) || [])[1];
 
-  ok("app.js declares APP_VERSION", !!appV, appV);
+  ok("schema.js declares APP_VERSION", !!appV, appV);
   ok("sw.js declares a cache name", !!swV, swV);
   eq("Service-worker cache is bumped with the app version", swV, appV);
   ok("BUILD_DATE is an ISO date", /^\d{4}-\d{2}-\d{2}$/.test(built || ""), built);
@@ -2405,9 +2416,25 @@ Water:Lye Ratio 2.5`, { commit: true });
   ok("Service worker precaches a shell", files.length >= 5, String(files.length));
   files.forEach((f) => ok(`Precached file exists: ${f}`, fs.existsSync(path.join(ROOT, f))));
 
-  // the app's own source files must all be in the shell, or an update can half-apply offline
-  ["index.html", "app.css", "app.js", "data.js", "manifest.webmanifest"].forEach((f) =>
-    ok(`Shell covers ${f}`, files.includes(f)));
+  // The app's own source files must all be in the shell, or an update half-applies offline.
+  // Derived from what's on disk rather than a list naming them: this used to be five
+  // hand-typed filenames, so anything added later simply wasn't checked — the same
+  // hand-kept-list failure as curRV(), the examples categories and recipeShareURL().
+  const sourceFiles = [];
+  (function walk(dir, prefix) {
+    fs.readdirSync(path.join(ROOT, dir || "."), { withFileTypes: true }).forEach((d) => {
+      if (d.name.startsWith(".") || d.name === "node_modules" || d.name === "tests"
+          || d.name === "screenshots" || d.name === "icons") return;
+      const rel = prefix ? `${prefix}/${d.name}` : d.name;
+      if (d.isDirectory()) walk(rel, rel);
+      // "_" prefix marks a scratch file (tests/_shots.mjs and friends), never shipped
+      else if (/\.(js|mjs|css)$/.test(d.name) && d.name !== "sw.js" && !d.name.startsWith("_"))
+        sourceFiles.push(rel);
+    });
+  })("", "");
+  ["index.html", "manifest.webmanifest"].forEach((f) => sourceFiles.push(f));
+  ok("Found the app's source files to check", sourceFiles.length >= 5, sourceFiles.join(","));
+  sourceFiles.forEach((f) => ok(`Shell covers ${f}`, files.includes(f), `SHELL has ${files.join(",")}`));
 
   // CI runs in a pinned Playwright image, so its tag and the lockfile's playwright
   // version have to move together — mismatch means "Executable doesn't exist" in CI
@@ -2432,13 +2459,13 @@ Water:Lye Ratio 2.5`, { commit: true });
 
   // counted off the loaded page rather than by parsing data.js — the browser has already
   // done that parsing, and correctly
-  const counts = await p.evaluate(() => ({
-    oils:      Object.keys(window.OILS).length,
-    additives: Object.keys(window.ADDITIVES).length,
-    aromas:    Object.keys(window.AROMAS).length,
-    colorants: window.COLORANTS.length,
-    examples:  window.EXAMPLES.length
-  }));
+  const counts = {
+    oils:      Object.keys(OILS).length,
+    additives: Object.keys(ADDITIVES).length,
+    aromas:    Object.keys(AROMAS).length,
+    colorants: COLORANTS.length,
+    examples:  EXAMPLES.length
+  };
 
   // every "N oils" / "N additives" / … claim in either document, whatever the wording.
   // Quoted and code-spanned text is dropped first: the roadmap cites the wrong numbers it
@@ -2467,8 +2494,7 @@ Water:Lye Ratio 2.5`, { commit: true });
   // Nothing here can tell you a SAP figure is *right* — only the supplier can — but it
   // can catch the slips that bulk data entry actually makes: a decimal point in the wrong
   // place, a profile that doesn't add up, a scent whose "max" is below its "typical".
-  const oilData = await p.evaluate(() => window.OILS);
-  const aromaData = await p.evaluate(() => window.AROMAS);
+  const oilData = OILS, aromaData = AROMAS;
 
   // Beeswax is the documented exception: it's mostly unsaponifiable wax ester, which is
   // why its SAP is half an ordinary oil's. Anything else summing low means missing acids.
@@ -2497,31 +2523,29 @@ Water:Lye Ratio 2.5`, { commit: true });
 
   // an oil with no INCI name prints "(verify INCI)" on the label — fine as a fallback,
   // not fine as the normal case for a third of the list
-  const noInci = await p.evaluate(() =>
-    Object.keys(window.OILS).filter((k) => !(k in window.OIL_INCI)));
+  const noInci = Object.keys(OILS).filter((k) => !(k in OIL_INCI));
   eq("Every oil has an INCI name for the label", noInci.join(","), "");
 
   // --- data integrity behind the audit fixes -------------------------------
   // Subtracting an additive from the water changes the chemistry, so the set that does it
   // is pinned: adding a fifth should be a deliberate edit here, not a silent one.
-  const replacers = await p.evaluate(() => Object.keys(window.ADDITIVES)
-    .filter((k) => window.ADDITIVES[k].replacesWater).sort());
+  const replacers = Object.keys(ADDITIVES)
+    .filter((k) => ADDITIVES[k].replacesWater).sort();
   eq("Only genuine water replacers subtract from the water",
     replacers.join(","), "aloe,beer,coconutmilk,coffee,goatmilk,wine");
   ok("…and every one of them is a liquid",
-    await p.evaluate(() => Object.keys(window.ADDITIVES)
-      .filter((k) => window.ADDITIVES[k].replacesWater)
-      .every((k) => window.ADDITIVES[k].kind === "liquid")));
+    Object.keys(ADDITIVES).filter((k) => ADDITIVES[k].replacesWater)
+      .every((k) => ADDITIVES[k].kind === "liquid"));
 
   // A mistyped ADD_CAP key is invisible: the additive just falls through to the default.
   const capKeys = ((appSrc.match(/var ADD_CAP=\{([^}]*)\}/) || [])[1] || "")
     .split(",").map((s) => s.split(":")[0].trim()).filter(Boolean);
   ok("ADD_CAP has entries", capKeys.length >= 10, String(capKeys.length));
-  const knownAdds = await p.evaluate(() => Object.keys(window.ADDITIVES));
+  const knownAdds = Object.keys(ADDITIVES);
   capKeys.forEach((k) => ok(`ADD_CAP key "${k}" is a real additive`, knownAdds.includes(k)));
 
   // the wording fix has to stay fixed — "skin-safe max" claims an authority this data lacks
-  ok("No 'skin-safe max' claim survives in app.js", !/skin-safe max/.test(
+  ok("No 'skin-safe max' claim survives in the app", !/skin-safe max/.test(
     appSrc.replace(/\/\/[^\n]*/g, "")), "found outside a comment");
 
   // the roadmap's "Today:" line names a version — it must be this one
