@@ -1,2 +1,5 @@
 .DS_Store
 node_modules/
+
+# scratch verification scripts, not part of the suite
+tests/_*.mjs
