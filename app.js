@@ -15,16 +15,37 @@
   var CONV = { g:1, oz:28.349523125, lb:453.59237, kg:1000, ml:0.92, tsp:4.6, tbsp:13.8, cup:221, drop:0.05 };
   var IMPORT_UNITS = Object.keys(CONV);   // same units CONV can convert
 
+  /* Fatty acids tracked, and why there are thirteen rather than the classic eight.
+     The eight-slot model (la my pa st ri ol li ln) leaves real acids with nowhere to go,
+     and an oil's unplaced share doesn't vanish — it dilutes every quality score, because
+     the blend is normalised by weight. Fourteen of the original forty-two oils lost 4% or
+     more that way; macadamia lost 28% and jojoba 87%.
+       cy  caprylic C8     | coconut, palm kernel, babassu, MCT — cleansing, like lauric
+       cp  capric C10      | same company
+       po  palmitoleic C16:1 | macadamia, avocado, tallow, lard, emu, sea buckthorn
+       ar  C20-C24 saturated (arachidic, behenic, lignoceric) — peanut, moringa; hardens
+       ga  C20:1/C22:1 (gadoleic, erucic) — jojoba, meadowfoam, mustard; conditions
+     Oils list only their non-zero acids, so blendFA reads them defensively. */
+  var FA_KEYS = ["cy","cp","la","my","pa","st","ar","po","ri","ol","li","ln","ga"];
+  /* The bands moved with the formulas, because they had to. Counting caprylic and capric
+     raises coconut's cleansing from 67 to 79 — a ×1.18 stretch on everything lauric — so
+     holding the old 12–22 would have flagged four perfectly ordinary recipes (a palm-free
+     bar, a tallow bar, a hand soap, a shampoo) as too cleansing. The bands are scaled by
+     how far the model itself moved, not fitted to the examples; checked against all 17,
+     84 of 85 in/out verdicts are unchanged. The one that moved — a palm-free laundry bar
+     now reading harder than a body bar — matches the other laundry bar, which already did.
+     Consequence worth knowing: these five numbers no longer match a calculator still using
+     the eight-acid model. They're more accurate, not more comparable. */
   var QUALITIES = [
-    { key:"hardness",     label:"Hardness",     scale:70, lo:29, hi:54, fn:function(f){return f.pa+f.st+f.la+f.my;} },
-    { key:"cleansing",    label:"Cleansing",    scale:40, lo:12, hi:22, fn:function(f){return f.la+f.my;} },
-    { key:"conditioning", label:"Conditioning", scale:90, lo:44, hi:69, fn:function(f){return f.ol+f.li+f.ln+f.ri;} },
-    { key:"bubbly",       label:"Bubbly lather",scale:70, lo:14, hi:46, fn:function(f){return f.la+f.my+f.ri;} },
-    { key:"creamy",       label:"Creamy lather",scale:70, lo:16, hi:48, fn:function(f){return f.pa+f.st+f.ri;} }
+    { key:"hardness",     label:"Hardness",     scale:76, lo:31, hi:58, fn:function(f){return f.la+f.my+f.pa+f.st+f.cy+f.cp+f.ar;} },
+    { key:"cleansing",    label:"Cleansing",    scale:48, lo:14, hi:26, fn:function(f){return f.la+f.my+f.cy+f.cp;} },
+    { key:"conditioning", label:"Conditioning", scale:90, lo:44, hi:69, fn:function(f){return f.ol+f.li+f.ln+f.ri+f.po+f.ga;} },
+    { key:"bubbly",       label:"Bubbly lather",scale:76, lo:17, hi:54, fn:function(f){return f.la+f.my+f.ri+f.cy+f.cp;} },
+    { key:"creamy",       label:"Creamy lather",scale:70, lo:16, hi:48, fn:function(f){return f.pa+f.st+f.ri+f.ar;} }
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v51", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v52", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -547,10 +568,13 @@
   function blendFA(rv){
     rv=rv||curRV();
     var tot=0; rv.oils.forEach(function(it){ if(it.key&&OILS[it.key]) tot+=it.g; });
-    var fa={la:0,my:0,pa:0,st:0,ri:0,ol:0,li:0,ln:0}, iod=0, ins=0;
+    var fa={}; FA_KEYS.forEach(function(k){ fa[k]=0; });
+    var iod=0, ins=0;
     if(tot<=0) return {fa:fa,iod:0,ins:0,tot:0};
+    // (d.fa[k]||0) so an oil can list only the acids it actually has — otherwise every
+    // entry carries eight zeros and a missing key silently poisons the blend with NaN.
     rv.oils.forEach(function(it){ var d=it.key?OILS[it.key]:null; if(!d) return; var fr=it.g/tot;
-      for(var k in fa) fa[k]+=fr*d.fa[k]; iod+=fr*d.iod; ins+=fr*d.ins; });
+      FA_KEYS.forEach(function(k){ fa[k]+=fr*(d.fa[k]||0); }); iod+=fr*d.iod; ins+=fr*d.ins; });
     return {fa:fa,iod:iod,ins:ins,tot:tot};
   }
   /* Reference SAP values vary by supplier, which the app has always warned about
@@ -686,6 +710,7 @@
   // single source of truth for the fatty-acid quality formulas: derived from QUALITIES,
   // plus `poly` (rancidity-prone polyunsaturates) which several advisories use.
   function qualitiesOf(fa){ var o={}; for(var i=0;i<QUALITIES.length;i++) o[QUALITIES[i].key]=QUALITIES[i].fn(fa); o.poly=fa.li+fa.ln; return o; }
+  function qFn(key){ for(var i=0;i<QUALITIES.length;i++) if(QUALITIES[i].key===key) return QUALITIES[i].fn; return null; }
   function statsFor(r){
     var B=blendFA(r), L=computeLye(r), tot=oilsGof(r);
     var scentG=sumG(r.aromas);
@@ -1626,7 +1651,7 @@
   }
   function suggestedCure(){
     var B=blendFA(); if(B.tot<=0) return null;
-    var f=B.fa, hard=qualitiesOf(f).hardness, soft=f.ol+f.li+f.ln;
+    var f=B.fa, hard=qualitiesOf(f).hardness, soft=f.ol+f.li+f.ln+f.po+f.ga;
     var min,max,reason;
     if(hard>=48){ min=3; max=4; reason="a hard, quick-curing blend (lots of coconut, palm, tallow or butters)"; }
     else if(hard>=38){ min=4; max=6; reason="a firm, well-balanced blend"; }
@@ -1704,8 +1729,11 @@
   /* ---------- shape / nudge ---------- */
   function nudge(goal){
     var items=state.oils.filter(oilInfo); if(items.length<2) return;
-    var sfn={ harder:function(f){return f.pa+f.st+f.la+f.my;}, condition:function(f){return f.ol+f.li+f.ln+f.ri;},
-              lather:function(f){return f.la+f.my+f.ri;}, gentle:function(f){return -(f.la+f.my);} }[goal];
+    // The four goals are the quality formulas, so read them from QUALITIES rather than
+    // restating them — these were a second copy of the eight-acid definitions and would
+    // have quietly kept scoring on the old model after the schema widened.
+    var sfn={ harder:qFn("hardness"), condition:qFn("conditioning"), lather:qFn("bubbly"),
+              gentle:function(f){ return -qFn("cleansing")(f); } }[goal];
     if(!sfn) return;
     var tot=sumG(items); if(tot<=0) return;
     var scored=items.map(function(it){ return {it:it,s:sfn(oilInfo(it).fa)}; });

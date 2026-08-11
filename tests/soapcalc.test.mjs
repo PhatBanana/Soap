@@ -65,6 +65,8 @@ const pageErrors = [];
 // assertion counts quoted in the docs, collected by the release-hygiene block and
 // checked at the end of the run, once the real total exists
 let docClaims = [];
+// the thirteen fatty acids the app scores; an oil listing anything else is scored as zero
+const FA_KEYS_T = ["cy","cp","la","my","pa","st","ar","po","ri","ol","li","ln","ga"];
 async function newPage() {
   const p = await browser.newPage();
   p.on("pageerror", (e) => pageErrors.push("PE: " + e.message));
@@ -98,7 +100,10 @@ async function addOil(p, key, g) {
   near("NaOH lye (classic bar)", await num(p, "#lyeVal"), 141.23, 0.1);
   near("Water 38% of oils", await num(p, "#waterOut"), 380, 0.5);
   const bars = await p.$$eval("#bars .qbar b", (bs) => bs.map((b) => b.textContent).join(","));
-  eq("Quality bars H,Cl,Co,Bu,Cr", bars, "44,20,52,23,26");
+  // Hardness, cleansing and bubbly each rose 4 when caprylic and capric acid got slots in
+  // the schema: this recipe is 30% coconut, and coconut carries ~13% of them. Conditioning
+  // and creamy are untouched, which is the check that the change landed where it should.
+  eq("Quality bars H,Cl,Co,Bu,Cr", bars, "48,24,52,27,26");
 
   // KOH switches the lye kind and scales by the KOH factor
   await open(p, store({ oils:[OIL("coconut",1000)], lyeType:"koh", kohPurity:90 }));
@@ -2352,6 +2357,45 @@ Water:Lye Ratio 2.5`, { commit: true });
   // a guard on the guard: if the wording changes so no claim matches, the loop above
   // passes by doing nothing at all
   ok("The docs do make countable claims", claimsSeen >= 5, String(claimsSeen));
+
+  // --- reference-data integrity --------------------------------------------
+  // 65 oils and 33 scents of hand-entered reference values sit behind the lye maths.
+  // Nothing here can tell you a SAP figure is *right* — only the supplier can — but it
+  // can catch the slips that bulk data entry actually makes: a decimal point in the wrong
+  // place, a profile that doesn't add up, a scent whose "max" is below its "typical".
+  const oilData = await p.evaluate(() => window.OILS);
+  const aromaData = await p.evaluate(() => window.AROMAS);
+
+  // Beeswax is the documented exception: it's mostly unsaponifiable wax ester, which is
+  // why its SAP is half an ordinary oil's. Anything else summing low means missing acids.
+  const FA_EXEMPT = { beeswax: "mostly unsaponifiable wax esters, not triglycerides" };
+  Object.entries(oilData).forEach(([k, o]) => {
+    const sum = Object.values(o.fa).reduce((a, b) => a + b, 0);
+    if (!FA_EXEMPT[k]) ok(`${k}: fatty acids account for the oil (${sum}%)`, sum >= 94 && sum <= 101, String(sum));
+    // every SAP here is between jojoba's 0.069 and fractionated coconut's 0.232
+    ok(`${k}: SAP is in the physically plausible band`, o.sap > 0.05 && o.sap < 0.30, String(o.sap));
+    ok(`${k}: iodine value is plausible`, o.iod >= 0 && o.iod <= 200, String(o.iod));
+    ok(`${k}: INS value is plausible`, o.ins >= 0 && o.ins <= 400, String(o.ins));
+    ok(`${k}: has a description worth reading`, (o.desc || "").length >= 40);
+    Object.keys(o.fa).forEach((f) =>
+      ok(`${k}: fatty acid "${f}" is one the app scores`, FA_KEYS_T.includes(f)));
+  });
+  ok("Beeswax is still the only oil exempt from the profile check",
+    Object.keys(FA_EXEMPT).every((k) => k in oilData));
+
+  Object.entries(aromaData).forEach(([k, a]) => {
+    const [lo, typ, hi] = a.rate || [];
+    ok(`${k}: usage rate is ordered low <= typical <= max`, lo <= typ && typ <= hi, JSON.stringify(a.rate));
+    ok(`${k}: usage rate is plausible for soap`, lo > 0 && hi <= 10, JSON.stringify(a.rate));
+    ok(`${k}: has a note position`, ["top", "middle", "base"].includes(a.note), String(a.note));
+    ok(`${k}: is declared EO or FO`, ["EO", "FO"].includes(a.type), String(a.type));
+  });
+
+  // an oil with no INCI name prints "(verify INCI)" on the label — fine as a fallback,
+  // not fine as the normal case for a third of the list
+  const noInci = await p.evaluate(() =>
+    Object.keys(window.OILS).filter((k) => !(k in window.OIL_INCI)));
+  eq("Every oil has an INCI name for the label", noInci.join(","), "");
 
   // --- data integrity behind the audit fixes -------------------------------
   // Subtracting an additive from the water changes the chemistry, so the set that does it
