@@ -2405,9 +2405,25 @@ Water:Lye Ratio 2.5`, { commit: true });
   ok("Service worker precaches a shell", files.length >= 5, String(files.length));
   files.forEach((f) => ok(`Precached file exists: ${f}`, fs.existsSync(path.join(ROOT, f))));
 
-  // the app's own source files must all be in the shell, or an update can half-apply offline
-  ["index.html", "app.css", "app.js", "data.js", "manifest.webmanifest"].forEach((f) =>
-    ok(`Shell covers ${f}`, files.includes(f)));
+  // The app's own source files must all be in the shell, or an update half-applies offline.
+  // Derived from what's on disk rather than a list naming them: this used to be five
+  // hand-typed filenames, so anything added later simply wasn't checked — the same
+  // hand-kept-list failure as curRV(), the examples categories and recipeShareURL().
+  const sourceFiles = [];
+  (function walk(dir, prefix) {
+    fs.readdirSync(path.join(ROOT, dir || "."), { withFileTypes: true }).forEach((d) => {
+      if (d.name.startsWith(".") || d.name === "node_modules" || d.name === "tests"
+          || d.name === "screenshots" || d.name === "icons") return;
+      const rel = prefix ? `${prefix}/${d.name}` : d.name;
+      if (d.isDirectory()) walk(rel, rel);
+      // "_" prefix marks a scratch file (tests/_shots.mjs and friends), never shipped
+      else if (/\.(js|mjs|css)$/.test(d.name) && d.name !== "sw.js" && !d.name.startsWith("_"))
+        sourceFiles.push(rel);
+    });
+  })("", "");
+  ["index.html", "manifest.webmanifest"].forEach((f) => sourceFiles.push(f));
+  ok("Found the app's source files to check", sourceFiles.length >= 5, sourceFiles.join(","));
+  sourceFiles.forEach((f) => ok(`Shell covers ${f}`, files.includes(f), `SHELL has ${files.join(",")}`));
 
   // CI runs in a pinned Playwright image, so its tag and the lockfile's playwright
   // version have to move together — mismatch means "Executable doesn't exist" in CI
