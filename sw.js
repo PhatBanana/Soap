@@ -11,6 +11,8 @@ var SHELL = [
   "./src/main.js",
   "./src/core/units.js",
   "./src/core/chem.js",
+  "./src/core/dom.js",
+  "./src/core/schema.js",
   "./src/data/oils.js",
   "./src/data/ingredients.js",
   "./src/data/guides.js",

@@ -2397,12 +2397,14 @@ Water:Lye Ratio 2.5`, { commit: true });
 ======================================================================= */
 {
   const appSrc = fs.readFileSync(path.join(ROOT, "src/main.js"), "utf8");
+  // the version and build date live with the rest of the persisted-shape constants
+  const schemaSrc = fs.readFileSync(path.join(ROOT, "src/core/schema.js"), "utf8");
   const swSrc  = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
-  const appV   = (appSrc.match(/APP_VERSION\s*=\s*"(v\d+)"/) || [])[1];
+  const appV   = (schemaSrc.match(/APP_VERSION\s*=\s*"(v\d+)"/) || [])[1];
   const swV    = (swSrc.match(/CACHE\s*=\s*"soapcalc-(v\d+)"/) || [])[1];
-  const built  = (appSrc.match(/BUILD_DATE\s*=\s*"([\d-]+)"/) || [])[1];
+  const built  = (schemaSrc.match(/BUILD_DATE\s*=\s*"([\d-]+)"/) || [])[1];
 
-  ok("main.js declares APP_VERSION", !!appV, appV);
+  ok("schema.js declares APP_VERSION", !!appV, appV);
   ok("sw.js declares a cache name", !!swV, swV);
   eq("Service-worker cache is bumped with the app version", swV, appV);
   ok("BUILD_DATE is an ISO date", /^\d{4}-\d{2}-\d{2}$/.test(built || ""), built);

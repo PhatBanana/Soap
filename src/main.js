@@ -12,6 +12,8 @@ import {
   useSapOverrides
 } from "./core/chem.js";
 import * as Chem from "./core/chem.js";
+import { $, el, escapeHtml, uid, forceVisible, makeModal, closeModal } from "./core/dom.js";
+import { STORE_KEY, APP_VERSION, BUILD_DATE, USES, validUse, defOf, RECIPE_FIELDS, VIEW_FIELDS, coerceField } from "./core/schema.js";
 
 /* chem.js takes an explicit recipe and knows nothing about application state. These four
    supply "the recipe currently open" so that the ~90 call sites below read as they always
@@ -24,106 +26,12 @@ function curedBatchG(rv){ return Chem.curedBatchG(rv||curRV()); }
 function totalOilsG(){ return sumG(state.oils); }
 
 
-var STORE_KEY = "soapcalc.v4";
-var APP_VERSION = "v53", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
-var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
-
-/* One schema per persisted thing, so every save/load/copy function stays in lockstep and
-   validation lives in exactly one place. Adding a field = one row here, nothing else.
-     def    — default (a function for fresh arrays/objects); also what coerce() returns for bad input
-     coerce — validate a raw value to a safe one (scalar fields)
-     list   — this is an ingredient list; validated/copied via cleanList / cloneItem instead      */
-function defOf(fld){ return typeof fld.def==="function" ? fld.def() : fld.def; }
-var RECIPE_FIELDS=[
-  {k:"oils",      list:OILS,      def:function(){return [];}},
-  {k:"additives", list:ADDITIVES, def:function(){return [];}},
-  {k:"aromas",    list:AROMAS,    def:function(){return [];}},
-  {k:"lyeType",   def:"naoh", coerce:function(v){return (v==="koh"||v==="dual")?v:"naoh";}},
-  // % of the saponification handled by KOH; only read when lyeType is "dual"
-  {k:"dualKoh",   def:30,     coerce:function(v){return clamp(v,30,5,95);}},
-  // salt stirred in dry at trace (a salt/spa bar) vs dissolved in the water
-  // beforehand (brine soap / soleseife) — a different soap, same ingredients
-  {k:"saltMode",  def:"trace",coerce:function(v){return v==="brine"?"brine":"trace";}},
-  {k:"superfat",  def:5,      coerce:function(v){return clamp(v,5,0,15);}},
-  {k:"waterPct",  def:38,     coerce:function(v){return clamp(v,38,25,50);}},
-  {k:"waterMode", def:"oils", coerce:function(v){return (v==="conc"||v==="ratio")?v:"oils";}},
-  {k:"lyeConc",   def:33,     coerce:function(v){return clamp(v,33,25,50);}},
-  {k:"kohPurity", def:90,     coerce:function(v){return clamp(v,90,85,100);}},
-  {k:"madeOn",    def:"",     coerce:function(v){return typeof v==="string"?v:"";}},
-  {k:"cureWeeks", def:4,      coerce:function(v){return clamp(v,4,1,16);}},
-  {k:"checklist", def:function(){return {};}, coerce:function(v){return (v&&typeof v==="object")?v:{};}},
-  {k:"use",       def:"body", coerce:function(v){return validUse(v)?v:"body";}},
-  {k:"notes",     def:"",     coerce:function(v){return typeof v==="string"?v:"";}},
-  {k:"method",    def:"cp",   coerce:function(v){return (v==="hp"||v==="cpop")?v:"cp";}},  // cold, hot, or oven-gelled cold
-  // hot process only: superfat as a lye discount (which fats stay free is luck), or
-  // a chosen oil held back and stirred in after the cook (you pick what superfats it)
-  {k:"sfMode",    def:"discount", coerce:function(v){return v==="after"?"after":"discount";}},
-  {k:"sfOil",     def:"",     coerce:function(v){return (typeof v==="string"&&OILS[v])?v:"";}},
-  {k:"dilution",  def:1,      coerce:function(v){return clamp(v,1,0.25,4);}},           // KOH paste : water, by weight
-  {k:"waterRatio",def:2,      coerce:function(v){return clamp(v,2,1,4);}},              // water : lye, by weight
-  {k:"lot",       def:"",     coerce:function(v){return typeof v==="string"?v.slice(0,32):"";}},
-  // bar size belongs to the recipe's mould, not to the app — it drives bar count,
-  // cost per bar, the wrapper's net weight and the "Bars" scale target
-  {k:"barWeight", def:110,    coerce:function(v){return clamp(v,110,10,2000);}},
-  {k:"fav",       def:false,  coerce:function(v){return !!v;}},
-  {k:"lastUsed",  def:0,      coerce:function(v){return (typeof v==="number"&&isFinite(v)&&v>0)?v:0;}},
-  // every time you actually make this recipe, archived so a second make doesn't
-  // overwrite the record of the first
-  {k:"batches",   def:function(){return [];}, coerce:function(v){
-    if(!Array.isArray(v)) return [];
-    return v.filter(function(b){ return b&&typeof b==="object"; }).slice(-50).map(function(b){
-      return { id:(typeof b.id==="string"&&b.id)?b.id:uid(),
-        madeOn:(typeof b.madeOn==="string")?b.madeOn:"",
-        lot:(typeof b.lot==="string")?b.lot.slice(0,32):"",
-        cureWeeks:clamp(b.cureWeeks,4,1,16),
-        notes:(typeof b.notes==="string")?b.notes.slice(0,4000):"",
-        // zap tests & pH readings taken while the bar cures
-        checks:(Array.isArray(b.checks)?b.checks:[]).filter(function(k){ return k&&typeof k==="object"; })
-          .slice(-20).map(function(k){
-            return { id:(typeof k.id==="string"&&k.id)?k.id:uid(),
-              on:(typeof k.on==="string")?k.on.slice(0,10):"",
-              ph:(k.ph===""||k.ph==null||!isFinite(parseFloat(k.ph)))?null:clamp(k.ph,10,0,14),
-              zap:!!k.zap,
-              note:(typeof k.note==="string")?k.note.slice(0,300):"" };
-          }) };
-    });
-  }}
-];
-var VIEW_FIELDS=[
-  {k:"unit",           coerce:function(v){return UNITS[v]?v:"g";}},
-  {k:"lastWeightUnit", coerce:function(v,view){return (UNITS[v]&&v!=="pct")?v:((UNITS[view.unit]&&view.unit!=="pct")?view.unit:"g");}},
-  {k:"tab",            coerce:function(v){return ["base","scents","make"].indexOf(v)>=0?v:"base";}},
-  {k:"scaleMode",      coerce:function(v){return ["batch","oils","bars","mold"].indexOf(v)>=0?v:"batch";}},
-  {k:"moldShape",      coerce:function(v){return ["loaf","round","cavity"].indexOf(v)>=0?v:"loaf";}},
-  {k:"scaleUnit",      coerce:function(v){return (UNITS[v]&&v!=="pct")?v:null;}},
-  {k:"currency",       coerce:function(v){return (typeof v==="string"&&v)?v:"$";}},
-  {k:"prices",         coerce:function(v){return (v&&typeof v==="object")?v:{};}},
-  // your supplier's SAP values, keyed by oil. App-wide rather than per-recipe,
-  // because it describes where you shop, not what you're making.
-  {k:"sapOverrides",   coerce:function(v){
-    var out={}; if(v&&typeof v==="object") for(var k in v){ var n=parseFloat(v[k]);
-      if(OILS[k] && isFinite(n) && n>0 && n<1) out[k]=n; } return out; }},
-  // what's in the cupboard, in grams, keyed like prices. Only ingredients you've
-  // actually entered appear here, which is what keeps inventory opt-in.
-  {k:"stock",          coerce:function(v){return (v&&typeof v==="object")?v:{};}},
-  {k:"collapsed",      coerce:function(v){return (v&&typeof v==="object")?v:null;}},
-  // ingredient keys you've added lately, newest first — drives the quick-add chips
-  {k:"recent",         coerce:function(v){return Array.isArray(v)?v.filter(function(x){return typeof x==="string";}).slice(0,8):[];}},
-  {k:"theme",          coerce:function(v){return (v==="light"||v==="dark")?v:"auto";}},
-  {k:"librarySort",    coerce:function(v){return ["name","recent","added"].indexOf(v)>=0?v:"name";}},
-  // keep the screen on while you're actually making soap. Lives here rather than on the
-  // recipe because it describes the device you're standing at, not what you're making.
-  {k:"keepAwake",      coerce:function(v){return v!==false;}}
-];
-
 var library=[];      // [{ id, name } + the RECIPE_FIELDS above]
 var currentId=null;
 var sharedImportName=null;   // set by initState when a recipe arrives via a #r= share link
 var state = initState();
 
 /* ---------- small helpers ---------- */
-var $ = function(id){ return document.getElementById(id); };
-function el(tag, cls, html){ var e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e; }
 function weightUnit(){ return state.unit==="pct" ? (UNITS[state.lastWeightUnit]&&state.lastWeightUnit!=="pct" ? state.lastWeightUnit : "g") : state.unit; }
 // the scale target has its own unit so you can ask for "10 lb" without switching the whole app
 function scaleUnit(){ return (UNITS[state.scaleUnit]&&state.scaleUnit!=="pct") ? state.scaleUnit : weightUnit(); }
@@ -1999,12 +1907,6 @@ function openPaste(){
 // coercion the recipe schema uses, so a nonsense value can't get in.
 // Run a value through the recipe schema's own coercion, so a pasted setting
 // can never land outside the range the rest of the app enforces.
-function coerceField(key,v){
-  for(var i=0;i<RECIPE_FIELDS.length;i++){
-    if(RECIPE_FIELDS[i].k===key) return RECIPE_FIELDS[i].coerce(v);
-  }
-  return v;
-}
 function applyPastedSettings(s){
   var done=[];
   if(isFinite(s.superfat)){ state.superfat=coerceField("superfat",s.superfat); done.push("superfat "+state.superfat+"%"); }
@@ -2152,11 +2054,6 @@ function restoreFrom(file){
   r.readAsText(file);
 }
 
-/* ---------- action sheet open/close ---------- */
-// Force an element visible with inline !important, which outranks any injected
-// stylesheet rule (e.g. an ad-blocker / Brave Shields cosmetic filter that hides
-// an overlay with display:none !important).
-function forceVisible(elm,disp){ if(!elm) return; elm.style.setProperty("display",disp,"important"); elm.style.setProperty("visibility","visible","important"); }
 var sheetPrevFocus=null;
 
 /* The menu is the longest list in the app — 26 actions and still growing — so it gets
@@ -2262,16 +2159,6 @@ function doInstall(){
 // iOS Safari has no beforeinstallprompt — surface the install hint anyway
 var isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
 if(isIOS && !standalone) showInstall();
-
-/* ---------- modal helpers ---------- */
-function makeModal(){
-  var back=el("div","modal-back"), m=el("div","modal"); back.appendChild(m);
-  forceVisible(back,"flex"); forceVisible(m,"block");
-  back.addEventListener("click",function(e){ if(e.target===back) closeModal(back); });
-  document.body.style.overflow="hidden"; $("modalRoot").appendChild(back);
-  return { back:back, m:m };
-}
-function closeModal(back){ document.body.style.overflow=""; back.remove(); }
 
 /* ---------- compare recipes ---------- */
 function openCompare(){
@@ -3102,9 +2989,7 @@ function openCosts(){
 }
 
 /* ---------- recipe library ---------- */
-function uid(){ return "r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function libById(id){ for(var i=0;i<library.length;i++) if(library[i].id===id) return library[i]; return null; }
-function validUse(u){ for(var i=0;i<USES.length;i++) if(USES[i][0]===u) return true; return false; }
 function blankRecipe(name){ var r={id:uid(), name:name};
   RECIPE_FIELDS.forEach(function(fld){ r[fld.k]=defOf(fld); }); return r; }
 function cloneItem(it){ var o={name:it.name,key:it.key,g:it.g}; if(it.sap>0) o.sap=it.sap; return o; }
@@ -3226,7 +3111,6 @@ function cleanList(list,db){ if(!Array.isArray(list)) return [];
       // lets it into the lye maths at all
       if(!k && it.sap>0 && it.sap<1) o.sap=it.sap;
       return o; }); }
-function escapeHtml(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
 
 /* ---------- collapsible cards ---------- */
 function cardKey(card){
