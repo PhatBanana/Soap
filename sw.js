@@ -9,6 +9,8 @@ var SHELL = [
   "./index.html",
   "./app.css",
   "./src/main.js",
+  "./src/core/units.js",
+  "./src/core/chem.js",
   "./src/data/oils.js",
   "./src/data/ingredients.js",
   "./src/data/guides.js",

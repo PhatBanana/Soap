@@ -5,49 +5,25 @@
 import { OILS, OIL_INCI } from "./data/oils.js";
 import { ADDITIVES, ADDITIVE_INCI, COLORANTS, AROMAS } from "./data/ingredients.js";
 import { BLEND_TIPS, FIRST_AID, TROUBLESHOOTING, EXAMPLES } from "./data/guides.js";
+import { UNITS, UORDER, CONV, IMPORT_UNITS, fromG, fmt, sumG, clamp } from "./core/units.js";
+import {
+  FA_KEYS, QUALITIES, IOD_RANGE, INS_RANGE, KOH_FACTOR, SALT_MAX_PER100,
+  oilsGof, sapOf, overriddenKeys, acidLyeOf, brineOf, lyeConcOf, qualitiesOf, qFn,
+  useSapOverrides
+} from "./core/chem.js";
+import * as Chem from "./core/chem.js";
 
-/* ---------- units (canonical = grams) ---------- */
-var UNITS = {
-  g:  { label:"g",  name:"grams",       toG:1,            dp:1 },
-  oz: { label:"oz", name:"ounces",      toG:28.349523125, dp:2 },
-  lb: { label:"lb", name:"pounds",      toG:453.59237,    dp:3 },
-  kg: { label:"kg", name:"kilograms",   toG:1000,         dp:3 },
-  pct:{ label:"%",  name:"percentages", toG:null,         dp:1 }
-};
-var UORDER = ["g","oz","lb","kg","pct"];
-// extra units accepted on import / OCR (approx, oil density ~0.92 g/ml)
-var CONV = { g:1, oz:28.349523125, lb:453.59237, kg:1000, ml:0.92, tsp:4.6, tbsp:13.8, cup:221, drop:0.05 };
-var IMPORT_UNITS = Object.keys(CONV);   // same units CONV can convert
+/* chem.js takes an explicit recipe and knows nothing about application state. These four
+   supply "the recipe currently open" so that the ~90 call sites below read as they always
+   did, and tell chem where to find your supplier SAP figures. */
+useSapOverrides(function(){ return state.sapOverrides; });
+function blendFA(rv){ return Chem.blendFA(rv||curRV()); }
+function computeLye(rv){ return Chem.computeLye(rv||curRV()); }
+function currentBatchG(rv){ return Chem.currentBatchG(rv||curRV()); }
+function curedBatchG(rv){ return Chem.curedBatchG(rv||curRV()); }
+function totalOilsG(){ return sumG(state.oils); }
 
-/* Fatty acids tracked, and why there are thirteen rather than the classic eight.
-   The eight-slot model (la my pa st ri ol li ln) leaves real acids with nowhere to go,
-   and an oil's unplaced share doesn't vanish — it dilutes every quality score, because
-   the blend is normalised by weight. Fourteen of the original forty-two oils lost 4% or
-   more that way; macadamia lost 28% and jojoba 87%.
-     cy  caprylic C8     | coconut, palm kernel, babassu, MCT — cleansing, like lauric
-     cp  capric C10      | same company
-     po  palmitoleic C16:1 | macadamia, avocado, tallow, lard, emu, sea buckthorn
-     ar  C20-C24 saturated (arachidic, behenic, lignoceric) — peanut, moringa; hardens
-     ga  C20:1/C22:1 (gadoleic, erucic) — jojoba, meadowfoam, mustard; conditions
-   Oils list only their non-zero acids, so blendFA reads them defensively. */
-var FA_KEYS = ["cy","cp","la","my","pa","st","ar","po","ri","ol","li","ln","ga"];
-/* The bands moved with the formulas, because they had to. Counting caprylic and capric
-   raises coconut's cleansing from 67 to 79 — a ×1.18 stretch on everything lauric — so
-   holding the old 12–22 would have flagged four perfectly ordinary recipes (a palm-free
-   bar, a tallow bar, a hand soap, a shampoo) as too cleansing. The bands are scaled by
-   how far the model itself moved, not fitted to the examples; checked against all 17,
-   84 of 85 in/out verdicts are unchanged. The one that moved — a palm-free laundry bar
-   now reading harder than a body bar — matches the other laundry bar, which already did.
-   Consequence worth knowing: these five numbers no longer match a calculator still using
-   the eight-acid model. They're more accurate, not more comparable. */
-var QUALITIES = [
-  { key:"hardness",     label:"Hardness",     scale:76, lo:31, hi:58, fn:function(f){return f.la+f.my+f.pa+f.st+f.cy+f.cp+f.ar;} },
-  { key:"cleansing",    label:"Cleansing",    scale:48, lo:14, hi:26, fn:function(f){return f.la+f.my+f.cy+f.cp;} },
-  { key:"conditioning", label:"Conditioning", scale:90, lo:44, hi:69, fn:function(f){return f.ol+f.li+f.ln+f.ri+f.po+f.ga;} },
-  { key:"bubbly",       label:"Bubbly lather",scale:76, lo:17, hi:54, fn:function(f){return f.la+f.my+f.ri+f.cy+f.cp;} },
-  { key:"creamy",       label:"Creamy lather",scale:70, lo:16, hi:48, fn:function(f){return f.pa+f.st+f.ri+f.ar;} }
-];
-var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
+
 var STORE_KEY = "soapcalc.v4";
 var APP_VERSION = "v53", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
 var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
@@ -148,15 +124,11 @@ var state = initState();
 /* ---------- small helpers ---------- */
 var $ = function(id){ return document.getElementById(id); };
 function el(tag, cls, html){ var e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e; }
-function fromG(g,u){ return g/UNITS[u].toG; }
-function fmt(n,dp){ if(!isFinite(n)) return "0"; var s=n.toFixed(dp); if(s.indexOf(".")>-1) s=s.replace(/\.?0+$/,""); return s; }
 function weightUnit(){ return state.unit==="pct" ? (UNITS[state.lastWeightUnit]&&state.lastWeightUnit!=="pct" ? state.lastWeightUnit : "g") : state.unit; }
 // the scale target has its own unit so you can ask for "10 lb" without switching the whole app
 function scaleUnit(){ return (UNITS[state.scaleUnit]&&state.scaleUnit!=="pct") ? state.scaleUnit : weightUnit(); }
 // mark the button whose data-<attr> equals val as ".active" within a segmented control
 function setActive(container, attr, val){ Array.prototype.forEach.call(container.children,function(b){ b.classList.toggle("active", b.dataset[attr]===val); }); }
-function sumG(list){ return list.reduce(function(s,it){return s+it.g;},0); }
-function totalOilsG(){ return sumG(state.oils); }
 function oilInfo(it){ return it.key ? OILS[it.key] : null; }
 // cleansing tolerance depends on how gentle the intended use must be
 function cleansingCap(use){ return use==="face" ? 18 : (use==="hair" ? 20 : 22); }
@@ -568,153 +540,6 @@ function setOilPercent(i,newPct){
 // to mean remembering to add it here too, and forgetting silently fell back to
 // the default instead of erroring.
 function curRV(){ var rv={}; RECIPE_FIELDS.forEach(function(f){ rv[f.k]=state[f.k]; }); return rv; }
-function oilsGof(rv){ return sumG(rv.oils); }
-function blendFA(rv){
-  rv=rv||curRV();
-  var tot=0; rv.oils.forEach(function(it){ if(it.key&&OILS[it.key]) tot+=it.g; });
-  var fa={}; FA_KEYS.forEach(function(k){ fa[k]=0; });
-  var iod=0, ins=0;
-  if(tot<=0) return {fa:fa,iod:0,ins:0,tot:0};
-  // (d.fa[k]||0) so an oil can list only the acids it actually has — otherwise every
-  // entry carries eight zeros and a missing key silently poisons the blend with NaN.
-  rv.oils.forEach(function(it){ var d=it.key?OILS[it.key]:null; if(!d) return; var fr=it.g/tot;
-    FA_KEYS.forEach(function(k){ fa[k]+=fr*(d.fa[k]||0); }); iod+=fr*d.iod; ins+=fr*d.ins; });
-  return {fa:fa,iod:iod,ins:ins,tot:tot};
-}
-/* Reference SAP values vary by supplier, which the app has always warned about
-   without letting you do anything. sapOf is the single place that decides which
-   number an oil actually uses: your override, the oil's own (custom oils), or
-   our reference. */
-function sapOf(it){
-  if(it.key){ var ov=(state.sapOverrides||{})[it.key];
-    if(ov>0) return ov;
-    return OILS[it.key] ? OILS[it.key].sap : 0; }
-  return it.sap>0 ? it.sap : 0;                 // custom oil with a SAP off the bottle
-}
-function overriddenKeys(rv){
-  var ov=state.sapOverrides||{}, out=[];
-  (rv.oils||[]).forEach(function(it){ if(it.g>0 && it.key && ov[it.key]>0 && out.indexOf(it.key)<0) out.push(it.key); });
-  return out;
-}
-/* Acids in the recipe neutralise lye, so the batch needs extra on top of what the
-   oils want. Citric acid is the one that matters: 3 carboxyl groups against a molar
-   mass of 192.12, so 0.6246 g NaOH per gram. Keyed additives only — a custom one has
-   no data, and safetyChecks() warns when that looks like it's been missed. */
-function acidLyeOf(rv){
-  var g=0, names=[];
-  (rv.additives||[]).forEach(function(it){
-    var d=it.key?ADDITIVES[it.key]:null;
-    if(!d || !(d.lyeFactor>0) || !(it.g>0)) return;
-    g+=it.g*d.lyeFactor;
-    if(names.indexOf(d.name)<0) names.push(d.name);
-  });
-  return { g:g, names:names };
-}
-/* Milk, aloe and coffee stand in for water rather than joining it. The app said so for
-   a long time without doing it, which left a milk soap either lighter than quoted or
-   carrying nearly twice the liquid it reported — and the dilute-lye check, reading the
-   water figure alone, couldn't see it either way. Sums the ones that genuinely replace
-   water; the other liquids (honey, sodium lactate, glycerin, vitamin E) go in on top. */
-function waterReplacersOf(rv){
-  var g=0, names=[];
-  (rv.additives||[]).forEach(function(it){
-    var d=it.key?ADDITIVES[it.key]:null;
-    if(!d || !d.replacesWater || !(it.g>0)) return;
-    g+=it.g;
-    if(names.indexOf(d.name)<0) names.push(d.name);
-  });
-  return { g:g, names:names };
-}
-/* Salt dissolved into the water has a ceiling: about 35.9 g per 100 g of water at
-   20°C (26.4% of the finished solution). Past that it simply won't go in, and lye
-   sharing the water lowers it further. Salt neither saponifies nor consumes lye, so
-   none of this touches computeLye — it's a question of whether the method is possible. */
-var SALT_MAX_PER100 = 35.9;              // g NaCl per 100 g water, 20°C
-function brineOf(rv){
-  var salt=0;
-  (rv.additives||[]).forEach(function(it){ if(it.key==="salt" && it.g>0) salt+=it.g; });
-  if(!(salt>0)) return { salt:0, per100:0, pctSolution:0 };
-  var water=computeLye(rv).waterG;
-  var per100 = water>0 ? salt/water*100 : Infinity;
-  return { salt:salt, water:water, per100:per100,
-           pctSolution: water>0 ? salt/(salt+water)*100 : 100 };
-}
-function computeLye(rv){
-  rv=rv||curRV();
-  // Hot process, superfat added after the cook: the oils that actually go in the pot
-  // are fully saponified, and a reserve is stirred in afterwards. So the lye is sized
-  // on the in-pot oils with no discount — which differs slightly from a flat discount
-  // whenever the held-back oil's SAP isn't the blend average.
-  var afterCook = rv.method==="hp" && rv.sfMode==="after" && rv.superfat>0;
-  var reserveG=0, reserveName="", target=null;
-  if(afterCook){
-    reserveG = oilsGof(rv)*rv.superfat/100;
-    rv.oils.forEach(function(it){ if(!target && it.key && it.key===rv.sfOil && it.g>0) target=it; });
-    if(target){ reserveG=Math.min(reserveG,target.g); reserveName=target.name; }
-  }
-  var naohRaw=0, hasCustom=false, customSap=false;
-  rv.oils.forEach(function(it){
-    var d=it.key?OILS[it.key]:null;
-    var g=it.g;
-    if(afterCook) g = target ? (it===target ? it.g-reserveG : it.g)   // hold back the chosen oil
-                            : it.g*(1-rv.superfat/100);              // or proportionally across all
-    var sapV=sapOf(it);
-    if(sapV>0) naohRaw+=g*sapV;
-    else if(it.g>0) hasCustom=true;             // no data and no SAP given: genuinely excluded
-    if(!d && sapV>0 && it.g>0) customSap=true;
-  });
-  var sf = afterCook ? 1 : 1-rv.superfat/100;
-  // Superfat discounts the saponifying lye only. An acid consumes its full
-  // stoichiometric amount whatever the superfat, so its term stays outside the
-  // discount — and sitting before the KOH conversion makes that case fall out too
-  // (0.6246 x KOH_FACTOR = 0.8762, i.e. 3 x 56.11 / 192.12).
-  var acid=acidLyeOf(rv);
-  var sapLye=naohRaw*sf+acid.g;                 // what's needed, in NaOH-equivalent grams
-  // One expression covers all three modes. kohShare is the fraction of the
-  // saponification done by KOH: 0 for a bar, 1 for liquid soap, anything between
-  // for the dual-lye blends that shaving and cream soaps are built on.
-  var kohShare = rv.lyeType==="koh" ? 1
-               : rv.lyeType==="dual" ? clamp(rv.dualKoh,30,5,95)/100 : 0;
-  var naohG=sapLye*(1-kohShare);
-  var kohG =sapLye*kohShare*KOH_FACTOR/(rv.kohPurity/100);
-  var lyeG=naohG+kohG;
-  var kind = kohShare===0 ? "NaOH (lye)" : kohShare===1 ? "KOH (lye)" : "NaOH + KOH";
-  var oilG=oilsGof(rv);
-  var waterG;
-  if(rv.waterMode==="conc"){
-    var c=(rv.lyeConc>0?rv.lyeConc:33)/100;   // lye concentration = lye / (lye + water)
-    waterG = lyeG*(1-c)/c;                     // water sized from the lye (so superfat lowers it too)
-  } else if(rv.waterMode==="ratio"){
-    waterG = lyeG*(rv.waterRatio>0?rv.waterRatio:2);   // the "2:1 water:lye" notation
-  } else {
-    waterG = oilG*rv.waterPct/100;
-  }
-  // waterG is the total liquid the recipe wants; waterAddG is what you pour from the tap,
-  // with milk/aloe/coffee already counted against it. Keeping both means the lye
-  // concentration stays a figure about *total* liquid — so the dilute-lye check is right
-  // by construction rather than needing a correction of its own.
-  var repl=waterReplacersOf(rv);
-  var waterAddG=Math.max(0,waterG-repl.g);
-  var liquidG=Math.max(waterG,repl.g);        // over-budget replacers really are extra liquid
-  // What the superfat actually comes to. Normally rv.superfat, but an after-the-cook
-  // reserve is capped by how much of the chosen oil there is to hold back.
-  var effectiveSf = afterCook && oilG>0 ? reserveG/oilG*100 : rv.superfat;
-  return { lyeG:lyeG, waterG:waterG, waterAddG:waterAddG, liquidG:liquidG, oilG:oilG,
-    kind:kind, hasCustom:hasCustom,
-    customSap:customSap, overrides:overriddenKeys(rv),
-    acidG:acid.g, acidNames:acid.names,
-    replG:repl.g, replNames:repl.names, replOver:repl.g>waterG,
-    naohG:naohG, kohG:kohG, kohShare:kohShare, effectiveSf:effectiveSf,
-           reserveG:reserveG, reserveName:reserveName };
-}
-// Lye concentration is lye / (lye + all the liquid), and it was worked out in two places
-// that both had to be remembered. It's the figure the "strong"/"very dilute" warnings key
-// off, so it gets one home.
-function lyeConcOf(L){ var t=L.lyeG+L.liquidG; return t>0 ? L.lyeG/t*100 : 0; }
-// single source of truth for the fatty-acid quality formulas: derived from QUALITIES,
-// plus `poly` (rancidity-prone polyunsaturates) which several advisories use.
-function qualitiesOf(fa){ var o={}; for(var i=0;i<QUALITIES.length;i++) o[QUALITIES[i].key]=QUALITIES[i].fn(fa); o.poly=fa.li+fa.ln; return o; }
-function qFn(key){ for(var i=0;i<QUALITIES.length;i++) if(QUALITIES[i].key===key) return QUALITIES[i].fn; return null; }
 function statsFor(r){
   var B=blendFA(r), L=computeLye(r), tot=oilsGof(r);
   var scentG=sumG(r.aromas);
@@ -1162,23 +987,6 @@ function runAIExplain(){
 }
 
 /* ---------- scale recipe ---------- */
-function currentBatchG(rv){
-  rv=rv||curRV();
-  var L=computeLye(rv);
-  var add=sumG(rv.additives);
-  var ar=sumG(rv.aromas);
-  // waterAddG, not waterG: the replacers are already in `add`, and counting the water
-  // they stand in for as well would weigh the batch twice for the same liquid.
-  return L.oilG + L.lyeG + L.waterAddG + add + ar;
-}
-// Most of the water evaporates during cure; the rest of the batch stays put. ~70% is a
-// reasonable middle estimate — the real figure depends on humidity, airflow and cure length.
-function curedBatchG(rv){
-  var L=computeLye(rv||curRV());
-  // what evaporates is the liquid actually in the pot, which is more than the water
-  // setting whenever the replacers overrun it
-  return Math.max(0, currentBatchG(rv) - L.liquidG*0.7);
-}
 function moldOilsG(){
   var shape=state.moldShape||"loaf";
   // rule of thumb: ~0.4 oz of oils per in³ (~0.69 g per cm³ / per mL)
@@ -3418,7 +3226,6 @@ function cleanList(list,db){ if(!Array.isArray(list)) return [];
       // lets it into the lye maths at all
       if(!k && it.sap>0 && it.sap<1) o.sap=it.sap;
       return o; }); }
-function clamp(v,def,lo,hi){ v=parseFloat(v); if(!isFinite(v)) return def; return Math.max(lo,Math.min(hi,v)); }
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
 
 /* ---------- collapsible cards ---------- */
