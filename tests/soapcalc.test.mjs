@@ -1974,6 +1974,110 @@ Water:Lye Ratio 2.5`, { commit: true });
 }
 
 /* =======================================================================
+   CPOP — a third method added to a codebase full of `method === "hp"` binaries.
+   The chemistry must stay identical to cold process; only the guidance differs.
+   These are the assertions that catch a branch nobody remembered to widen.
+======================================================================= */
+{
+  // The lye panel only renders on the Base tab and the checklist only on the Make tab, so
+  // each method is read twice. Reading both from one tab is how this test first passed
+  // while comparing "0" to "0".
+  const OILS3 = [OIL("olive",600),OIL("coconut",250),OIL("palm",150)];
+  const readAll = async (p, method) => {
+    await open(p, store({ oils:OILS3, method }, { tab:"base" }));
+    const chem = await p.evaluate(() => ({
+      lye:   document.getElementById("lyeVal").textContent,
+      water: document.getElementById("waterOut").textContent,
+      batch: document.getElementById("batchOut").textContent
+    }));
+    await open(p, store({ oils:OILS3, method }, { tab:"make" }));
+    const guide = await p.evaluate(() => ({
+      note:  document.getElementById("methodNote").textContent,
+      temps: document.getElementById("tempSuggest").textContent,
+      cure:  document.getElementById("cureSuggest").textContent,
+      steps: [...document.querySelectorAll("#checklist .chk .txt")].map((e) => e.textContent)
+    }));
+    return Object.assign(chem, guide);
+  };
+
+  const p = await newPage();
+  const cp = await readAll(p, "cp"), cpop = await readAll(p, "cpop"), hp = await readAll(p, "hp");
+  // the comparisons below are worthless if the readings are empty
+  ok("Lye actually read for the comparison", parseFloat(cp.lye) > 100, cp.lye);
+  ok("Cure suggestion actually read", cp.cure.length > 10, cp.cure);
+  ok("Checklist actually read", cp.steps.length >= 8, String(cp.steps.length));
+
+  // identical chemistry — the oven changes nothing the lye cares about
+  eq("CPOP lye matches cold process", cpop.lye, cp.lye);
+  eq("CPOP water matches cold process", cpop.water, cp.water);
+  eq("CPOP batch weight matches cold process", cpop.batch, cp.batch);
+  eq("CPOP cure suggestion matches cold process", cpop.cure, cp.cure);
+  ok("…and hot process really is different, so the comparison means something",
+    hp.lye === cp.lye && hp.cure !== cp.cure, `hp cure ${hp.cure.slice(0,40)}`);
+
+  // its own guidance
+  ok("CPOP has its own checklist", cpop.steps.join("|") !== cp.steps.join("|"));
+  ok("…that says to turn the oven off", cpop.steps.some((s) => /TURN THE OVEN OFF/.test(s)),
+    cpop.steps.join(" | "));
+  ok("…and does not tell you to insulate as well", cpop.steps.some((s) => /don't insulate/.test(s)));
+  ok("CPOP has its own method note", cpop.note !== cp.note && cpop.note !== hp.note);
+  ok("CPOP has its own temperature guidance", cpop.temps !== cp.temps && cpop.temps !== hp.temps);
+  has("…warning about the failure mode people actually hit", cpop.temps, "volcanoes");
+
+  // after-the-cook superfat is a hot-process technique; CPOP must not offer it
+  await open(p, store({ oils:[OIL("olive",900),OIL("castor",100)],
+    method:"cpop", sfMode:"after", sfOil:"castor", superfat:10 }));
+  const cpopSf = await p.evaluate(() => document.getElementById("lyeVal").textContent);
+  await open(p, store({ oils:[OIL("olive",900),OIL("castor",100)],
+    method:"cp", sfMode:"after", sfOil:"castor", superfat:10 }));
+  eq("CPOP ignores after-the-cook superfat, exactly as cold process does",
+    cpopSf, await p.evaluate(() => document.getElementById("lyeVal").textContent));
+  ok("…and the superfat-mode control stays hidden for it",
+    await p.evaluate(() => document.getElementById("sfModeCtrl").classList.contains("hide")));
+
+  // the method has to survive a save/load round trip, or the schema coercion missed it
+  // and silently downgraded it to "cp"
+  await open(p, store({ oils:OILS3, method:"cpop" }));
+  eq("CPOP survives being saved and reloaded", (await LS(p)).recipes[0].method, "cpop");
+  await p.close();
+}
+
+/* =======================================================================
+   LYE FIRST AID — the guide is only worth anything if it's reachable from
+   where the accident happens, not just from the menu.
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ oils:[OIL("olive",500)] }));
+  const title = () => p.evaluate(() => (document.querySelector("#modalRoot h3") || {}).textContent || "");
+  const close = () => p.click("#modalRoot .mfoot .primary");
+
+  await p.click('#lyeCard .safety [data-guide="firstaid"]');
+  await p.waitForTimeout(200);
+  eq("The Lye card's safety banner opens first aid", await title(), "Lye first aid");
+  has("…and says up front it isn't medical advice",
+    await p.evaluate(() => document.querySelector("#modalRoot .safety").textContent), "not medical advice");
+  ok("…with no hard-coded emergency number — the app has no idea what country it's in",
+    !/\b(911|999|112|1-800)\b/.test(await p.evaluate(() => document.querySelector("#modalRoot").textContent)));
+
+  // the myth this guide exists to kill
+  await p.fill("#modalRoot .ts-filter", "vinegar");
+  await p.waitForTimeout(150);
+  const vinegar = await p.evaluate(() => document.querySelector("#modalRoot .ts-body").textContent);
+  has("Searching 'vinegar' finds the do-not-neutralise entry", vinegar, "exothermic");
+  has("…and says plainly to use water instead", vinegar, "Water");
+  await close(); await p.waitForTimeout(150);
+
+  // and from the checklist, which is where someone is standing mid-batch
+  await open(p, store({ oils:[OIL("olive",500)] }, { tab:"make" }));
+  await p.click('#tab-make .safety [data-guide="firstaid"]');
+  await p.waitForTimeout(200);
+  eq("The checklist's lye warning opens it too", await title(), "Lye first aid");
+  await close();
+  await p.close();
+}
+
+/* =======================================================================
    AUDIT FIXES — claims the app makes about itself must actually hold
 ======================================================================= */
 {
@@ -2402,8 +2506,8 @@ Water:Lye Ratio 2.5`, { commit: true });
   // is pinned: adding a fifth should be a deliberate edit here, not a silent one.
   const replacers = await p.evaluate(() => Object.keys(window.ADDITIVES)
     .filter((k) => window.ADDITIVES[k].replacesWater).sort());
-  eq("Only the four genuine water replacers subtract from the water",
-    replacers.join(","), "aloe,coconutmilk,coffee,goatmilk");
+  eq("Only genuine water replacers subtract from the water",
+    replacers.join(","), "aloe,beer,coconutmilk,coffee,goatmilk,wine");
   ok("…and every one of them is a liquid",
     await p.evaluate(() => Object.keys(window.ADDITIVES)
       .filter((k) => window.ADDITIVES[k].replacesWater)

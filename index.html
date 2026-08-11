@@ -188,7 +188,7 @@
       <div class="lye-split hide" id="lyeSplit"></div>
       <div class="subinfo" id="lyeInfo"></div>
       <button type="button" class="recalc" id="recalcBtn">↻ Recalculate everything</button>
-      <div class="safety">⚠️ Lye is caustic — wear gloves &amp; eye protection. SAP values are references and vary by supplier; double-check before making a batch.</div>
+      <div class="safety">⚠️ Lye is caustic — wear gloves &amp; eye protection. SAP values are references and vary by supplier; double-check before making a batch. <button type="button" class="link" data-guide="firstaid">If it goes wrong</button></div>
     </div>
 
     <div class="card" id="diluteCard" hidden>
@@ -279,6 +279,7 @@
       <h2>Method</h2>
       <div class="seg sub" id="methodSeg">
         <button type="button" data-mt="cp" class="active">Cold process</button>
+        <button type="button" data-mt="cpop">CP + oven</button>
         <button type="button" data-mt="hp">Hot process</button>
       </div>
       <div class="subinfo" id="methodNote"></div>
@@ -320,7 +321,7 @@
       <div id="checklist"></div>
       <div class="subinfo" id="checkProgress"></div>
       <div class="subinfo wake-note hide" id="wakeNote"></div>
-      <div class="safety">⚠️ Always add lye TO the water (never water to lye), in a ventilated space, with gloves &amp; eye protection.</div>
+      <div class="safety">⚠️ Always add lye TO the water (never water to lye), in a ventilated space, with gloves &amp; eye protection. <button type="button" class="link" data-guide="firstaid">If it goes wrong</button></div>
     </div>
     <div class="card">
       <h2>Batch Notes</h2>
@@ -372,6 +373,7 @@
       </div>
       <div class="sheet-group">
         <div class="sheet-h">Guides</div>
+        <button type="button" class="sheet-btn" data-a="firstaid" data-kw="burn splash eyes emergency help safety lye accident"><span class="si">🚑</span>Lye first aid</button>
         <button type="button" class="sheet-btn" data-a="trouble" data-kw="problem help fix seize ash dos"><span class="si">🔧</span>Troubleshooting</button>
         <button type="button" class="sheet-btn" data-a="rebatch" data-kw="save failed batch remelt"><span class="si">♻️</span>Rebatch</button>
         <button type="button" class="sheet-btn" data-a="colors" data-kw="colour dye mica pigment"><span class="si">🎨</span>Colorants</button>

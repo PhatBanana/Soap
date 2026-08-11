@@ -76,7 +76,7 @@ phone in the kitchen or on a desktop.
   kg / %** from the compact unit picker in the app bar. The **%** view shows each oil
   as a share of total oils — unit- and batch-independent, the fairest way to compare
   recipes.
-- **65 oils, butters & fats** plus **33 additives**, focused on what a normal
+- **65 oils, butters & fats** plus **45 additives**, focused on what a normal
   person can actually buy (grocery, pharmacy, craft store, Amazon) — olive,
   coconut, palm, castor, shea/cocoa/mango/kokum butters, sweet almond, avocado,
   sunflower (incl. high-oleic), canola, safflower, grapeseed, rice bran, sesame,
