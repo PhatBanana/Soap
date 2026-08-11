@@ -6,7 +6,7 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v52 · 65 oils · 33 additives · 22 colorants · 33 aromas ·
+**Today:** v53 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
 17 example recipes · 1618 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `data.js` by the test suite, so they can't
@@ -19,7 +19,7 @@ quietly drift — they had, which is why the check exists.</sub>
 ### Recipe & units
 - Enter oils and additives once; switch the whole recipe between **g / oz / lb / kg / %**
   from the app-bar unit picker.
-- **65 oils, butters & fats** and **33 additives** (including 12 natural and mineral
+- **65 oils, butters & fats** and **45 additives** (including 12 natural and mineral
   colorants), focused on what you can actually buy, each with a plain-language
   **?** description (what it brings, its standout trait, a
   typical usage %). Custom ingredients allowed, and flagged as outside the lye maths.
@@ -63,7 +63,7 @@ quietly drift — they had, which is why the check exists.</sub>
 - **Blending notes** based on the scents actually in the recipe.
 
 ### Making it
-- **Cold process or hot process** — the method drives the checklist, the temperature
+- **Cold process, CP + oven (CPOP), or hot process** — the method drives the checklist, the temperature
   guidance and the cure estimate.
 - **Cure schedule** with a suggested cure time derived from the oil blend.
 - **Soaping temperatures**, with a tip that adapts to your recipe.
@@ -358,6 +358,41 @@ a real description, and no fatty acid the app doesn't score; every scent for a u
 that runs low ≤ typical ≤ max. None of that can tell you a SAP figure is *right* — only the
 supplier can — but it catches what bulk data entry actually gets wrong, and mutation testing
 confirmed all three: a misplaced decimal, a typo'd acid key, an incomplete profile.
+
+**18. Lye first aid, and the loops the app had left open** — ✅ **shipped in v53**
+Asked what was still missing, and the answer was embarrassing once found: the app says lye
+is caustic in **eight** places and said nothing whatever about what to do once it lands on
+someone. Searching for first aid, flushing, burns, eyewash or poison returned nothing. The
+checklist's entire safety content was one line about gloves; the troubleshooting guide's four
+groups were all about the soap, none about the person.
+
+**🚑 Lye first aid** covers skin, eyes, swallowing, fumes, spills, storage and leftovers —
+standard safety-data-sheet content, framed as such rather than as medical advice, and
+carrying **no emergency phone number**, because the app has no idea which country it's being
+read in. The entry worth the most is the one killing the vinegar myth: acid on an alkali burn
+is exothermic, so "neutralising" it adds a thermal burn to a chemical one. That needed saying
+loudly here precisely because the app recommends vinegar twice elsewhere — correctly, for a
+hair rinse and for ultramarines — which makes reaching for the bottle likelier.
+
+It's reachable from the menu, but a menu is useless to someone who has just splashed lye on
+themselves, so the way in also sits on the two safety banners that warn it might happen: the
+Lye card and the checklist's lye step. Troubleshooting and first aid render through **one**
+function now rather than two copies of the same accordion.
+
+**Two loops the app had opened and not closed:** the Dilute the Paste card told you to use a
+preservative and offered no way to add one — so it couldn't be costed, labelled, stocked or
+shopped for — and the chelator list stopped one short of tetrasodium EDTA. Both fixed, along
+with beer and wine (water replacers, so they take the v51 `replacesWater` flag), milk powders,
+exfoliants, menthol and two more clays. The additive list went from 33 to 45.
+
+**CPOP** — cold process, oven-gelled — joins cold and hot process. The feature was easy; the
+risk was the binary. `method` coerced to exactly `"hp"` or `"cp"`, and **nine** places branched
+on `method === "hp"`, so a third value silently took the cold-process path everywhere. That is
+correct in six of them and wrong in three, which is exactly the kind of thing that ships
+looking fine. The assertions pin both halves: CPOP must produce **identical lye, water, batch
+weight and cure** to cold process, and must have its own checklist, note and temperatures.
+An early version of that test passed while comparing `"0"` to `"0"` — the lye panel only
+renders on the Base tab — so it now checks the readings are non-empty before comparing them.
 
 ---
 

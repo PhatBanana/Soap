@@ -45,7 +45,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v52", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v53", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -74,7 +74,7 @@
     {k:"checklist", def:function(){return {};}, coerce:function(v){return (v&&typeof v==="object")?v:{};}},
     {k:"use",       def:"body", coerce:function(v){return validUse(v)?v:"body";}},
     {k:"notes",     def:"",     coerce:function(v){return typeof v==="string"?v:"";}},
-    {k:"method",    def:"cp",   coerce:function(v){return v==="hp"?"hp":"cp";}},          // cold or hot process
+    {k:"method",    def:"cp",   coerce:function(v){return (v==="hp"||v==="cpop")?v:"cp";}},  // cold, hot, or oven-gelled cold
     // hot process only: superfat as a lye discount (which fats stay free is luck), or
     // a chosen oil held back and stirred in after the cook (you pick what superfats it)
     {k:"sfMode",    def:"discount", coerce:function(v){return v==="after"?"after":"discount";}},
@@ -1423,8 +1423,27 @@
     "Spoon into the mould and press down firmly; HP batter is thick, so work it into the corners to avoid air pockets.",
     "Unmould and cut once firm (a few hours to a day). It's usable in about a week — a short rest still improves it."
   ];
+  /* CPOP — cold process, oven process. Identical chemistry to CP right up to the mould;
+     the oven only guarantees the gel that CP leaves to chance, which is why the lye, the
+     superfat modes and the cure estimate all deliberately keep taking the CP path. */
+  var CPOP_STEPS=[
+    "Suit up: gloves + eye protection, apron, good ventilation.",
+    "Heat the oven to its lowest setting (~170°F / 75°C) so it's ready when the batter is.",
+    "Weigh your oils; melt the hard oils/butters and combine with the liquid oils.",
+    "Weigh the water (or milk) and the lye separately.",
+    "Add the lye TO the water (never the reverse), stir until clear, and let it cool.",
+    "Cool the oils and the lye water to about 95–105°F (35–40°C).",
+    "Pour lye water into the oils and blend to a light trace.",
+    "Add fragrance, additives, and color at trace; stir in well.",
+    "Pour into the mold and tap out bubbles — don't insulate, the oven is doing that job.",
+    "Put the mould in the oven and TURN THE OVEN OFF. Leave the door shut 2–3 hours, or overnight.",
+    "Leave it in the cooling oven until it's back to room temperature before moving it.",
+    "Unmold and cut into bars after 1–2 days.",
+    "Cure the bars on a rack until the ready date — a forced gel doesn't shorten the cure."
+  ];
   function checkSteps(){
-    var steps=(state.method!=="hp" ? CP_STEPS : HP_STEPS).slice(), L=computeLye(), wu=weightUnit();
+    var byMethod={cp:CP_STEPS,hp:HP_STEPS,cpop:CPOP_STEPS};
+    var steps=(byMethod[state.method]||CP_STEPS).slice(), L=computeLye(), wu=weightUnit();
     if(state.method==="hp" && state.sfMode==="after" && L.reserveG>0){
       // say it on the step where you'd actually be doing it
       steps[7]="Let it cool a few minutes, then stir in your held-back "+
@@ -1598,8 +1617,9 @@
   }
   function updateMethodNote(){
     setActive($("methodSeg"),"mt",state.method||"cp");
-    $("methodNote").textContent = state.method==="hp"
-      ? "Cook the batter in a slow cooker until saponification finishes, then mould it. Scent goes in after the cook, and it's usable in about a week."
+    $("methodNote").textContent =
+        state.method==="hp"   ? "Cook the batter in a slow cooker until saponification finishes, then mould it. Scent goes in after the cook, and it's usable in about a week."
+      : state.method==="cpop" ? "Cold process, then a warm oven to force an even gel right to the edges. Same chemistry and the same cure as CP — it just guarantees the gel instead of hoping for it, and brightens the colours."
       : "Mix at low temperature, pour at trace, and let the bars saponify in the mould. Smoother tops and better swirls, but it needs a full cure.";
   }
   function updateChecklistProgress(){
@@ -1690,6 +1710,15 @@
   }
   function updateTempSuggest(){
     var box=$("tempSuggest"); if(!box) return;
+    if(state.method==="cpop"){
+      // the batter temperatures are ordinary CP; only the oven is new, and overheating
+      // is the failure mode people actually hit
+      box.textContent="Oven-gelled: mix at ordinary cold-process temperatures (~100°F / 38°C), then into an oven preheated to its lowest setting — and turn it OFF as the mould goes in. The residual heat is plenty. Leaving the oven on is how a batch volcanoes or cracks down the middle."+
+        (state.additives.some(function(it){ var d=it.key?ADDITIVES[it.key]:null;
+          return d && it.g>0 && /milk|honey|sugar|beer|wine/i.test(d.name); })
+          ? " Your milk, honey or sugar will make it run hotter still — consider skipping the oven for this one." : "");
+      return;
+    }
     if(state.method==="hp"){
       var hasScent=state.aromas.some(function(it){return it.g>0;});
       box.textContent="Hot process: combine around ~120–140°F / 49–60°C, then cook on low (~160–180°F / 71–82°C) until it folds like thick mashed potato."+
@@ -1825,6 +1854,7 @@
       case "wrapper": openWrapper(); break;
       case "share": openShare(); break;
       case "trouble": openTrouble(); break;
+      case "firstaid": openFirstAid(); break;
       case "rebatch": openRebatch(); break;
       case "colors": openColors(); break;
       case "examples": openExamples(); break;
@@ -2635,8 +2665,18 @@
   var GUIDES={
     trouble:{ label:"🔧 Troubleshooting",  open:function(q){ openTrouble(q); } },
     rebatch:{ label:"♻️ Rebatch helper",   open:function(){ openRebatch(); } },
-    colors: { label:"🎨 Colorant guide",   open:function(q){ openColors(q); } }
+    colors: { label:"🎨 Colorant guide",   open:function(q){ openColors(q); } },
+    firstaid:{label:"🚑 Lye first aid",    open:function(q){ openFirstAid(q); } }
   };
+  /* Static [data-guide] links in the markup — the safety banners on the Lye card and the
+     checklist. A menu is no use to someone who has just splashed lye on themselves, so the
+     way in sits next to the warning that says it might happen. Delegated, so it covers
+     anything rendered later too. */
+  document.addEventListener("click",function(e){
+    var b=e.target.closest?e.target.closest("[data-guide]"):null; if(!b) return;
+    var g=GUIDES[b.dataset.guide]; if(!g) return;
+    e.preventDefault(); g.open("");
+  });
   function guideLinks(spec,back){
     var wrap=null;
     [].concat(spec||[]).forEach(function(s){
@@ -2696,15 +2736,19 @@
   }
 
   /* ---------- "why did my soap do X?" troubleshooting reference ---------- */
-  function openTrouble(q0){
+  /* Troubleshooting and first aid are the same thing on screen — grouped, searchable
+     when/q/why/fix entries — so they share one renderer rather than keeping two copies
+     that drift. o: {title, sub, placeholder, rows, whyLabel, fixLabel, noMatch, lead} */
+  function openGuideList(o,q0){
     var md=makeModal();
-    md.m.appendChild(el("h3",null,"Troubleshooting"));
-    md.m.appendChild(el("p","sub","Something go sideways? Find the symptom, why it happened, and what to do."));
+    md.m.appendChild(el("h3",null,o.title));
+    md.m.appendChild(el("p","sub",o.sub));
+    if(o.lead) md.m.appendChild(el("div","safety long",o.lead));
     var filter=document.createElement("input"); filter.className="ts-filter"; filter.type="search";
-    filter.placeholder="Search symptoms (soft, ash, lather…)"; md.m.appendChild(filter);
+    filter.placeholder=o.placeholder; md.m.appendChild(filter);
     var wrap=el("div","ts-wrap"); md.m.appendChild(wrap);
     var groups=[];
-    (window.TROUBLESHOOTING||[]).forEach(function(t){
+    (o.rows||[]).forEach(function(t){
       var g=null; groups.forEach(function(x){ if(x.when===t.when) g=x; });
       if(!g){ g={when:t.when,items:[]}; groups.push(g); } g.items.push(t);
     });
@@ -2717,18 +2761,42 @@
         hits.forEach(function(t){
           var d=document.createElement("details"); d.className="ts-item"; if(q) d.open=true;
           var s=document.createElement("summary"); s.textContent=t.q; d.appendChild(s);
-          var body=el("div","ts-body","<p><b>Why:</b> "+escapeHtml(t.why)+"</p><p><b>Fix:</b> "+escapeHtml(t.fix)+"</p>");
+          var body=el("div","ts-body","<p><b>"+o.whyLabel+":</b> "+escapeHtml(t.why)+"</p>"+
+            "<p><b>"+o.fixLabel+":</b> "+escapeHtml(t.fix)+"</p>");
           var links=guideLinks(t.see,md.back); if(links) body.appendChild(links);
           d.appendChild(body);
           wrap.appendChild(d);
         });
       });
-      if(!wrap.children.length) wrap.appendChild(el("p","sub","No match — try another word (e.g. “soft”, “ash”, “lather”)."));
+      if(!wrap.children.length) wrap.appendChild(el("p","sub",o.noMatch));
     }
     filter.addEventListener("input",function(){ draw(filter.value); });
     filter.value=q0||""; draw(filter.value);
     var foot=el("div","mfoot"); var cl=el("button","primary","Close");
     cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
+    return md;
+  }
+  function openTrouble(q0){
+    return openGuideList({
+      title:"Troubleshooting",
+      sub:"Something go sideways? Find the symptom, why it happened, and what to do.",
+      placeholder:"Search symptoms (soft, ash, lather…)",
+      rows:window.TROUBLESHOOTING||[], whyLabel:"Why", fixLabel:"Fix",
+      noMatch:"No match — try another word (e.g. “soft”, “ash”, “lather”)."
+    },q0);
+  }
+  /* The app tells you lye is caustic in eight places and used to stop there. This is the
+     other half — what to do once it's already happened, which is when nobody is in a state
+     to go looking for it. Hence the links from the Lye card and the checklist's lye step. */
+  function openFirstAid(q0){
+    return openGuideList({
+      title:"Lye first aid",
+      sub:"What to do when lye gets somewhere it shouldn't. Worth reading before you need it.",
+      lead:"⚠️ This is the standard first aid from a lye safety data sheet, not medical advice. If it's serious, stop reading and call your local emergency number.",
+      placeholder:"Search (skin, eye, swallowed, spill…)",
+      rows:window.FIRST_AID||[], whyLabel:"Why it matters", fixLabel:"Do this",
+      noMatch:"No match — try “skin”, “eye”, “swallowed”, “fumes”, “spill” or “storing”."
+    },q0);
   }
 
   /* ---------- colorant guide: dose, how to disperse, what survives high pH ---------- */
@@ -2829,6 +2897,7 @@
     if(r.lyeType==="koh") bits.push("liquid");
     else if(r.lyeType==="dual") bits.push("dual lye");
     if(r.method==="hp") bits.push("hot process");
+    else if(r.method==="cpop") bits.push("oven-gelled (CPOP)");
     if(r.use&&r.use!=="body"){ USES.forEach(function(u){ if(u[0]===r.use) bits.push(u[1].toLowerCase()); }); }
     var made=(r.batches||[]).length; if(made) bits.push("made "+made+"×");
     if(r.lastUsed>0){

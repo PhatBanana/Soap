@@ -179,6 +179,12 @@
                      note:"1–3% of oils. The same chelator as citric acid but already neutralised, so it needs no lye adjustment at all — the simpler choice. Dissolve in the water." },
     sodiumgluconate:{name:"Sodium gluconate", kind:"dry",
                      note:"0.5–1% of oils. Lye-neutral chelator, very good in hard water and gentle on lather. Dissolve in the water." },
+    edta:          { name:"Tetrasodium EDTA", kind:"dry",
+                     note:"0.5–1% of oils. The strongest common chelator against hard water and DOS, and lye-neutral like the citrate. Dissolve in the water before the lye." },
+    // The Dilute the Paste card has always told you to use one of these; until now there
+    // was nothing to add, so it couldn't be costed, labelled, stocked or shopped for.
+    preservative:  { name:"Preservative (liquid soap)", kind:"liquid",
+                     note:"Per the supplier, usually ~0.5–1% of the finished liquid. Diluted liquid soap is mostly water and WILL grow mould in a few weeks without one. Bar soap doesn't need it — the pH and low water do the job. Add once diluted and cooled." },
     oatmeal:       { name:"Colloidal oatmeal",kind:"dry",
                      note:"1–2 Tbsp per lb of oils. Soothing with gentle exfoliation. Add at trace." },
     kaolin:        { name:"Kaolin clay",      kind:"dry",
@@ -201,6 +207,31 @@
                      note:"~1 tsp per lb of oils. Adds slip and 'grip' — great for shaving and facial bars. Disperse in water first." },
     silk:          { name:"Tussah silk fibers", kind:"dry",
                      note:"A small pinch dissolved into the hot lye water gives a silky, luxurious skin feel." },
+    // --- more water replacers. Beer and wine stand in for water like milk does, so they
+    //     carry replacesWater and get subtracted from what you pour.
+    beer:          { name:"Beer",               kind:"liquid", replacesWater:true,
+                     note:"Swap for part of your water. The sugars boost lather beautifully. Boil it first and let it go flat and cold, or the CO₂ will foam over when the lye goes in." },
+    wine:          { name:"Wine",               kind:"liquid", replacesWater:true,
+                     note:"Swap for part of your water. Cook off the alcohol and chill it first — alcohol and hot lye is a bad combination. Expect the colour to darken to tan." },
+    // --- powdered milks: same idea as the liquids, but stirred into the oils instead, so
+    //     they do NOT replace water
+    goatmilkpwd:   { name:"Goat milk powder",   kind:"dry",
+                     note:"1–2 Tbsp per lb of oils. All the creaminess of fresh milk with none of the scorching risk — whisk it into the oils, not the lye water." },
+    coconutmilkpwd:{ name:"Coconut milk powder",kind:"dry",
+                     note:"1–2 Tbsp per lb of oils. Creamy, conditioning lather and much easier to handle than the tinned kind. Blend into the oils before the lye." },
+    // --- exfoliants beyond oatmeal and coffee grounds
+    poppyseed:     { name:"Poppy seeds",        kind:"dry",
+                     note:"1–2 tsp per lb of oils. Fine, dark speckles with a gentle scrub. They don't dissolve, so they stay put in the bar." },
+    pumice:        { name:"Pumice powder",      kind:"dry",
+                     note:"1–2 tsp per lb of oils. Serious scrub for a gardener's or mechanic's bar. Far too harsh for face or body — keep it to hands." },
+    apricotmeal:   { name:"Apricot kernel meal",kind:"dry",
+                     note:"1–2 tsp per lb of oils. Softer and rounder than pumice, so it exfoliates without scratching. Good for a face or body scrub bar." },
+    menthol:       { name:"Menthol crystals",   kind:"dry",
+                     note:"0.25–0.5% of oils, and no more — it is genuinely cold on skin and unpleasant past that. Dissolve into the warm oils before the lye. Never near eyes or delicate areas." },
+    rhassoul:      { name:"Rhassoul clay",      kind:"dry",
+                     note:"~1 tsp per lb of oils. Silky Moroccan clay traditionally used on skin and hair — good slip, gentle draw. Disperse in a little water first." },
+    seaclay:       { name:"Sea clay",           kind:"dry", colorant:true,
+                     note:"1–2 tsp per lb of oils. Grey-green mineral clay with a light draw — popular for oily skin, and it colours the bar as it goes." },
     vitamine:      { name:"Vitamin E oil",      kind:"liquid",
                      note:"Antioxidant — a few drops per lb helps slow rancidity in delicate oils. Not a preservative." },
     titanium:      { name:"Titanium dioxide",   kind:"dry", colorant:true,
@@ -348,7 +379,13 @@
     roseclay:"Kaolin (Rose Clay)", cocoapowder:"Theobroma Cacao (Cocoa) Powder",
     turmeric:"Curcuma Longa (Turmeric) Root Powder", paprika:"Capsicum Annuum (Paprika) Fruit Powder",
     ironoxide:"Iron Oxides (CI 77491, CI 77492, CI 77499)", ultramarine:"Ultramarines (CI 77007)",
-    citric:"Citric Acid", sodiumcitrate:"Sodium Citrate", sodiumgluconate:"Sodium Gluconate"
+    citric:"Citric Acid", sodiumcitrate:"Sodium Citrate", sodiumgluconate:"Sodium Gluconate",
+    edta:"Tetrasodium EDTA", preservative:"Preservative (per supplier — check the INCI)",
+    beer:"Beer (Cerevisia)", wine:"Wine (Vitis Vinifera) Extract",
+    goatmilkpwd:"Goat Milk Powder", coconutmilkpwd:"Cocos Nucifera (Coconut) Milk Powder",
+    poppyseed:"Papaver Somniferum (Poppy) Seed", pumice:"Pumice",
+    apricotmeal:"Prunus Armeniaca (Apricot) Seed Powder", menthol:"Menthol",
+    rhassoul:"Moroccan Lava Clay (Rhassoul)", seaclay:"Sea Silt (Marine Clay)"
   };
 
   /* Colorants — what to use, how much, how to add it, and what soap's high pH
@@ -439,6 +476,39 @@
     { h:"Watch for accelerators", t:"Spices (clove, cinnamon), some florals, and many FOs speed up trace or 'rice'/seize. Soap at low temperature and hand-stir when using them." },
     { h:"Expect some discoloration", t:"Vanillin (vanilla, many warm FOs) and spice oils turn soap tan to brown. Plan your colors around it or use a vanilla stabilizer." },
     { h:"Respect skin-safe limits", t:"Some EOs (cinnamon, clove, lemongrass) irritate skin above low rates. Always stay within IFRA / supplier maximums." }
+  ];
+
+  /* Lye first aid. Same shape as TROUBLESHOOTING so it renders through the same code.
+     This is the standard first aid off a sodium/potassium hydroxide safety data sheet —
+     not medical advice, and deliberately carrying no emergency phone number, because the
+     app has no idea what country it's being read in.
+     The app warns that lye is caustic in eight different places and, until now, said
+     nothing whatever about what to do once it lands on someone. */
+  g.FIRST_AID = [
+    { when:"On skin", q:"Lye or raw soap batter splashed on skin",
+      why:"Sodium and potassium hydroxide saponify skin oils on contact, and keep doing it while they sit there. A splash that only stings at first can go on damaging tissue for a long time.",
+      fix:"Get it under lots of cool running water NOW and stay there 15–20 minutes — much longer than feels necessary. Peel off contaminated clothing, rings and watches while the water is still running, not before. If the skin is blistered, broken, or still painful after flushing, get it seen by a doctor. That slippery, soapy feeling is not soap you've rinsed on — it's your own skin being turned into soap, so keep flushing until it's gone." },
+    { when:"On skin", q:"Should I neutralise it with vinegar?",
+      why:"No — and this is the most repeated bad advice in soaping. Pouring an acid onto an alkali burn is an exothermic reaction: it releases heat into tissue that is already injured, so you add a thermal burn to a chemical one.",
+      fix:"Water. Lots of it, for a long time. Never vinegar, never lemon juice, never anything that promises to 'neutralise' the burn. Vinegar has its uses in soaping — as a hair rinse, and kept away from ultramarine pigments — but never on skin that lye has touched." },
+    { when:"In eyes", q:"Lye, lye water or batter got in an eye",
+      why:"Alkali eye injuries are the serious ones. Unlike acids, hydroxides keep penetrating the eye rather than stopping at the surface, so damage continues for as long as it's in there.",
+      fix:"Flush immediately with clean water or saline for at least 15–20 minutes, holding the eyelid open — the reflex is to clamp shut and that's the worst thing. Take contact lenses out if they come easily; don't hunt for them. Then get emergency medical care, even if it feels better. Treat this as an emergency every time, and call your local emergency number." },
+    { when:"Swallowed", q:"Someone swallowed lye or lye water",
+      why:"It burns the mouth, throat and gullet on the way down. Vomiting sends it back through the same tissue a second time, which is why the usual advice to induce vomiting is exactly wrong here.",
+      fix:"Do NOT make them vomit. Do NOT give anything to 'neutralise' it. If they're conscious and able to swallow, rinse the mouth and let them sip a little water or milk. Call your local poison line or emergency number straight away, and say it was sodium (or potassium) hydroxide — the name matters to whoever picks up." },
+    { when:"Breathed in", q:"The lye water fumed and I breathed it",
+      why:"Dissolving lye in water is exothermic and throws off a caustic vapour for the first minute or so. It's why the instruction is always to mix in a ventilated place, and why you look away as it goes in.",
+      fix:"Move to fresh air. Coughing and a raw throat usually settle quickly. If breathing is difficult, or there's wheezing or chest tightness, get medical help. Next time: mix outdoors or under an extractor, turn your face away as the lye goes in, and consider a mask rated for it." },
+    { when:"Spills", q:"Dry lye or lye water spilled on the bench or floor",
+      why:"A wet cloth on dry lye smears a dilute caustic solution across a larger area and over your hand. Lye also attacks aluminium vigorously enough to give off hydrogen.",
+      fix:"Gloves on first. Scoop dry lye up dry — a stiff card and a dustpan kept for the job — trying not to raise dust, then wash the area with plenty of water. For spilled solution, flood it with lots of water and mop it away. Keep it off aluminium pans, foil and worktop trim. Bin the cleanup materials once they're thoroughly rinsed." },
+    { when:"Storing it", q:"How should lye be kept between batches?",
+      why:"Lye pulls moisture and carbon dioxide straight out of the air, so an open tub turns to clumped, weakened flake. It's also the single most dangerous thing in a soaping cupboard.",
+      fix:"Airtight, in its original labelled container, somewhere high, dry and locked away from children and pets. Never in a drinks bottle or an unlabelled jar — that's how the swallowing accidents happen. Keep it well away from acids and from anything aluminium. Clumped, damp lye is weakened lye: the app's SAP maths assumes fresh, and a zap test on the finished bar is what catches the difference." },
+    { when:"Leftovers", q:"What do I do with lye water I didn't use?",
+      why:"Concentrated lye solution poured away is both a plumbing hazard and, in many places, a disposal one — and it will eat aluminium traps on the way down.",
+      fix:"Best answer is not to have any: mix what the recipe calls for. If you do have leftovers, label the container clearly and keep it for the next batch, or dilute it heavily with lots of cold running water and check what your local rules say before it goes down a drain. Don't tip it on the garden and don't put it in the household bin as liquid." }
   ];
 
   /* "Why did my soap do X?" — common cold-process problems, grouped by stage.
