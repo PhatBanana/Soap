@@ -25,7 +25,7 @@ phone in the kitchen or on a desktop.
   <tr>
     <td align="center"><img src="screenshots/04-safety.png" width="240" alt="On-device safety check card"><br><sub><b>Safety Check</b> — on-device pass / review / stop</sub></td>
     <td align="center"><img src="screenshots/05-scaling.png" width="240" alt="Batch scaling by number of bars"><br><sub><b>Scale</b> — by batch, oils, bars or mold</sub></td>
-    <td align="center"><img src="screenshots/06-scents.png" width="240" alt="Scent blend card"><br><sub><b>Scents</b> — dosed &amp; capped to skin-safe</sub></td>
+    <td align="center"><img src="screenshots/06-scents.png" width="240" alt="Scent blend card"><br><sub><b>Scents</b> — dosed &amp; capped to typical rates</sub></td>
   </tr>
   <tr>
     <td align="center"><img src="screenshots/07-temperature.png" width="240" alt="Context-aware soaping temperatures"><br><sub><b>Soaping temps</b> — context-aware, °F &amp; °C</sub></td>
@@ -142,7 +142,7 @@ phone in the kitchen or on a desktop.
   verdict, all computed **on-device** (works on every phone, offline, instantly):
   it flags a missing lye cushion (0% superfat on a skin bar), custom oils the lye
   math can't see, a too-high superfat (soft/rancid), a strong **or** over-diluted
-  lye solution, any scent over its skin-safe max, a heavy overall scent load, and
+  lye solution, any scent over its typical max, a heavy overall scent load, and
   rancidity-prone (DOS) blends. It also catches classic beginner traps: a
   **very high coconut/lauric bar** that'll be harsh without a big superfat, a
   **salt bar** that needs a high superfat and to be cut warm, a **fast-tracing**
@@ -183,7 +183,7 @@ phone in the kitchen or on a desktop.
   rate, with a **scent-load** read-out (~3% sweet spot) and a **note pyramid**
   (top / middle / base balance).
 - **Set recommended amounts** sizes the whole blend to a safe ~3% of oils, split
-  by each oil's typical rate and **capped at each scent's skin-safe maximum**, so
+  by each oil's typical rate and **capped at each scent's typical maximum**, so
   bars aren't over- or under-scented. Individual scents over their max are flagged.
 - **Context-aware blending notes** based on the scents you're actually using —
   anchoring advice, trace accelerators, discoloration, and skin-safety cautions.
@@ -423,7 +423,7 @@ obvious one: don't commit anything you wouldn't publish.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **680 assertions.**
+the real app and asserts on the computed numbers and saved state. **720 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)

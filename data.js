@@ -109,11 +109,15 @@
   };
 
   /* Additives are dosed relative to oils and do NOT go through the lye math.
-     kind: "liquid" replaces part of the water; "dry" is stirred in at trace.  */
+     kind: "liquid" is poured, "dry" is stirred in at trace — that's about handling.
+     replacesWater: this one is used *instead of* part of the water, so the app subtracts
+     it from the water you pour. Only the four that genuinely stand in for water carry it;
+     honey, sodium lactate, glycerin and vitamin E are liquids you add on top in teaspoons,
+     and subtracting those would leave the batch short of liquid.  */
   g.ADDITIVES = {
-    goatmilk:      { name:"Goat milk",        kind:"liquid",
+    goatmilk:      { name:"Goat milk",        kind:"liquid", replacesWater:true,
                      note:"Replaces some or all of your water. Creamy lather & skin-loving fats. Freeze it and add lye slowly to avoid scorching (or use powder)." },
-    coconutmilk:   { name:"Coconut milk",     kind:"liquid",
+    coconutmilk:   { name:"Coconut milk",     kind:"liquid", replacesWater:true,
                      note:"Replaces part of the water. Adds creamy, conditioning lather. Keep cool to avoid scorching." },
     honey:         { name:"Honey",            kind:"liquid",
                      note:"~1 tsp per lb (450 g) of oils. Boosts lather & draws moisture, but can overheat/volcano — soap cool." },
@@ -135,13 +139,13 @@
                      note:"~1 tsp per lb of oils. Detoxing color for oily skin. Use lightly to avoid gray lather." },
     glycerin:      { name:"Vegetable glycerin", kind:"liquid",
                      note:"Humectant that pulls moisture to skin. A little (1–2 tsp PPO) adds a silky feel; too much softens the bar." },
-    aloe:          { name:"Aloe vera juice",    kind:"liquid",
+    aloe:          { name:"Aloe vera juice",    kind:"liquid", replacesWater:true,
                      note:"Swap for part of your water. Soothing and skin-loving — keep it cool when adding the lye." },
     sugar:         { name:"White sugar",        kind:"dry",
                      note:"~1 tsp per lb of oils, dissolved in the water. Boosts big bubbly lather. Can heat the batch up." },
     salt:          { name:"Salt (table/sea)",   kind:"dry",
                      note:"A little (~1 tsp PPO) hardens bars; a lot makes 'salt bars' (pair with high coconut + high superfat). Cut salt bars while warm." },
-    coffee:        { name:"Brewed coffee",      kind:"liquid",
+    coffee:        { name:"Brewed coffee",      kind:"liquid", replacesWater:true,
                      note:"Use in place of your water for a coffee soap. Keep cool when adding lye; it may darken the bar." },
     coffeegrounds: { name:"Coffee grounds",     kind:"dry",
                      note:"1–2 Tbsp per lb of oils at trace for scrubby, kitchen-deodorizing exfoliation." },

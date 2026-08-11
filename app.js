@@ -24,7 +24,7 @@
   ];
   var IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
   var STORE_KEY = "soapcalc.v4";
-  var APP_VERSION = "v50", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
+  var APP_VERSION = "v51", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
   var USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 
   /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
@@ -582,6 +582,21 @@
     });
     return { g:g, names:names };
   }
+  /* Milk, aloe and coffee stand in for water rather than joining it. The app said so for
+     a long time without doing it, which left a milk soap either lighter than quoted or
+     carrying nearly twice the liquid it reported — and the dilute-lye check, reading the
+     water figure alone, couldn't see it either way. Sums the ones that genuinely replace
+     water; the other liquids (honey, sodium lactate, glycerin, vitamin E) go in on top. */
+  function waterReplacersOf(rv){
+    var g=0, names=[];
+    (rv.additives||[]).forEach(function(it){
+      var d=it.key?ADDITIVES[it.key]:null;
+      if(!d || !d.replacesWater || !(it.g>0)) return;
+      g+=it.g;
+      if(names.indexOf(d.name)<0) names.push(d.name);
+    });
+    return { g:g, names:names };
+  }
   /* Salt dissolved into the water has a ceiling: about 35.9 g per 100 g of water at
      20°C (26.4% of the finished solution). Past that it simply won't go in, and lye
      sharing the water lowers it further. Salt neither saponifies nor consumes lye, so
@@ -646,12 +661,28 @@
     } else {
       waterG = oilG*rv.waterPct/100;
     }
-    return { lyeG:lyeG, waterG:waterG, oilG:oilG, kind:kind, hasCustom:hasCustom,
+    // waterG is the total liquid the recipe wants; waterAddG is what you pour from the tap,
+    // with milk/aloe/coffee already counted against it. Keeping both means the lye
+    // concentration stays a figure about *total* liquid — so the dilute-lye check is right
+    // by construction rather than needing a correction of its own.
+    var repl=waterReplacersOf(rv);
+    var waterAddG=Math.max(0,waterG-repl.g);
+    var liquidG=Math.max(waterG,repl.g);        // over-budget replacers really are extra liquid
+    // What the superfat actually comes to. Normally rv.superfat, but an after-the-cook
+    // reserve is capped by how much of the chosen oil there is to hold back.
+    var effectiveSf = afterCook && oilG>0 ? reserveG/oilG*100 : rv.superfat;
+    return { lyeG:lyeG, waterG:waterG, waterAddG:waterAddG, liquidG:liquidG, oilG:oilG,
+      kind:kind, hasCustom:hasCustom,
       customSap:customSap, overrides:overriddenKeys(rv),
       acidG:acid.g, acidNames:acid.names,
-      naohG:naohG, kohG:kohG, kohShare:kohShare,
+      replG:repl.g, replNames:repl.names, replOver:repl.g>waterG,
+      naohG:naohG, kohG:kohG, kohShare:kohShare, effectiveSf:effectiveSf,
              reserveG:reserveG, reserveName:reserveName };
   }
+  // Lye concentration is lye / (lye + all the liquid), and it was worked out in two places
+  // that both had to be remembered. It's the figure the "strong"/"very dilute" warnings key
+  // off, so it gets one home.
+  function lyeConcOf(L){ var t=L.lyeG+L.liquidG; return t>0 ? L.lyeG/t*100 : 0; }
   // single source of truth for the fatty-acid quality formulas: derived from QUALITIES,
   // plus `poly` (rancidity-prone polyunsaturates) which several advisories use.
   function qualitiesOf(fa){ var o={}; for(var i=0;i<QUALITIES.length;i++) o[QUALITIES[i].key]=QUALITIES[i].fn(fa); o.poly=fa.li+fa.ln; return o; }
@@ -719,14 +750,15 @@
     var wunit=weightUnit(), L=computeLye(), isPct=state.unit==="pct";
     $("lyeK").textContent=L.kind;
     $("lyeVal").textContent=fmt(fromG(L.lyeG,wunit),2); $("lyeUnit").textContent=UNITS[wunit].label;
-    $("waterOut").textContent=fmt(fromG(L.waterG,wunit),1); $("waterUnit").textContent=UNITS[wunit].label;
+    // the water you pour, with milk/aloe/coffee already taken off it
+    $("waterOut").textContent=fmt(fromG(L.waterAddG,wunit),1); $("waterUnit").textContent=UNITS[wunit].label;
     var batch=currentBatchG();
     $("batchOut").textContent=fmt(fromG(batch,wunit),1); $("batchUnit").textContent=UNITS[wunit].label;
     var split=$("lyeSplit"), isDual=L.kohShare>0 && L.kohShare<1;
     split.classList.toggle("hide",!isDual);
     if(isDual) split.innerHTML="<span><b>"+fmt(fromG(L.naohG,wunit),2)+"</b> "+UNITS[wunit].label+" NaOH</span>"+
       "<span><b>"+fmt(fromG(L.kohG,wunit),2)+"</b> "+UNITS[wunit].label+" KOH</span>";
-    var conc=(L.lyeG+L.waterG)>0?L.lyeG/(L.lyeG+L.waterG)*100:0;
+    var conc=lyeConcOf(L);
     var waterOfOils=L.oilG>0?L.waterG/L.oilG*100:0;
     var info=(state.waterMode==="oils"
         ? "Lye concentration ≈ "+fmt(conc,1)+"%"
@@ -737,8 +769,10 @@
     if(L.customSap) info+=" · custom SAP in use";
     if(L.acidG>0) info+=" · +"+fmt(fromG(L.acidG,wunit),2)+" "+UNITS[wunit].label+" for "+L.acidNames.join(" & ");
     if(L.overrides.length) info+=" · "+L.overrides.length+" supplier SAP value"+(L.overrides.length===1?"":"s");
-    var liquidAdd=state.additives.some(function(it){ return it.key&&ADDITIVES[it.key].kind==="liquid"&&it.g>0; });
-    if(liquidAdd) info+=" · liquid additives replace part of the water";
+    // Say what was actually done, with the arithmetic shown — the old line claimed the
+    // replacement happened without performing it.
+    if(L.replG>0) info+=" · water shown is after "+fmt(fromG(L.replG,wunit),1)+" "+UNITS[wunit].label+
+      " of "+L.replNames.join(" & ")+" ("+fmt(fromG(L.liquidG,wunit),1)+" "+UNITS[wunit].label+" liquid in total)";
     $("lyeInfo").textContent=info;
   }
 
@@ -805,7 +839,19 @@
       ex.className="qual-explain";
       ex.innerHTML="<b>"+QUAL_LABELS[openHelp]+" <span class='r'>· good range "+helpRange(openHelp)+"</span></b>"+escapeHtml(QUAL_HELP[openHelp]);
     } else { ex.className="qual-explain hide"; ex.textContent=""; }
-    $("qualNote").textContent = B.tot>0 ? "Tap the ? on any quality to learn what it means. Green band = typical range; amber = outside it." : "Add oils with profile data to see qualities.";
+    // Beeswax and jojoba are wax esters, not triglycerides, and macadamia's palmitoleic
+    // acid has no slot in the eight this app tracks — so they carry weight without adding
+    // to the profile, and every number above comes out lower. Derived from the blend
+    // rather than a hard-coded list of three keys, so a future oil is covered too.
+    var thin=[], thinG=0;
+    state.oils.forEach(function(it){ var d=it.key?OILS[it.key]:null; if(!d||!(it.g>0)) return;
+      var s=0; for(var k in d.fa) s+=d.fa[k];
+      if(s<60){ thinG+=it.g; if(thin.indexOf(d.name)<0) thin.push(d.name); } });
+    var thinPct = B.tot>0 ? thinG/B.tot*100 : 0;
+    $("qualNote").textContent = B.tot>0
+      ? "Tap the ? on any quality to learn what it means. Green band = typical range; amber = outside it."
+        + (thinPct>=2 ? " "+thin.join(" & ")+" ("+Math.round(thinPct)+"% here) barely register on this scale — they aren't ordinary triglycerides, so they add weight without adding profile, and every figure above reads lower because of it." : "")
+      : "Add oils with profile data to see qualities.";
   }
   function makeChip(label,val,range,key){
     var inR=val>=range[0]&&val<=range[1];
@@ -873,11 +919,13 @@
     var items=[], L=computeLye(), sf=state.superfat, use=state.use||"body";
     var skin=(use==="body"||use==="face"||use==="hair"||use==="shave");
     var f=blendFA().fa, poly=f.li+f.ln;
-    var conc=(L.lyeG+L.waterG)>0 ? L.lyeG/(L.lyeG+L.waterG)*100 : 0;
+    var conc=lyeConcOf(L);
     var tot=totalOilsG();
     function addPctOf(key){ var g=0; state.additives.forEach(function(it){ if(it.key===key) g+=it.g; }); return tot>0?g/tot*100:0; }
     var saltPct=addPctOf("salt"), saltBar=saltPct>=20;
     function add(level,title,detail){ items.push({level:level,title:title,detail:detail}); }
+    var wu=weightUnit();
+    function showG(g){ return fmt(fromG(g,wu),wu==="g"?0:1)+" "+UNITS[wu].label; }
 
     if(L.oilG<=0 || L.lyeG<=0){
       add("fail","Can't verify the lye","No oils with SAP data, so the app can't confirm the lye is balanced. Add oils from the list (custom oils have no data).");
@@ -901,14 +949,29 @@
       if(L.overrides.length) add("warn","Supplier SAP values in use",
         "The lye for "+L.overrides.map(function(k){ return OILS[k].name; }).join(", ")+
         " is sized on the value you entered, not our reference. That's the right thing to do if it came off the spec sheet — just be sure it's the current one.");
-      if(sf<=0){
+      // Judge the superfat the bar actually ends up with, not the one that was asked for.
+      // They differ when an after-the-cook reserve is capped by how much of the chosen oil
+      // there is — and it's the real cushion that decides whether this is safe.
+      var esf=L.effectiveSf, esfTxt=fmt(esf,esf===Math.round(esf)?0:1)+"%";
+      if(esf<=0){
         if(skin) add("warn","No superfat cushion","Superfat is 0% — with no extra oil, a small measuring slip could leave free lye, which is harsh on skin. Use at least 1–2% for a skin bar.");
         else add("ok","0% superfat is intended here","For dish/laundry soap, 0% superfat is correct so no oil is left behind.");
-      } else if(sf>12 && !saltBar){
-        add("warn","Very high superfat","Superfat is "+sf+"% — that's a lot of unsaponified oil, so the bar stays soft and can go rancid sooner. 5–8% is typical for skin.");
+      } else if(esf>12 && !saltBar){
+        add("warn","Very high superfat","Superfat is "+esfTxt+" — that's a lot of unsaponified oil, so the bar stays soft and can go rancid sooner. 5–8% is typical for skin.");
       } else {
-        add("ok","Lye is balanced","Superfat "+sf+"% leaves a little extra oil so no free lye is left over — this is the safe zone"+(saltBar?" (a high superfat is right for a salt bar)":"")+".");
+        add("ok","Lye is balanced","Superfat "+esfTxt+" leaves a little extra oil so no free lye is left over — this is the safe zone"+(saltBar?" (a high superfat is right for a salt bar)":"")+".");
       }
+      // milk/aloe/coffee standing in for more liquid than the recipe has room for
+      if(L.replOver) add("warn","More "+L.replNames.join(" & ")+" than the recipe's water",
+        "You've got "+showG(L.replG)+" of "+L.replNames.join(" & ")+" standing in for "+showG(L.waterG)+
+        " of water, so there's "+showG(L.replG-L.waterG)+" more liquid in the batch than any water setting asked for. "+
+        "The lye solution will be weaker than the "+Math.round(conc)+"% shown, and the bar slower to set. "+
+        "Cut it to about "+showG(L.waterG)+", or raise the water setting to match.");
+      // an after-the-cook reserve is capped by how much of the chosen oil there is
+      if(L.effectiveSf < sf-0.05) add("warn","Superfat is smaller than it looks",
+        "You asked for "+sf+"% held back after the cook, but there's only "+showG(L.reserveG)+" of "+
+        (L.reserveName||"that oil")+" to hold back — so the bar actually ends up around "+
+        fmt(L.effectiveSf,1)+"% superfatted, not "+sf+"%. Hold back a second oil, or pick one there's more of.");
       if(conc>=43) add("warn","Strong lye solution","Lye concentration is about "+Math.round(conc)+"% — it heats up fast and is harsher to handle. Mix slowly and watch the temperature.");
       else if(conc>0 && conc<25) add("warn","Very dilute lye","Lye concentration is only about "+Math.round(conc)+"% — that's a lot of water. The bar will be soft, slow to set and may weep; use less water (or a higher lye concentration).");
     }
@@ -942,9 +1005,8 @@
     }
 
     // batch size sanity — too small to weigh the lye safely, or unwieldy-large for a beginner
-    var wu=weightUnit(), showAmt=function(g){ return fmt(fromG(g,wu),wu==="g"?0:1)+" "+UNITS[wu].label; };
-    if(tot>0 && tot<150) add("warn","Very small batch","Only "+showAmt(tot)+" of oils — at this size the lye is hard to weigh accurately and a tiny scale error becomes a big percentage. Scale up to ~300 g+ of oils for a safer batch.");
-    else if(tot>5000) add("warn","Large batch","About "+showAmt(tot)+" of oils — that's a big, heavy batch that holds heat (overheating risk) and is a lot to handle at once. Fine if you're experienced; otherwise start smaller.");
+    if(tot>0 && tot<150) add("warn","Very small batch","Only "+showG(tot)+" of oils — at this size the lye is hard to weigh accurately and a tiny scale error becomes a big percentage. Scale up to ~300 g+ of oils for a safer batch.");
+    else if(tot>5000) add("warn","Large batch","About "+showG(tot)+" of oils — that's a big, heavy batch that holds heat (overheating risk) and is a lot to handle at once. Fine if you're experienced; otherwise start smaller.");
 
     // a runaway single oil usually means a missed oil or a mistyped amount
     if(tot>0){
@@ -954,16 +1016,36 @@
     }
 
     // an additive dosed like an oil is a common grams-vs-teaspoons slip (salt & water-replacers excluded)
+    // Specific caps where the usual dose is well known. This used to be the *only* way an
+    // additive got checked, so anything not listed — sodium citrate, sodium gluconate —
+    // sailed through at any dose. Now it's an exception table over a default, and the
+    // exemptions are named: things that legitimately run high. Same inversion as
+    // recipeShareURL()'s allow-list, for the same reason — a list you must remember to
+    // extend is a list that eventually isn't.
     var ADD_CAP={honey:10,sugar:10,sodiumlactate:5,oatmeal:15,kaolin:10,bentonite:10,charcoal:5,glycerin:8,silk:2,vitamine:2,titanium:6,mica:6,coffeegrounds:20};
+    var ADD_CAP_DEFAULT=5;                    // most additives are teaspoons-per-pound territory
+    function capFor(it){
+      var d=it.key?ADDITIVES[it.key]:null;
+      if(!d) return 0;                        // custom additive: no data, no opinion
+      if(ADD_CAP[it.key]) return ADD_CAP[it.key];
+      if(d.colorant) return 0;                // dosed by eye, and harmless in excess
+      if(d.replacesWater) return 0;           // sized against the water, checked separately
+      if(it.key==="salt") return 0;           // salt bars are legitimately 20%+ of oils
+      return ADD_CAP_DEFAULT;
+    }
     var odose=[];
-    state.additives.forEach(function(it){ var cap=ADD_CAP[it.key]; if(cap && tot>0){ var pct=it.g/tot*100; if(pct>cap+0.5) odose.push(it.name+" (~"+fmt(pct,1)+"% vs ~"+cap+"% usual)"); } });
+    state.additives.forEach(function(it){ var cap=capFor(it); if(cap && tot>0){ var pct=it.g/tot*100; if(pct>cap+0.5) odose.push(it.name+" (~"+fmt(pct,1)+"% vs ~"+cap+"% usual)"); } });
     if(odose.length) add("warn","Additive dosed high", odose.join("; ")+". That's well above the usual amount — double-check it isn't a units slip (grams vs teaspoons).");
 
     var scentG=sumG(state.aromas);
     var scentPct = tot>0 ? scentG/tot*100 : 0, over=[];
     state.aromas.forEach(function(it){ var d=it.key?AROMAS[it.key]:null;
       if(d && tot>0){ var pct=it.g/tot*100; if(pct > d.rate[2]+0.05) over.push(it.name+" (~"+fmt(pct,1)+"% vs "+d.rate[2]+"% max)"); } });
-    if(over.length) add("warn","Scent over its skin-safe max", over.join("; ")+". Reduce these to stay skin-safe.");
+    // "typical max", not "skin-safe max": these are common soaping figures, not IFRA
+    // limits. A real limit depends on the product category and on the specific restricted
+    // constituent, and only the supplier's IFRA certificate has that number.
+    if(over.length) add("warn","Scent above its typical max", over.join("; ")+
+      ". These are usual soaping rates, not regulatory limits — check the supplier's IFRA certificate for the binding figure, and ease these back meanwhile.");
     if(skin && scentPct>6) add("warn","Heavy scent load","Total scent is about "+fmt(scentPct,1)+"% of oils — above ~5–6% can irritate skin. Ease it back.");
 
     if(poly>18) add("warn","Prone to rancid spots (DOS)","This blend is about "+Math.round(poly)+"% polyunsaturated oil, which spoils faster. Use fresh oils, keep superfat modest, and consider vitamin E / ROE.");
@@ -1056,13 +1138,17 @@
     var L=computeLye(rv);
     var add=sumG(rv.additives);
     var ar=sumG(rv.aromas);
-    return L.oilG + L.lyeG + L.waterG + add + ar;
+    // waterAddG, not waterG: the replacers are already in `add`, and counting the water
+    // they stand in for as well would weigh the batch twice for the same liquid.
+    return L.oilG + L.lyeG + L.waterAddG + add + ar;
   }
   // Most of the water evaporates during cure; the rest of the batch stays put. ~70% is a
   // reasonable middle estimate — the real figure depends on humidity, airflow and cure length.
   function curedBatchG(rv){
     var L=computeLye(rv||curRV());
-    return Math.max(0, currentBatchG(rv) - L.waterG*0.7);
+    // what evaporates is the liquid actually in the pot, which is more than the water
+    // setting whenever the replacers overrun it
+    return Math.max(0, currentBatchG(rv) - L.liquidG*0.7);
   }
   function moldOilsG(){
     var shape=state.moldShape||"loaf";
@@ -1205,7 +1291,7 @@
         r.sugg.textContent="Typical "+r.d.rate[1]+"% of oils"+sug+" · currently "+fmt(pct,2)+"%";
         // per-scent safety: flag when above its own max usage rate
         if(totalOil>0 && it.g>0 && pct > r.d.rate[2] + 0.05){
-          r.warn.textContent="⚠ Above its ~"+r.d.rate[2]+"% skin-safe max — reduce to ≈ "+fmt(fromG(totalOil*r.d.rate[2]/100,wunit),1)+" "+UNITS[wunit].label+".";
+          r.warn.textContent="⚠ Above its ~"+r.d.rate[2]+"% typical max — reduce to ≈ "+fmt(fromG(totalOil*r.d.rate[2]/100,wunit),1)+" "+UNITS[wunit].label+". Your supplier's IFRA certificate has the binding figure.";
           r.warn.style.display="";
         } else r.warn.style.display="none";
       } else { r.sugg.textContent=""; if(r.warn) r.warn.style.display="none"; }
@@ -1274,7 +1360,7 @@
     if(oil<=0){ alert("Add oils in the Base tab first so scent amounts can be sized."); return; }
     if(state.aromas.length===0) return;
     // Target ~3% of oils TOTAL, split between scents by their typical rate, and never
-    // let any single scent exceed its own skin-safe max — so the bar isn't over/under-scented.
+    // let any single scent exceed its own typical max — so the bar isn't over/under-scented.
     var target=oil*0.03;
     var weights=state.aromas.map(function(a){ var d=a.key?AROMAS[a.key]:null; return d?d.rate[1]:3; });
     var sw=weights.reduce(function(s,w){return s+w;},0)||1;

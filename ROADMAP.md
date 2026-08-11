@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v50 · 42 oils · 33 additives · 22 colorants · 17 aromas ·
-17 example recipes · 680 test assertions, run on every pull request.
+**Today:** v51 · 42 oils · 33 additives · 22 colorants · 17 aromas ·
+17 example recipes · 720 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `data.js` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -44,7 +44,7 @@ quietly drift — they had, which is why the check exists.</sub>
 ### Safety
 - A **Safety Check** turning the numbers into a plain **pass / review / stop** verdict,
   computed entirely on-device: missing lye cushion, unverifiable custom oils, superfat
-  extremes, lye too strong or too dilute, scents over their skin-safe max, DOS-prone
+  extremes, lye too strong or too dilute, scents over their typical max, DOS-prone
   blends, plus beginner traps (100% coconut, salt bars, fast-tracing recipes,
   irritant essential oils) and batch-scale sanity checks.
 - An **optional AI explainer** where the browser has an on-device model — it rephrases
@@ -57,7 +57,7 @@ quietly drift — they had, which is why the check exists.</sub>
 - **Round to tidy amounts** so you're not weighing 793.83 g.
 
 ### Scents
-- Separate scent list with usage rates, **skin-safe caps**, scent-load readout and a
+- Separate scent list with usage rates, **typical-rate caps**, scent-load readout and a
   **note pyramid** (top / middle / base).
 - **Set recommended amounts** sizes the blend to ~3% of oils, capped per scent.
 - **Blending notes** based on the scents actually in the recipe.
@@ -288,6 +288,38 @@ against `data.js` on every run**. They had drifted — this document claimed v46
 assertions" and "30 additives" against a v49 app with 33, and the README was further out
 still at "~40 oils". Hand-typed numbers that nothing verifies is the exact failure mode
 this repo keeps rediscovering.
+
+**16. A code audit, and what it found** — ✅ **shipped in v51**
+An audit of every feature's wiring and of the numbers that carry health and safety. Most
+passed: all 27 menu actions reach a handler, every data field has a live consumer, every
+example references only real keys, and the chemistry checks out against first principles —
+lye hand-worked to 138.25 g on the Classic Gentle Bar, `KOH_FACTOR` = 56.1056/39.9971,
+citric acid = 3 × 39.997 / 192.124, exact unit conversions, and all five quality formulas
+matching the standard definitions.
+
+Six things didn't. The largest was a feature the app **asserted but never performed**:
+milk, aloe and coffee were described as replacing part of the water, and the Lye card said
+so outright, while nothing subtracted them. A milk soap was therefore either lighter than
+quoted, or carried nearly twice the liquid it reported — and the *"Very dilute lye"* check,
+reading the water figure alone, could not see either case. Fixed with a `replacesWater`
+flag on the four additives that genuinely stand in for water; `kind:"liquid"` was the wrong
+hook, because honey, sodium lactate, glycerin and vitamin E are also liquids but go in on
+top, and subtracting those would have been a new bug. Keeping `waterG` as *total liquid*
+and adding `waterAddG` as *what you pour* made the batch weight, yield, cost and
+concentration all fall out correctly instead of each needing its own patch.
+
+The hot-process reserve was silently capped by how much of the chosen oil existed, so a
+recipe could ask for 15% superfat, get 10%, and still be told it was "the safe zone" — the
+superfat verdict now judges the cushion the bar actually ends up with. Scent limits were
+labelled a **"skin-safe max"**, which claims a regulatory basis these hand-entered soaping
+figures don't have; they're now a *typical max* pointing at the supplier's IFRA certificate
+for the binding number. And the additive dose guard was an inclusion list, so sodium
+citrate and gluconate passed at any dose — inverted to an exception table over a default,
+the same fix `recipeShareURL()` needed, for the same reason.
+
+Every new guard was mutation-checked. One of those checks initially "passed" because the
+mutation had silently failed to apply — which is exactly the failure a mutation check
+exists to catch, so it now asserts the edit landed before trusting the result.
 
 ---
 
