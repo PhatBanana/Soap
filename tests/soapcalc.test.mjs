@@ -1969,6 +1969,101 @@ Water:Lye Ratio 2.5`, { commit: true });
 }
 
 /* =======================================================================
+   AUDIT FIXES — claims the app makes about itself must actually hold
+======================================================================= */
+{
+  const ADD = (key, name, g) => ({ name, key, g });
+  const panel = (p) => p.evaluate(() => ({
+    lye:   parseFloat(document.getElementById("lyeVal").textContent),
+    water: parseFloat(document.getElementById("waterOut").textContent),
+    batch: parseFloat(document.getElementById("batchOut").textContent),
+    info:  document.getElementById("lyeInfo").textContent,
+    checks:[...document.querySelectorAll("#safetyList .safety-item")]
+      .map((e) => e.querySelector(".si-title").textContent)
+  }));
+  const oneOil = (adds) => store({ oils:[OIL("olive",1000)], additives:adds });
+
+  // --- water replacers -------------------------------------------------
+  // 1000 g olive at 5% SF = 127.30 g NaOH; 38% water = 380 g.
+  let p = await newPage();
+  await open(p, oneOil([]));
+  const plain = await panel(p);
+  near("Baseline lye", plain.lye, 127.3, 0.05);
+  near("Baseline water", plain.water, 380, 0.5);
+  near("Baseline batch", plain.batch, 1507.3, 0.5);
+
+  await open(p, oneOil([ADD("goatmilk","Goat milk",300)]));
+  const milk = await panel(p);
+  near("Milk comes off the water you pour", milk.water, 80, 0.5);
+  eq("…and the batch is unchanged, so nothing is counted twice", milk.batch, plain.batch);
+  has("…and the card says so with the arithmetic", milk.info, "after 300 g of Goat milk");
+  has("…naming the total liquid", milk.info, "380 g liquid in total");
+  ok("Lye concentration is unmoved — total liquid is the same",
+    Math.abs(parseFloat(milk.info.match(/([\d.]+)%/)[1]) - 25.1) < 0.2, milk.info);
+
+  // the case the old code could not see at all
+  await open(p, oneOil([ADD("goatmilk","Goat milk",500)]));
+  const over = await panel(p);
+  near("Replacers beyond the water budget floor it at zero", over.water, 0, 0.01);
+  ok("…and the over-budget check fires",
+    over.checks.some((t) => /More Goat milk than/.test(t)), over.checks.join("|"));
+  ok("…and 'Very dilute lye' finally fires — it was blind to this before",
+    over.checks.some((t) => /Very dilute lye/.test(t)), over.checks.join("|"));
+
+  // liquids that are NOT water replacers must keep going in on top
+  await open(p, oneOil([ADD("honey","Honey",50)]));
+  const honey = await panel(p);
+  near("Honey does not touch the water", honey.water, 380, 0.5);
+  near("…and is added on top of the batch", honey.batch, plain.batch + 50, 0.5);
+  await p.close();
+
+  // --- clamped hot-process reserve -------------------------------------
+  const hp = (sf) => store({ oils:[OIL("olive",900),OIL("castor",100)],
+    superfat:sf, method:"hp", sfMode:"after", sfOil:"castor" });
+  p = await newPage();
+  await open(p, hp(10));
+  let s = await panel(p);
+  ok("A reserve that fits raises nothing",
+    !s.checks.some((t) => /smaller than it looks/.test(t)), s.checks.join("|"));
+
+  await open(p, hp(15));
+  s = await panel(p);
+  ok("A reserve capped by the oil available is called out",
+    s.checks.some((t) => /smaller than it looks/.test(t)), s.checks.join("|"));
+  const detail = await p.evaluate(() => [...document.querySelectorAll("#safetyList .safety-item")]
+    .filter((e) => /smaller than it looks/.test(e.querySelector(".si-title").textContent))
+    .map((e) => e.querySelector(".si-detail").textContent)[0] || "");
+  has("…quoting what was asked for", detail, "15%");
+  has("…and what the bar actually gets", detail, "10%");
+  ok("…and the superfat verdict judges the real figure, not the requested one",
+    s.checks.some((t) => /Lye is balanced/.test(t)) && !s.checks.some((t) => /Very high superfat/.test(t)),
+    s.checks.join("|"));
+  await p.close();
+
+  // --- additive cap, now an exception table over a default --------------
+  p = await newPage();
+  await open(p, oneOil([ADD("sodiumcitrate","Sodium citrate",200)]));
+  ok("An uncapped chelator at 20% is caught by the default cap",
+    (await panel(p)).checks.some((t) => /Additive dosed high/.test(t)));
+  await open(p, oneOil([ADD("sodiumcitrate","Sodium citrate",20)]));
+  ok("…and a sane 2% dose is not",
+    !(await panel(p)).checks.some((t) => /Additive dosed high/.test(t)));
+  await open(p, oneOil([ADD("salt","Salt (table/sea)",250)]));
+  ok("Salt bars are exempt — 25% salt is the point of them",
+    !(await panel(p)).checks.some((t) => /Additive dosed high/.test(t)));
+  await p.close();
+
+  // --- the quality-dilution note ---------------------------------------
+  p = await newPage();
+  await open(p, store({ oils:[OIL("olive",900),OIL("beeswax",100)] }));
+  has("Beeswax's effect on the profile is explained", await txt(p,"#qualNote"), "add weight without adding profile");
+  await open(p, store({ oils:[OIL("olive",1000)] }));
+  ok("…and nothing is said when no such oil is present",
+    !/without adding profile/.test(await txt(p,"#qualNote")));
+  await p.close();
+}
+
+/* =======================================================================
    MENU SEARCH
 ======================================================================= */
 {
@@ -2257,6 +2352,29 @@ Water:Lye Ratio 2.5`, { commit: true });
   // a guard on the guard: if the wording changes so no claim matches, the loop above
   // passes by doing nothing at all
   ok("The docs do make countable claims", claimsSeen >= 5, String(claimsSeen));
+
+  // --- data integrity behind the audit fixes -------------------------------
+  // Subtracting an additive from the water changes the chemistry, so the set that does it
+  // is pinned: adding a fifth should be a deliberate edit here, not a silent one.
+  const replacers = await p.evaluate(() => Object.keys(window.ADDITIVES)
+    .filter((k) => window.ADDITIVES[k].replacesWater).sort());
+  eq("Only the four genuine water replacers subtract from the water",
+    replacers.join(","), "aloe,coconutmilk,coffee,goatmilk");
+  ok("…and every one of them is a liquid",
+    await p.evaluate(() => Object.keys(window.ADDITIVES)
+      .filter((k) => window.ADDITIVES[k].replacesWater)
+      .every((k) => window.ADDITIVES[k].kind === "liquid")));
+
+  // A mistyped ADD_CAP key is invisible: the additive just falls through to the default.
+  const capKeys = ((appSrc.match(/var ADD_CAP=\{([^}]*)\}/) || [])[1] || "")
+    .split(",").map((s) => s.split(":")[0].trim()).filter(Boolean);
+  ok("ADD_CAP has entries", capKeys.length >= 10, String(capKeys.length));
+  const knownAdds = await p.evaluate(() => Object.keys(window.ADDITIVES));
+  capKeys.forEach((k) => ok(`ADD_CAP key "${k}" is a real additive`, knownAdds.includes(k)));
+
+  // the wording fix has to stay fixed — "skin-safe max" claims an authority this data lacks
+  ok("No 'skin-safe max' claim survives in app.js", !/skin-safe max/.test(
+    appSrc.replace(/\/\/[^\n]*/g, "")), "found outside a comment");
 
   // the roadmap's "Today:" line names a version — it must be this one
   const roadmapV = (roadmap.match(/\*\*Today:\*\*\s*(v\d+)/) || [])[1];

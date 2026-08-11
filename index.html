@@ -61,7 +61,7 @@
 
     <div class="card" id="scaleCard" hidden>
       <h2>Batch Yield &amp; Scaling</h2>
-      <div class="result hero" id="yieldHero" style="margin-bottom:12px">
+      <div class="result hero" style="margin-bottom:12px">
         <div class="k">Expected yield · current recipe</div>
         <div class="v"><span id="yieldVal">0</span><span class="u" id="yieldUnit">g</span></div>
         <div class="subinfo" id="yieldBars" style="text-align:left;margin-top:4px"></div>
@@ -275,7 +275,7 @@
 
   <!-- ============ MAKE TAB ============ -->
   <section id="tab-make" hidden>
-    <div class="card" id="methodCard">
+    <div class="card">
       <h2>Method</h2>
       <div class="seg sub" id="methodSeg">
         <button type="button" data-mt="cp" class="active">Cold process</button>
@@ -297,7 +297,7 @@
       <div class="result hero"><div class="k">Ready to use</div><div class="v" id="readyOn">—</div></div>
       <div class="subinfo" id="cureNote">Cold-process soap needs 4–6 weeks to cure — water evaporates, the bar hardens, and it gets milder and longer-lasting.</div>
     </div>
-    <div class="card" id="tempCard">
+    <div class="card">
       <h2>Soaping Temperatures</h2>
       <div id="tempSuggest" class="temp-suggest"></div>
       <ul class="temp-ref" id="tempRefCP">
@@ -322,7 +322,7 @@
       <div class="subinfo wake-note hide" id="wakeNote"></div>
       <div class="safety">⚠️ Always add lye TO the water (never water to lye), in a ventilated space, with gloves &amp; eye protection.</div>
     </div>
-    <div class="card" id="notesLogCard">
+    <div class="card">
       <h2>Batch Notes</h2>
       <div class="lot-row">
         <label for="lotField">Lot #</label>
@@ -346,10 +346,10 @@
 <div class="sheet-back hide" id="sheetBack">
   <div class="sheet" id="sheet" role="menu" aria-label="Actions">
     <div class="sheet-handle" aria-hidden="true"></div>
-    <div class="sheet-title" id="sheetTitle">Soap Calc</div>
+    <div class="sheet-title">Soap Calc</div>
     <input type="search" id="sheetFilter" class="ts-filter" placeholder="Search actions…" aria-label="Search actions" autocomplete="off">
     <div class="sheet-empty hide" id="sheetEmpty">No actions match.</div>
-    <div class="sheet-grid" id="sheetGrid">
+    <div class="sheet-grid">
       <div class="sheet-group">
         <div class="sheet-h">Recipe</div>
         <button type="button" class="sheet-btn" data-a="library" data-kw="library saved list"><span class="si">📚</span>All recipes</button>
