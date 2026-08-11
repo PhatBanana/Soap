@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v51 · 42 oils · 33 additives · 22 colorants · 17 aromas ·
-17 example recipes · 720 test assertions, run on every pull request.
+**Today:** v52 · 65 oils · 33 additives · 22 colorants · 33 aromas ·
+17 example recipes · 1618 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `data.js` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -19,7 +19,7 @@ quietly drift — they had, which is why the check exists.</sub>
 ### Recipe & units
 - Enter oils and additives once; switch the whole recipe between **g / oz / lb / kg / %**
   from the app-bar unit picker.
-- **42 oils, butters & fats** and **33 additives** (including 12 natural and mineral
+- **65 oils, butters & fats** and **33 additives** (including 12 natural and mineral
   colorants), focused on what you can actually buy, each with a plain-language
   **?** description (what it brings, its standout trait, a
   typical usage %). Custom ingredients allowed, and flagged as outside the lye maths.
@@ -321,17 +321,54 @@ Every new guard was mutation-checked. One of those checks initially "passed" bec
 mutation had silently failed to apply — which is exactly the failure a mutation check
 exists to catch, so it now asserts the edit landed before trusting the result.
 
+**17. More oils, and the schema that finally fits them** — ✅ **shipped in v52**
+This closes item 9's open half, and it turned out the two halves were the same problem.
+
+I had written off widening the fatty-acid schema as "not worth it for three oils". That was
+wrong, and measuring it said so: **fourteen of the original forty-two** oils had 4% or more
+of their fatty acids with nowhere to go in the eight-slot model — macadamia 28%, jojoba 87%.
+An oil's unplaced share doesn't vanish; the blend is normalised by weight, so it quietly
+drags every quality score down.
+
+Five acids now have slots — **caprylic (C8)** and **capric (C10)**, which are why coconut
+cleans as hard as it does; **palmitoleic (C16:1)**, macadamia's signature and present in
+every animal fat here; **C20–C24 saturated**, peanut's and moringa's tail; and
+**C20:1/C22:1**, which is essentially all jojoba and meadowfoam are. Forty-two oils became
+sixty-five, chosen so the new slots earn themselves: fractionated coconut is 98% C8+C10,
+meadowfoam 93% C20:1, sea buckthorn 30% palmitoleic. Beeswax stays the documented exception
+at 14% — it really is mostly unsaponifiable wax ester, which is why its SAP is half an
+ordinary oil's.
+
+**The recommended bands had to move with the formulas.** Counting caprylic and capric raises
+coconut's cleansing from 67 to 79, a ×1.18 stretch on everything lauric, and holding the old
+12–22 would have flagged four perfectly ordinary recipes — a palm-free bar, a tallow bar, a
+hand soap, a shampoo — as too cleansing. The bands are scaled by how far the model moved
+rather than fitted to the examples; across all 17, **84 of 85 in/out verdicts are unchanged**,
+and the one that moved (a palm-free laundry bar now reading harder than a body bar) matches
+the other laundry bar, which already did. The consequence worth stating plainly: these five
+numbers no longer match a calculator still using the eight-acid model. They are more
+accurate, not more comparable.
+
+Also 17 scents to 33, and the four shaping goals stopped carrying their own copy of the
+quality formulas — they'd have gone on scoring against the old model.
+
+Sixty-five oils of hand-entered reference values needed a guard, so every oil is now checked
+for a profile that adds up, a SAP in a physically plausible band, plausible iodine and INS,
+a real description, and no fatty acid the app doesn't score; every scent for a usage rate
+that runs low ≤ typical ≤ max. None of that can tell you a SAP figure is *right* — only the
+supplier can — but it catches what bulk data entry actually gets wrong, and mutation testing
+confirmed all three: a misplaced decimal, a typo'd acid key, an incomplete profile.
+
 ---
 
 ## Part 3 — What's next
 
-Short and honest: the fourteen numbered items are done, so this is what's actually left.
+Short and honest: every numbered item is done, so this is what's actually left.
 
-- **More oils and fragrance oils** (the open half of item 9). Supplier SAP overrides
-  removed the hard ceiling — any oil, any supplier, with their number — so this is now
-  about convenience rather than capability, and it's the only thread never closed.
-- **Nothing else is queued.** New entries should earn their place against the scope at
-  the top of this file, not be added because the list looks short.
+- **Nothing is queued.** New entries should earn their place against the scope at the top
+  of this file, not be added because the list looks short.
+- The obvious candidate if the data keeps growing is **splitting `data.js`** — it's the
+  one file that gets longer with every ingredient, and at 65 oils it's still fine.
 
 ---
 
