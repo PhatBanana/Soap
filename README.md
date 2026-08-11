@@ -402,16 +402,25 @@ Open the live URL and:
 batch. Lye is caustic: wear gloves and eye protection.**
 
 ## Project layout
-- `index.html` — app shell
+- `index.html` — app shell; loads `src/main.js` as an ES module
 - `app.css` — styles (incl. responsive + print)
-- `data.js` — oil / additive / aroma database
-- `app.js` — logic
+- `src/data/` — the reference data, split by what it is: `oils.js`,
+  `ingredients.js` (additives, colorants, scents), `guides.js` (troubleshooting,
+  first aid, tips, worked examples)
+- `src/core/` — `chem.js` is the lye and quality maths, deliberately pure: no DOM
+  and no application state, so the part where a mistake burns someone can be read
+  on its own. Alongside it `units.js`, `schema.js` (the persisted shape) and
+  `dom.js` (thin helpers)
+- `src/main.js` — everything else: rendering, the tabs, and the feature modals
 - `manifest.webmanifest`, `sw.js`, `icons/` — PWA (installable + offline)
 - `tests/` — behavior test suite
 - `screenshots/` — images used in this README
 
 Hosted free on GitHub Pages from `main`. There is **no build step** — the files
-above are what ships.
+above are what ships, ES modules straight to the browser. Every `.js` and `.css`
+here has to appear in the service worker's precache list, and the test suite
+derives that check from disk rather than a list, so a new file can't be forgotten
+into a half-working offline app.
 
 **This repo is public on purpose.** GitHub Pages only publishes from a public repo on
 the free plan, so public is the price of free hosting. It costs nothing in privacy:
@@ -423,7 +432,7 @@ obvious one: don't commit anything you wouldn't publish.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **1618 assertions.**
+the real app and asserts on the computed numbers and saved state. **1654 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)

@@ -6,7 +6,7 @@ import { OILS } from "../data/oils.js";
 import { ADDITIVES, AROMAS } from "../data/ingredients.js";
 import { uid } from "./dom.js";
 export const STORE_KEY = "soapcalc.v4";
-export const APP_VERSION = "v53", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
+export const APP_VERSION = "v54", BUILD_DATE = "2026-08-03";   // bump both (and sw.js CACHE) each release
 export const USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 export function validUse(u){ for(var i=0;i<USES.length;i++) if(USES[i][0]===u) return true; return false; }
 

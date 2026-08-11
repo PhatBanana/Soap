@@ -21,3 +21,17 @@ export function makeModal(){
   return { back:back, m:m };
 }
 export function closeModal(back){ document.body.style.overflow=""; back.remove(); }
+
+/* The two shapes every modal in this app repeats: a Close footer, and an amount field.
+   Written out four and three times respectively before this. */
+export function modalFoot(md, label) {
+  var foot = el("div", "mfoot"), cl = el("button", "primary", label || "Close");
+  cl.addEventListener("click", function () { closeModal(md.back); });
+  foot.appendChild(cl); md.m.appendChild(foot);
+  return foot;
+}
+export function numInput() {
+  var inp = document.createElement("input");
+  inp.type = "number"; inp.step = "any"; inp.min = "0"; inp.inputMode = "decimal";
+  return inp;
+}

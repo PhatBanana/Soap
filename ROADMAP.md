@@ -6,10 +6,10 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v53 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 1618 test assertions, run on every pull request.
+**Today:** v54 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 1654 test assertions, run on every pull request.
 
-<sub>Those counts are checked against `data.js` by the test suite, so they can't
+<sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
 
 ---
@@ -394,16 +394,58 @@ weight and cure** to cold process, and must have its own checklist, note and tem
 An early version of that test passed while comparing `"0"` to `"0"` — the lye panel only
 renders on the Base tab — so it now checks the readings are non-empty before comparing them.
 
+**19. Code hygiene: ES modules, and the file splits** — ✅ **shipped in v54**
+`app.js` was 3466 lines in one IIFE. Before proposing surgery I checked whether it
+actually needed any: no dead functions, no monster functions, essentially no dead CSS,
+and duplication down to a modal footer written out three times. So this was about
+navigability, not rot — and it delivers no user-visible change, which set the bar for how
+it had to be done. The suite was the safety net, and the rule was that a *behaviour*
+assertion breaking meant a regression, not something to update. None did.
+
+The page now loads one ES module. Reference data split into `src/data/` by what it is,
+verified table by table as JSON-identical rather than trusted. **`src/core/chem.js` is the
+point of the exercise**: the lye and quality maths, 151 lines, no DOM and no application
+state — the two things it did reach for (your SAP overrides, and "the recipe currently
+open") are injected instead, with four one-line wrappers in `main.js` so no call site
+changed. `units.js`, `schema.js` and `dom.js` came out with it.
+
+Three bugs made and caught, all silent, all worth recording because none would survive
+review by reading:
+
+- Line-range deletions that weren't strictly descending, so a later cut removed lines that
+  had already shifted. The redo asserts the ranges are sorted and disjoint first.
+- `chem.js` used `clamp` without importing it. Every dual-lye path threw, and the first
+  symptom was a modal that simply didn't open.
+- `schema.js` did the same, and `load()` wraps everything in `try{}` — so the
+  `ReferenceError` was swallowed, the app fell back to an empty recipe, and there was no
+  page error and no failed assertion until a test timed out much later waiting on a
+  dropdown. **A try/catch that makes loading robust also makes a hard error invisible.**
+
+The shell guard inverted first, and immediately earned it: adding `core/units.js` and
+`core/chem.js` failed the precache check the same run. The old hand-kept list of five
+filenames would have said nothing.
+
+Verified beyond the assertions: eight screenshots across three tabs, two widths and two
+modals differ from the pre-refactor baseline by **one pixel at delta 1/255** — antialiasing
+on a tab border. Offline reload with the network cut still works, which was the combination
+(ES modules plus a service worker) most likely to break.
+
+Still one file: `src/main.js` is 3160 lines of rendering and feature modals. Splitting that
+further is the open half — see *What's next*.
+
 ---
 
 ## Part 3 — What's next
 
 Short and honest: every numbered item is done, so this is what's actually left.
 
-- **Nothing is queued.** New entries should earn their place against the scope at the top
-  of this file, not be added because the list looks short.
-- The obvious candidate if the data keeps growing is **splitting `data.js`** — it's the
-  one file that gets longer with every ingredient, and at 65 oils it's still fine.
+- **Split `src/main.js`.** It is still 3160 lines of rendering and feature modals — the
+  open half of v54. The seams are there (41 section headings, and the modals are largely
+  independent), but they share `state`, `render()` and each other, so it needs untangling
+  rather than cutting. Worth doing when someone next has to find something in it; not
+  worth rushing, since three of the four bugs in v54 came from moving code mechanically.
+- **Nothing else is queued.** New entries should earn their place against the scope at the
+  top of this file, not be added because the list looks short.
 
 ---
 

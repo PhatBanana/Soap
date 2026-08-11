@@ -12,7 +12,7 @@ import {
   useSapOverrides
 } from "./core/chem.js";
 import * as Chem from "./core/chem.js";
-import { $, el, escapeHtml, uid, forceVisible, makeModal, closeModal } from "./core/dom.js";
+import { $, el, escapeHtml, uid, forceVisible, makeModal, closeModal, modalFoot, numInput } from "./core/dom.js";
 import { STORE_KEY, APP_VERSION, BUILD_DATE, USES, validUse, defOf, RECIPE_FIELDS, VIEW_FIELDS, coerceField } from "./core/schema.js";
 
 /* chem.js takes an explicit recipe and knows nothing about application state. These four
@@ -379,7 +379,7 @@ function buildAddRow(it,i){
   if(d) row.appendChild(el("div","note",d.note));
 
   var ne=el("div","numedit");
-  var inp=document.createElement("input"); inp.type="number"; inp.step="any"; inp.min="0"; inp.inputMode="decimal";
+  var inp=numInput();
   inp.setAttribute("aria-label",it.name+" amount");
   var u=el("span","u",UNITS[weightUnit()].label);
   var pctLbl=el("span","pctlbl");
@@ -418,7 +418,7 @@ function buildAromaRow(it,i){
   var warnEl=el("div","warn"); warnEl.style.display="none"; row.appendChild(warnEl);
 
   var ne=el("div","numedit");
-  var inp=document.createElement("input"); inp.type="number"; inp.step="any"; inp.min="0"; inp.inputMode="decimal";
+  var inp=numInput();
   var u=el("span","u",UNITS[weightUnit()].label);
   var pctLbl=el("span","pctlbl");
   inp.addEventListener("focus",function(){activeInput=inp;});
@@ -2396,7 +2396,7 @@ function openRebatch(){
   md.m.appendChild(el("h3",null,"Rebatch"));
   md.m.appendChild(el("p","sub","Grate a batch down, melt it with a little liquid and re-mould it. Good for a soap that seized, separated or just came out ugly."));
   var row=el("div","scale-row");
-  var inp=document.createElement("input"); inp.type="number"; inp.step="any"; inp.min="0"; inp.inputMode="decimal";
+  var inp=numInput();
   inp.id="rebatchIn"; inp.value=fmt(fromG(curedBatchG(),wunit),UNITS[wunit].dp);
   row.appendChild(inp); row.appendChild(el("span","u",ul));
   md.m.appendChild(el("div","subhead","Weight of soap to rebatch"));
@@ -2471,8 +2471,7 @@ function openGuideList(o,q0){
   }
   filter.addEventListener("input",function(){ draw(filter.value); });
   filter.value=q0||""; draw(filter.value);
-  var foot=el("div","mfoot"); var cl=el("button","primary","Close");
-  cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
+  modalFoot(md);
   return md;
 }
 function openTrouble(q0){
@@ -2534,8 +2533,7 @@ function openColors(q0){
   filter.value=q0||""; draw(filter.value);
   var back2=guideLinks("trouble:discolored",md.back); if(back2) md.m.appendChild(back2);
   md.m.appendChild(el("div","safety long","⚠️ Colour is cosmetic — nothing here changes the lye maths. Add colorants to the recipe as ordinary ingredients if you want them costed and on the label. Use skin-safe, soap-stable colorants only: craft dyes, food colouring and candle pigments don't belong in soap."));
-  var foot=el("div","mfoot"); var cl=el("button","primary","Close");
-  cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
+  modalFoot(md);
 }
 
 function nz(list){ return list.filter(function(it){ return it.g>0; }); }
@@ -2626,8 +2624,7 @@ function openLibrary(){
   chip.addEventListener("click",function(){ onlyMakeable=!onlyMakeable; draw(); });
   md.m.appendChild(chip);
   var list=el("div"); md.m.appendChild(list);
-  var foot=el("div","mfoot"); var cl=el("button","primary","Close");
-  cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
+  modalFoot(md);
 
   function draw(){
     setActive(seg,"ls",state.librarySort||"name");
