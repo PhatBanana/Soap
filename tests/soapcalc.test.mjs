@@ -1983,6 +1983,169 @@ Water:Lye Ratio 2.5`, { commit: true });
 }
 
 /* =======================================================================
+   CHEMISTRY, DIRECTLY
+
+   core/chem.js is pure — no DOM, no application state — so the lye maths can be
+   checked without a browser in the loop. These are the numbers a mistake in
+   would burn someone, worked by hand rather than read back off the page.
+======================================================================= */
+{
+  const Chem = await import("../src/core/chem.js");
+  const oil = (key, g) => ({ name: key, key, g });
+  const rv = (o) => Object.assign({
+    oils: [], additives: [], aromas: [], lyeType: "naoh", superfat: 5, waterPct: 38,
+    waterMode: "oils", lyeConc: 33, waterRatio: 2, kohPurity: 90, dualKoh: 30,
+    method: "cp", sfMode: "discount", sfOil: "", saltMode: "trace"
+  }, o);
+
+  // olive .134 x400 + coconut .178 x250 + palm .141 x200 + shea .128 x100 + castor .1286 x50
+  //   = 145.53 g NaOH before superfat; x0.95 = 138.2535
+  const classic = Chem.computeLye(rv({ oils:[oil("olive",400),oil("coconut",250),oil("palm",200),oil("shea",100),oil("castor",50)] }));
+  near("Lye for the classic bar, worked by hand", classic.lyeG, 138.2535, 0.001);
+  near("…water at 38% of oils", classic.waterG, 380, 0.001);
+
+  // superfat is a discount on the saponifying lye and nothing else
+  const sf0 = Chem.computeLye(rv({ oils:[oil("olive",1000)], superfat:0 }));
+  near("0% superfat saponifies everything", sf0.lyeG, 134, 0.001);
+  near("…and 5% takes exactly 5% off", Chem.computeLye(rv({ oils:[oil("olive",1000)] })).lyeG, 127.3, 0.001);
+
+  // KOH: molar-mass ratio, then divided by purity — more flake for weaker lye
+  const koh = Chem.computeLye(rv({ oils:[oil("olive",1000)], superfat:0, lyeType:"koh", kohPurity:100 }));
+  near("KOH is NaOH x 56.1056/39.9971", koh.lyeG, 134 * 1.40274, 0.01);
+  near("…and 90% purity needs proportionally more",
+    Chem.computeLye(rv({ oils:[oil("olive",1000)], superfat:0, lyeType:"koh" })).lyeG, 134 * 1.40274 / 0.9, 0.01);
+
+  // dual lye splits the same saponification between the two
+  const dual = Chem.computeLye(rv({ oils:[oil("olive",1000)], superfat:0, lyeType:"dual", dualKoh:50, kohPurity:100 }));
+  near("Dual lye: half the NaOH", dual.naohG, 67, 0.01);
+  near("…and half again as KOH", dual.kohG, 67 * 1.40274, 0.01);
+
+  // citric acid consumes lye stoichiometrically, and superfat must NOT discount that part
+  const acid = Chem.computeLye(rv({ oils:[oil("olive",1000)], superfat:5,
+    additives:[{ name:"Citric acid", key:"citric", g:20 }] }));
+  near("Citric acid adds its full 0.6246 g NaOH per gram, undiscounted",
+    acid.lyeG, 127.3 + 20 * 0.6246, 0.001);
+
+  // water modes
+  near("Lye concentration mode sizes water from the lye",
+    Chem.computeLye(rv({ oils:[oil("olive",1000)], superfat:0, waterMode:"conc", lyeConc:33 })).waterG,
+    134 * 0.67 / 0.33, 0.01);
+  near("Water:lye mode is a straight multiple",
+    Chem.computeLye(rv({ oils:[oil("olive",1000)], superfat:0, waterMode:"ratio", waterRatio:2 })).waterG, 268, 0.01);
+
+  // an oil the app has no data for contributes no lye — err toward extra oil, never extra lye
+  const custom = Chem.computeLye(rv({ oils:[oil("olive",500), { name:"Mystery fat", key:null, g:500 }] }));
+  near("An unknown oil adds no lye at all", custom.lyeG, 500 * 0.134 * 0.95, 0.001);
+  ok("…and is flagged as excluded", custom.hasCustom);
+
+  // supplier overrides are injected, not reached for
+  Chem.useSapOverrides(() => ({ olive: 0.2 }));
+  near("A supplier SAP override is what gets used",
+    Chem.computeLye(rv({ oils:[oil("olive",1000)], superfat:0 })).lyeG, 200, 0.001);
+  eq("…and is reported", Chem.overriddenKeys(rv({ oils:[oil("olive",1000)] })).join(","), "olive");
+  Chem.useSapOverrides(() => ({}));
+  near("…and removing it restores the reference value",
+    Chem.computeLye(rv({ oils:[oil("olive",1000)], superfat:0 })).lyeG, 134, 0.001);
+
+  // water replacers come off the water you pour, not on top of it
+  const milk = Chem.computeLye(rv({ oils:[oil("olive",1000)],
+    additives:[{ name:"Goat milk", key:"goatmilk", g:300 }] }));
+  near("Milk is subtracted from the water to pour", milk.waterAddG, 80, 0.001);
+  near("…but total liquid is unchanged", milk.liquidG, 380, 0.001);
+  ok("…and it isn't flagged as over budget", !milk.replOver);
+  ok("Beyond the water budget it is flagged",
+    Chem.computeLye(rv({ oils:[oil("olive",1000)],
+      additives:[{ name:"Goat milk", key:"goatmilk", g:500 }] })).replOver);
+
+  // qualities, straight off the blend
+  const q = Chem.qualitiesOf(Chem.blendFA(rv({ oils:[oil("coconut",1000)] })).fa);
+  near("100% coconut cleansing counts C8 and C10 too", q.cleansing, 79, 0.5);
+  ok("…and it is far outside the typical band", q.cleansing > 26);
+
+  // brine has a physical ceiling
+  const brine = Chem.brineOf(rv({ oils:[oil("olive",1000)], saltMode:"brine",
+    additives:[{ name:"Salt (table/sea)", key:"salt", g:500 }] }));
+  ok("Salt beyond saturation is detectable", brine.per100 > 35.9, String(brine.per100));
+}
+
+/* =======================================================================
+   STORAGE FAILURE — the app must never overwrite data it failed to read.
+
+   Before this, one transient error inside load() showed an empty library, and
+   the first thing you added overwrote every saved recipe. The data was still on
+   disk the whole time, right up until that save. Silently.
+======================================================================= */
+{
+  const precious = {
+    unit: "g", tab: "base", currentId: "r1",
+    recipes: [
+      recipe({ id:"r1", name:"Lavender Bar", oils:[OIL("olive",600),OIL("coconut",400)],
+               batches:[{ id:"b1", madeOn:"2026-01-04", lot:"A", cureWeeks:4, notes:"best yet", checks:[] }] }),
+      recipe({ id:"r2", name:"Gift Soap", oils:[OIL("olive",1000)] }),
+      recipe({ id:"r3", name:"Shampoo Bar", oils:[OIL("coconut",800)] })
+    ]
+  };
+  const onDisk = (p) => p.evaluate(() =>
+    JSON.parse(localStorage.getItem("soapcalc.v4")).recipes.map((r) => r.name).join("|"));
+
+  const p = await newPage();
+  // break JSON.parse exactly once, before any app code runs — stands in for any throw
+  // inside load(): a bad coercion, a schema slip, corrupt storage
+  await p.addInitScript(() => {
+    const real = JSON.parse; let fired = false;
+    JSON.parse = function (...a) {
+      if (!fired && String(a[0]).includes('"recipes"')) { fired = true; throw new TypeError("transient"); }
+      return real.apply(this, a);
+    };
+  });
+  await p.goto(base + "/index.html");
+  await p.evaluate((s) => localStorage.setItem("soapcalc.v4", JSON.stringify(s)), precious);
+  await p.reload(); await p.waitForTimeout(300);
+
+  eq("A failed load leaves the saved recipes untouched", await onDisk(p), "Lavender Bar|Gift Soap|Shampoo Bar");
+  ok("…and says so instead of looking empty",
+    await p.evaluate(() => !document.getElementById("loadWarn").classList.contains("hide")));
+  has("…naming what happened", await txt(p, "#loadWarn"), "Couldn't read your saved recipes");
+  eq("…offering rescue before anything else",
+    await p.evaluate(() => [...document.querySelectorAll("#loadWarn button")].map((b) => b.textContent).join("/")),
+    "Reload/Download a copy/Start fresh");
+
+  // the actual disaster: user sees an empty app and starts working
+  await addOil(p, "olive", 500);
+  await p.waitForTimeout(250);
+  eq("Editing after a failed load still does not overwrite them",
+    await onDisk(p), "Lavender Bar|Gift Soap|Shampoo Bar");
+
+  // starting over has to be a deliberate act, and has to actually work
+  p.on("dialog", (d) => d.accept());
+  await p.click("#lwFresh"); await p.waitForTimeout(250);
+  eq("Start fresh, once chosen, does write", await onDisk(p), "My recipe");
+  await p.close();
+}
+
+{
+  // A save that fails silently is worse than one that errors: you carry on believing the
+  // batch is logged. Quota and Safari's private mode both throw at setItem.
+  const p = await newPage();
+  // armed only after the fixture is seeded, or the test breaks its own setup
+  await p.addInitScript(() => {
+    const real = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (window.__fullDisk && k === "soapcalc.v4") throw new DOMException("QuotaExceededError");
+      return real.call(this, k, v);
+    };
+  });
+  await open(p, store({ oils:[OIL("olive",500)] }));
+  await p.evaluate(() => { window.__fullDisk = true; });
+  await addOil(p, "coconut", 200);
+  await p.waitForTimeout(250);
+  ok("A storage write that fails is reported, not swallowed",
+    await p.evaluate(() => !document.getElementById("saveWarn").classList.contains("hide")));
+  has("…and says what to do about it", await txt(p, "#saveWarn"), "Back up all");
+  await p.close();
+}
+
+/* =======================================================================
    CPOP — a third method added to a codebase full of `method === "hp"` binaries.
    The chemistry must stay identical to cold process; only the guidance differs.
    These are the assertions that catch a branch nobody remembered to widen.

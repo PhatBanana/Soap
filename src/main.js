@@ -7,13 +7,12 @@ import { ADDITIVES, ADDITIVE_INCI, COLORANTS, AROMAS } from "./data/ingredients.
 import { BLEND_TIPS, FIRST_AID, TROUBLESHOOTING, EXAMPLES } from "./data/guides.js";
 import { UNITS, UORDER, CONV, IMPORT_UNITS, fromG, fmt, sumG, clamp } from "./core/units.js";
 import {
-  FA_KEYS, QUALITIES, IOD_RANGE, INS_RANGE, KOH_FACTOR, SALT_MAX_PER100,
-  oilsGof, sapOf, overriddenKeys, acidLyeOf, brineOf, lyeConcOf, qualitiesOf, qFn,
-  useSapOverrides
+  QUALITIES, IOD_RANGE, INS_RANGE, KOH_FACTOR, SALT_MAX_PER100,
+  oilsGof, brineOf, lyeConcOf, qualitiesOf, qFn, useSapOverrides
 } from "./core/chem.js";
 import * as Chem from "./core/chem.js";
 import { $, el, escapeHtml, uid, forceVisible, makeModal, closeModal, modalFoot, numInput } from "./core/dom.js";
-import { STORE_KEY, APP_VERSION, BUILD_DATE, USES, validUse, defOf, RECIPE_FIELDS, VIEW_FIELDS, coerceField } from "./core/schema.js";
+import { STORE_KEY, APP_VERSION, BUILD_DATE, USES, defOf, RECIPE_FIELDS, VIEW_FIELDS, coerceField } from "./core/schema.js";
 
 /* chem.js takes an explicit recipe and knows nothing about application state. These four
    supply "the recipe currently open" so that the ~90 call sites below read as they always
@@ -29,6 +28,13 @@ function totalOilsG(){ return sumG(state.oils); }
 var library=[];      // [{ id, name } + the RECIPE_FIELDS above]
 var currentId=null;
 var sharedImportName=null;   // set by initState when a recipe arrives via a #r= share link
+/* Set when load() finds saved data it can't read. While it holds a value nothing is
+   written to storage, because the alternative is what this app used to do: show an empty
+   library, let you add an oil, and overwrite three recipes and a batch history with
+   "My recipe" — silently, with the good data still on disk until that first save.
+   Declared HERE, above initState(), because load() runs during that call: a `var` further
+   down the module would be re-initialised to null immediately afterwards and undo it. */
+var loadBlocked=null;          // the raw string we failed to parse, kept for rescue
 var state = initState();
 
 /* ---------- small helpers ---------- */
@@ -2032,13 +2038,14 @@ function normUnit(u){ u=u.toLowerCase().replace(/s$/,""); if(u==="gram")u="g"; i
 /* ---------- data safety: persistent storage + backup/restore ---------- */
 // Ask the browser to keep our storage (recipes) from being auto-evicted.
 if(navigator.storage && navigator.storage.persist){ navigator.storage.persist().catch(function(){}); }
+function downloadFile(name,text,mime){
+  var blob=new Blob([text],{type:mime||"application/json"});
+  var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },2000);
+}
 function backupAll(){
   syncCurrent(); save(); flushSave();
-  var data=localStorage.getItem(STORE_KEY)||"{}";
-  var blob=new Blob([data],{type:"application/json"});
-  var a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-  a.download="soapcalc-backup-"+todayISO()+".json";
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },2000);
+  downloadFile("soapcalc-backup-"+todayISO()+".json", localStorage.getItem(STORE_KEY)||"{}");
 }
 function restoreFrom(file){
   var r=new FileReader();
@@ -3070,9 +3077,18 @@ function sanitizeRecipe(r){ if(!r||typeof r!=="object") return null;
    current and only the write to disk is deferred. */
 var writeTimer=null;
 function writeStore(){
+  if(loadBlocked!==null) return;
   try{ var o={ currentId:currentId, recipes:library };
     VIEW_FIELDS.forEach(function(fld){ o[fld.k]=state[fld.k]; });
-    localStorage.setItem(STORE_KEY,JSON.stringify(o)); }catch(e){} }
+    localStorage.setItem(STORE_KEY,JSON.stringify(o)); saveFailed(false); }
+  catch(e){ saveFailed(true); } }
+/* A save that fails is worse than one that errors: you carry on believing the batch is
+   logged. Quota and Safari's private mode both throw here. */
+function saveFailed(bad){
+  var el0=$("saveWarn"); if(!el0) return;
+  el0.classList.toggle("hide",!bad);
+  if(bad) el0.textContent="⚠️ Couldn't save to this browser's storage — your recent changes are only in this tab. Free up space, or use Back up all to keep a copy.";
+}
 function cancelWrite(){ if(writeTimer){ clearTimeout(writeTimer); writeTimer=null; } }
 function save(){ syncCurrent(); cancelWrite(); writeStore(); }
 function saveSoon(){ syncCurrent(); if(!writeTimer) writeTimer=setTimeout(function(){ writeTimer=null; writeStore(); },200); }
@@ -3097,8 +3113,31 @@ function load(){
       var r=sanitizeRecipe({ name:"My recipe", oils:o3.oils, additives:o3.additives, aromas:o3.aromas,
         lyeType:o3.lyeType, superfat:o3.superfat, waterPct:o3.waterPct, kohPurity:o3.kohPurity });
       return { recipes:[r], currentId:r.id, view:{unit:o3.unit,tab:o3.tab,scaleMode:o3.scaleMode} }; } }
-  }catch(e){}
+  }catch(e){
+    // Something is there and we couldn't read it. Do NOT quietly start fresh over the top.
+    var raw0=null; try{ raw0=localStorage.getItem(STORE_KEY); }catch(e2){}
+    if(raw0){ loadBlocked=raw0; showLoadBlocked(); }
+  }
   return null;
+}
+/* Offers the two things that actually help: get the unreadable data off the device before
+   anything touches it, or decide deliberately to start over. */
+function showLoadBlocked(){
+  var box=$("loadWarn"); if(!box) return;
+  box.classList.remove("hide");
+  box.innerHTML='<b>Couldn\'t read your saved recipes.</b> They are still on this device and nothing has been '+
+    'overwritten — this app will not save anything until you choose. Reloading often fixes it.'+
+    '<div class="lw-btns"><button type="button" class="addbtn" id="lwReload">Reload</button>'+
+    '<button type="button" class="recalc" id="lwSave">Download a copy</button>'+
+    '<button type="button" class="recalc" id="lwFresh">Start fresh</button></div>';
+  $("lwReload").addEventListener("click",function(){ location.reload(); });
+  $("lwSave").addEventListener("click",function(){
+    downloadFile("soapcalc-unreadable-"+todayISO()+".json", loadBlocked);
+  });
+  $("lwFresh").addEventListener("click",function(){
+    if(!confirm("Start fresh? Your unreadable saved data will be replaced the next time you change anything. Download a copy first if you haven't.")) return;
+    loadBlocked=null; box.classList.add("hide"); save();
+  });
 }
 function cleanList(list,db){ if(!Array.isArray(list)) return [];
   return list.filter(function(it){ return it&&typeof it.name==="string"&&typeof it.g==="number"&&isFinite(it.g); })
