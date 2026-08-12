@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v54 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 1654 test assertions, run on every pull request.
+**Today:** v55 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 1686 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -432,6 +432,39 @@ on a tab border. Offline reload with the network cut still works, which was the 
 
 Still one file: `src/main.js` is 3160 lines of rendering and feature modals. Splitting that
 further is the open half — see *What's next*.
+
+**20. Second hygiene round: the app could destroy your recipes** — ✅ **shipped in v55**
+A pass looking for bugs rather than tidiness, and it found a bad one.
+
+`load()` wrapped everything in `try{}` and silently returned null. So *any* throw while
+reading saved data — a corrupt key, a schema slip, the missing-import bug this very
+refactor produced — showed an empty library. The saved recipes were still on disk at that
+moment, entirely recoverable. Then the first thing you added called `save()`, and
+`writeStore()` wrote the empty state straight over them. Reproduced end to end: three
+recipes and a batch history became **"My recipe"**, silently and permanently.
+
+Two rules now: **never overwrite data you failed to read**, and **never fail silently.** A
+failed load parks writes entirely and says so, offering to reload, to download the
+unreadable file before anything touches it, or to start fresh as a deliberate choice.
+`writeStore()` no longer swallows its own errors either — quota exhaustion and Safari's
+private mode both throw there, and the old behaviour was to carry on looking like the batch
+was logged.
+
+Fixing it produced a fourth bug worth recording: `var loadBlocked=null` sat *below*
+`var state = initState()`, and `load()` runs inside that call — so module evaluation reset
+the flag to null immediately after `load()` set it, and the guard did nothing. The
+declaration is now above its first use, with a comment saying why it has to be.
+
+The other half of the round turned dead weight into coverage. Five imports in `main.js` and
+six exports in `core/` were unused after the split. Rather than delete the chemistry ones,
+`chem.js` being independently testable was the *point* of extracting it — so there are now
+**23 assertions running the lye maths directly, with no browser**: the classic bar worked
+by hand, superfat as a discount on saponification only, KOH's molar ratio and its purity
+division, dual-lye splits, citric acid outside the discount, all three water modes, unknown
+oils contributing no lye, injected SAP overrides, and the water-replacer arithmetic. Every
+one passed first time, which is the best evidence the extraction was faithful.
+
+Everything above was mutation-checked, including the hoisting bug.
 
 ---
 
