@@ -915,6 +915,95 @@ async function addOil(p, key, g) {
 }
 
 /* =======================================================================
+   CSV ROUND TRIP — a recipe must come back as the recipe that left
+
+   Export used to write only section,name,amount,unit. A custom oil therefore
+   came back as whichever reference oil its name resembled: "Coconut blend" at
+   SAP 0.10 returned as coconut oil at 0.178, calling for 144 g of lye where the
+   recipe needs 114 — 26% over, in the dangerous direction, with the safety
+   check reporting the batch balanced.
+======================================================================= */
+{
+  const p = await newPage();
+  const CUSTOM = { name:"Coconut blend", key:null, g:400, sap:0.10 };
+  // read what exportCSV actually writes, by catching the blob on its way to the link
+  async function exportText() {
+    await p.evaluate(() => {
+      window.__csv = null; const orig = URL.createObjectURL.bind(URL);
+      URL.createObjectURL = (b) => { b.text().then((t) => { window.__csv = t; }); return orig(b); };
+      document.getElementById("menuBtn").click();
+      document.querySelector('[data-a="export"]').click();
+    });
+    await p.waitForTimeout(200);
+    return p.evaluate(() => window.__csv);
+  }
+  // import a CSV and read back the stored recipe
+  async function roundTrip(text) {
+    await p.evaluate((t) => {
+      const dt = new DataTransfer(); dt.items.add(new File([t], "r.csv", { type:"text/csv" }));
+      const inp = document.getElementById("csvInput"); inp.files = dt.files;
+      inp.dispatchEvent(new Event("change", { bubbles:true }));
+    }, text);
+    await p.waitForTimeout(200);
+    await p.evaluate(() => { [...document.querySelectorAll("#modalRoot .mfoot button")]
+      .find((b) => /add to recipe/i.test(b.textContent)).click(); });
+    await p.waitForTimeout(200);
+    return LS(p);
+  }
+
+  await open(p, store({ oils:[OIL("olive",600), CUSTOM] }));
+  const lyeBefore = await txt(p, "#lyeVal");
+  const csv = await exportText();
+  ok("Export writes a key column", /(^|,)key(,|$)/m.test(csv.split("\n")[0]), csv.split("\n")[0]);
+  ok("Export writes a sap column", /(^|,)sap(,|$)/m.test(csv.split("\n")[0]), csv.split("\n")[0]);
+  ok("Export gives a keyed oil its key", /^oil,olive,600,g,olive,0\.134$/m.test(csv), csv);
+  ok("Export marks a custom oil keyless and keeps its SAP", /^oil,Coconut blend,400,g,,0\.1$/m.test(csv), csv);
+
+  // clear the recipe, then bring the same file back in
+  await open(p, store({ oils:[] }));
+  let after = await roundTrip(csv);
+  eq("Round trip keeps the custom oil custom", String(after.recipes[0].oils[1].key), "null");
+  eq("Round trip keeps the custom SAP", after.recipes[0].oils[1].sap, 0.1);
+  eq("Round trip keeps the keyed oil keyed", after.recipes[0].oils[0].key, "olive");
+  eq("Round trip leaves the lye unchanged", await txt(p, "#lyeVal"), lyeBefore);
+  eq("…and that is not the name-matched figure", lyeBefore, "114.38");
+
+  // a supplier SAP set as an override travels too, as an override
+  await open(p, store({ oils:[OIL("olive",600), OIL("coconut",400)] }, { sapOverrides:{ coconut:0.191 } }));
+  const ovLye = await txt(p, "#lyeVal");
+  const ovCsv = await exportText();
+  await open(p, store({ oils:[] }));
+  after = await roundTrip(ovCsv);
+  eq("Round trip carries a SAP override", after.sapOverrides.coconut, 0.191);
+  eq("…so the lye is unchanged", await txt(p, "#lyeVal"), ovLye);
+
+  // an untouched reference recipe must not sprout overrides
+  await open(p, store({ oils:[OIL("olive",600), OIL("coconut",400)] }));
+  const plain = await exportText();
+  await open(p, store({ oils:[] }));
+  after = await roundTrip(plain);
+  eq("Reference recipe gains no overrides", Object.keys(after.sapOverrides).length, 0);
+  eq("Reference oils stay keyed", after.recipes[0].oils.map((o) => o.key).join(","), "olive,coconut");
+
+  // files from other calculators still work: no key column at all, and a sap
+  // column in mg KOH/g (the figure SoapCalc prints) rather than our NaOH ratio
+  await open(p, store({ oils:[] }));
+  after = await roundTrip("Ingredient,Weight,Unit\nCoconut Oil 76 deg,400,g\nOlive Oil,600,g");
+  eq("Foreign CSV still name-matches", after.recipes[0].oils.map((o) => o.key).join(","), "coconut,olive");
+  await open(p, store({ oils:[] }));
+  after = await roundTrip("section,name,amount,unit,sap\noil,Coconut Oil,400,g,250\noil,Olive Oil,600,g,190");
+  eq("An mg-KOH/g sap column is ignored, not believed",
+     after.recipes[0].oils.map((o) => o.key + ":" + (o.sap || 0)).join(","), "coconut:0,olive:0");
+  eq("…and sets no override either", Object.keys(after.sapOverrides).length, 0);
+
+  // an unknown key (a file from a newer version) falls back to matching by name
+  await open(p, store({ oils:[] }));
+  after = await roundTrip("section,name,amount,unit,key,sap\noil,Olive Oil,600,g,unobtanium,");
+  eq("Unknown key falls back to the name matcher", after.recipes[0].oils[0].key, "olive");
+  await p.close();
+}
+
+/* =======================================================================
    MOLD SHAPES (loaf / round / cavity → scale to fit)
 ======================================================================= */
 {
@@ -1453,6 +1542,73 @@ Water:Lye Ratio 2.5`, { commit: true });
   const dupes = await rp.evaluate(() => JSON.parse(localStorage.getItem("soapcalc.v4")).recipes.filter((r) => r.name === "Lavender Dream").length);
   eq("Reload does not re-import", dupes, 1);
   await ctx.close();
+  await p.close();
+}
+
+/* =======================================================================
+   SHARE BY LINK — the SAP figures have to travel too
+
+   The link rebuilt the recipe on the recipient's reference numbers: a custom
+   oil arrived with no SAP at all and dropped out of the lye maths (114 g became
+   76 g), and a supplier SAP set on a keyed oil was silently replaced by ours.
+======================================================================= */
+{
+  const p = await newPage();
+  async function shareURL(recOv, viewOv) {
+    await open(p, store(recOv, viewOv));
+    const lye = await txt(p, "#lyeVal");
+    await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="share"]').click(); });
+    await p.waitForTimeout(120);
+    return { lye, url: await p.evaluate(() => document.querySelector(".share-url").value) };
+  }
+  // a hash-only navigation never reloads, so the recipient starts from a blank page
+  async function receive(url, seed) {
+    const ctx = await browser.newContext();
+    const rp = await ctx.newPage();
+    rp.on("pageerror", (e) => pageErrors.push("PE(share-sap): " + e.message));
+    await rp.goto(base + "/index.html");
+    await rp.evaluate((s) => localStorage.setItem("soapcalc.v4", JSON.stringify(s)), store({ oils:[] }, seed || {}));
+    await rp.goto("about:blank");
+    await rp.goto(url);
+    await rp.waitForTimeout(400);
+    const out = await rp.evaluate(() => ({
+      lye: document.getElementById("lyeVal").textContent,
+      oils: JSON.parse(localStorage.getItem("soapcalc.v4")).recipes.slice(-1)[0].oils,
+      ov: JSON.parse(localStorage.getItem("soapcalc.v4")).sapOverrides,
+      toast: (document.querySelector(".toast") || {}).textContent || ""
+    }));
+    await ctx.close();
+    return out;
+  }
+
+  let s = await shareURL({ oils:[OIL("olive",600), { name:"Coconut blend", key:null, g:400, sap:0.10 }] });
+  let r = await receive(s.url);
+  eq("Shared custom oil keeps its SAP", r.oils[1].sap, 0.1);
+  eq("…so the recipient's lye matches the sender's", r.lye, s.lye);
+  eq("…and that is not the SAP-less figure", s.lye, "114.38");
+
+  s = await shareURL({ oils:[OIL("olive",600), OIL("coconut",400)] }, { sapOverrides:{ coconut:0.191 } });
+  r = await receive(s.url);
+  eq("Shared link carries the supplier SAP", r.ov.coconut, 0.191);
+  eq("…so the lye matches there too", r.lye, s.lye);
+  ok("…and the toast says so", /supplier SAP value/.test(r.toast), r.toast);
+
+  r = await receive(s.url, { sapOverrides:{ coconut:0.170 } });
+  eq("A SAP the recipient set themselves wins", r.ov.coconut, 0.17);
+
+  // only the oils in the shared recipe travel — not the sender's whole SAP table
+  s = await shareURL({ oils:[OIL("olive",600)] }, { sapOverrides:{ coconut:0.191, palm:0.145 } });
+  r = await receive(s.url);
+  eq("Unused supplier SAP figures stay home", Object.keys(r.ov).length, 0);
+
+  // a hand-edited link must not be able to write junk into the SAP table
+  const junk = await p.evaluate(() => {
+    const enc = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+    return location.origin + location.pathname + "#r=" + enc({ name:"Junk", oils:[{name:"Olive oil",key:"olive",g:500}],
+      additives:[], aromas:[], sapOv:{ olive:9, notanoil:0.2, coconut:"x" } });
+  });
+  r = await receive(junk);
+  eq("A bad SAP figure in a link is dropped", Object.keys(r.ov).length, 0);
   await p.close();
 }
 

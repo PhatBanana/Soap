@@ -28,6 +28,11 @@ function totalOilsG(){ return sumG(state.oils); }
 var library=[];      // [{ id, name } + the RECIPE_FIELDS above]
 var currentId=null;
 var sharedImportName=null;   // set by initState when a recipe arrives via a #r= share link
+/* Both of these are written during initState(), so they have to be declared above the
+   `var state = initState()` below: a `var` further down is hoisted as undefined and then
+   *reassigned* when module evaluation reaches it, wiping whatever initState just set. */
+var sharedOverrides=null;    // supplier SAP figures that arrived with that link
+var sharedOvUsed=0;          // how many of them we took, for the arrival toast
 /* Set when load() finds saved data it can't read. While it holds a value nothing is
    written to storage, because the alternative is what this app used to do: show an empty
    library, let you add an oil, and overwrite three recipes and a batch history with
@@ -1667,11 +1672,16 @@ $("csvInput").addEventListener("change",function(e){
     openConfirm(rows,"Import CSV","Check each line, then add to your recipe."); };
   r.readAsText(f); $("csvInput").value="";
 });
+/* key and sap ride along so a recipe survives the round trip. Without them an
+   exported custom oil comes back as whichever reference oil its name reads like:
+   "Coconut blend" at 0.10 returned as coconut oil at 0.178, which is 26% more
+   lye than the recipe calls for, and the safety check calls it balanced. Other
+   calculators ignore the extra columns, and so does an older Soap Calc. */
 function exportCSV(){
-  var lines=["section,name,amount,unit"];
-  state.oils.forEach(function(it){ lines.push(csvRow(["oil",it.name,fmt(it.g,3),"g"])); });
-  state.additives.forEach(function(it){ lines.push(csvRow(["additive",it.name,fmt(it.g,3),"g"])); });
-  state.aromas.forEach(function(it){ lines.push(csvRow(["scent",it.name,fmt(it.g,3),"g"])); });
+  var lines=[csvRow(["section","name","amount","unit","key","sap"])];
+  state.oils.forEach(function(it){ lines.push(csvRow(["oil",it.name,fmt(it.g,3),"g",it.key||"",fmt(Chem.sapOf(it),4)])); });
+  state.additives.forEach(function(it){ lines.push(csvRow(["additive",it.name,fmt(it.g,3),"g",it.key||"",""])); });
+  state.aromas.forEach(function(it){ lines.push(csvRow(["scent",it.name,fmt(it.g,3),"g",it.key||"",""])); });
   var blob=new Blob([lines.join("\n")],{type:"text/csv"});
   var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="soap-recipe.csv";
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
@@ -1691,7 +1701,8 @@ function parseCSVToRows(text){
   var head=raw[0].map(function(h){return h.trim().toLowerCase();});
   var looksHeader = head.some(function(h){ return /name|oil|ingredient|amount|qty|weight|unit|section|type/.test(h); });
   var col={ section:find(head,["section","type","category"]), name:find(head,["name","oil","ingredient","item"]),
-            amount:find(head,["amount","qty","quantity","weight","grams","g"]), unit:find(head,["unit","units","uom"]) };
+            amount:find(head,["amount","qty","quantity","weight","grams","g"]), unit:find(head,["unit","units","uom"]),
+            key:find(head,["key","id"]), sap:find(head,["sap","sap naoh","saponification"]) };
   var body = looksHeader ? raw.slice(1) : raw;
   var out=[];
   body.forEach(function(r){
@@ -1700,13 +1711,18 @@ function parseCSVToRows(text){
     else { name = r[0]; amount = r[1]; }   // no header: fall back to positional name, amount
     var unit = col.unit>=0 ? r[col.unit] : "";
     var section = col.section>=0 ? r[col.section] : "";
+    // null means "the file has no key column at all", empty string means "this row
+    // was exported without a key" — a custom oil. The two are not the same, and
+    // only the second one may stop the name matcher from having a guess.
+    var key = col.key>=0 ? String(r[col.key]||"").trim() : null;
+    var sap = col.sap>=0 ? r[col.sap] : "";
     if(!name || !String(name).trim()) return;
-    out.push(normalizeRow(String(name).trim(), amount, unit, section));
+    out.push(normalizeRow(String(name).trim(), amount, unit, section, key, sap));
   });
   return out;
   function find(arr,names){ for(var n=0;n<names.length;n++){ var idx=arr.indexOf(names[n]); if(idx>=0) return idx; } return -1; }
 }
-function normalizeRow(name, amountRaw, unitRaw, sectionRaw){
+function normalizeRow(name, amountRaw, unitRaw, sectionRaw, keyRaw, sapRaw){
   var amount=parseFloat(String(amountRaw).replace(/[^\d.]/g,"")); if(!isFinite(amount)) amount=0;
   var unit=(String(unitRaw||"").trim().toLowerCase().replace(/s$/,"")) ; if(!CONV[unit]) unit="g";
   var section=String(sectionRaw||"").trim().toLowerCase();
@@ -1714,7 +1730,13 @@ function normalizeRow(name, amountRaw, unitRaw, sectionRaw){
   else if(/additive/.test(section)) section="additive";
   else if(/scent|fragrance|aroma|essential/.test(section)) section="scent";
   else section="oil";
-  return { name:name, amount:amount, unit:unit, section:section };
+  // Only a NaOH-ratio SAP (grams of lye per gram of oil) means anything here.
+  // A blank, a stray word, or the mg-KOH-per-gram figure other calculators print
+  // is dropped rather than guessed at — the row then imports the way it always did.
+  var sap=parseFloat(String(sapRaw==null?"":sapRaw).replace(/[^\d.]/g,""));
+  if(!(sap>0 && sap<1)) sap=0;
+  return { name:name, amount:amount, unit:unit, section:section,
+           key:(keyRaw==null?null:String(keyRaw).trim()), sap:sap };
 }
 // Compare across all three databases rather than taking the first hit —
 // otherwise "Coconut Oil" is claimed by the additive "Coconut milk".
@@ -1940,7 +1962,9 @@ function openConfirm(rows,title,sub,previewURL){
     rowsState.forEach(function(r,idx){
       var pr=el("div","prow");
       var nameI=document.createElement("input"); nameI.value=r.name; nameI.placeholder="name";
-      nameI.addEventListener("input",function(){ r.name=nameI.value; });
+      // Retyping the name of a matched oil means you want a different oil, so drop
+      // the key and let the matcher look again. A custom row (key "") stays custom.
+      nameI.addEventListener("input",function(){ r.name=nameI.value; if(r.key) r.key=null; });
       var amtI=document.createElement("input"); amtI.type="number"; amtI.step="any"; amtI.value=r.amount||""; amtI.placeholder="amt";
       amtI.addEventListener("input",function(){ r.amount=parseFloat(amtI.value)||0; });
       var unitS=document.createElement("select"); IMPORT_UNITS.forEach(function(u){ var o=document.createElement("option"); o.value=u; o.textContent=u; if(u===r.unit)o.selected=true; unitS.appendChild(o); });
@@ -1953,6 +1977,9 @@ function openConfirm(rows,title,sub,previewURL){
       nameI.style.gridColumn="1/-1";
       pr.style.gridTemplateColumns="1fr 72px 84px auto";
       pr.appendChild(nameI); pr.appendChild(amtI); pr.appendChild(unitS); pr.appendChild(secS); pr.appendChild(rm);
+      // a SAP that isn't our reference figure changes how much lye this oil needs, so say so
+      if(sapNote(r)){ var hint=el("div","sub",sapNote(r));
+        hint.style.gridColumn="1/-1"; hint.style.marginTop="-4px"; pr.appendChild(hint); }
       body.appendChild(pr);
     });
     if(rowsState.length===0) body.appendChild(el("div","ocr-status","Nothing to add."));
@@ -1973,12 +2000,39 @@ function commitRows(rows){
   rows.forEach(function(r){
     if(!r.name || !r.name.trim() || !(r.amount>0)) return;
     var grams=r.amount*(CONV[r.unit]||1); if(!(grams>0)) return;
-    if(r.section==="scent"){ var ak=matchKey(AROMAS,r.name); state.aromas.push({name:ak?AROMAS[ak].name:r.name,key:ak,g:grams}); wantScents=true; }
-    else if(r.section==="additive"){ var dk=matchKey(ADDITIVES,r.name); state.additives.push({name:dk?ADDITIVES[dk].name:r.name,key:dk,g:grams}); }
-    else { var ok=matchKey(OILS,r.name); state.oils.push({name:ok?OILS[ok].name:r.name,key:ok,g:grams}); }
+    if(r.section==="scent"){ var ak=rowKey(AROMAS,r); state.aromas.push({name:ak?AROMAS[ak].name:r.name,key:ak,g:grams}); wantScents=true; }
+    else if(r.section==="additive"){ var dk=rowKey(ADDITIVES,r); state.additives.push({name:dk?ADDITIVES[dk].name:r.name,key:dk,g:grams}); }
+    else {
+      var ok=rowKey(OILS,r), it={name:ok?OILS[ok].name:r.name,key:ok,g:grams};
+      if(!ok){ if(r.sap>0) it.sap=r.sap; }        // custom oil keeps the SAP off its bottle
+      else if(r.sap>0 && Math.abs(r.sap-OILS[ok].sap)>0.0005 && !(state.sapOverrides&&state.sapOverrides[ok]>0)){
+        // the file disagrees with our reference figure: that is the exporter's
+        // supplier value, so carry it over instead of silently reverting to ours
+        if(!state.sapOverrides) state.sapOverrides={};
+        state.sapOverrides[ok]=r.sap;
+      }
+      state.oils.push(it);
+    }
     added++;
   });
   if(added){ if(wantScents && state.oils.length===0) state.tab="scents"; save(); render(); }
+}
+/* Worth saying out loud on the review screen only when the file's SAP is not the
+   number we would have used anyway — otherwise every row grows a line of noise. */
+function sapNote(r){
+  if(!(r.sap>0) || r.section!=="oil") return "";
+  var k=rowKey(OILS,r);
+  if(k && Math.abs(r.sap-OILS[k].sap)<=0.0005) return "";
+  return "SAP "+fmt(r.sap,4)+" from the file"+(k?" (ours is "+fmt(OILS[k].sap,4)+")":"");
+}
+/* An explicit key beats name matching, because it is the only thing that tells a
+   custom oil apart from a reference one. A key we don't recognise — a file from a
+   newer version, or hand-edited — falls back to matching rather than importing a
+   nameless blank. */
+function rowKey(db,r){
+  if(r.key && db[r.key]) return r.key;
+  if(r.key==="") return null;                    // exported as custom: leave it custom
+  return matchKey(db,r.name);
 }
 
 /* ---------- OCR ---------- */
@@ -2325,7 +2379,13 @@ function wrapperText(r,lab,netOz,netG,d){
 /* ---------- share a recipe by link (the recipe rides in the URL, nothing uploaded) ---------- */
 function b64urlEnc(str){ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
 function b64urlDec(s){ s=s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4) s+="="; return decodeURIComponent(escape(atob(s))); }
-function shareItems(list){ return list.map(function(it){ return {name:it.name,key:it.key,g:Math.round(it.g*100)/100}; }); }
+/* A custom oil's own SAP travels with it. Without it the other person gets an oil
+   the app has no number for, which drops straight out of the lye maths — a 1 kg
+   recipe arrived asking for 76 g of lye instead of 114. */
+function shareItems(list){ return list.map(function(it){
+  var o={name:it.name,key:it.key,g:Math.round(it.g*100)/100};
+  if(!it.key && it.sap>0 && it.sap<1) o.sap=it.sap;
+  return o; }); }
 /* A share link carries the recipe, so it's built by *excluding* what shouldn't
    travel rather than listing what should. An allow-list quietly dropped dualKoh
    and then saltMode — and a missing field doesn't look broken, it just hands the
@@ -2342,14 +2402,34 @@ function recipeShareURL(r){
     if(SHARE_SKIP[fld.k]) return;
     payload[fld.k] = fld.list ? shareItems(r[fld.k]) : r[fld.k];
   });
+  var ov=usedOverrides(r); if(ov) payload.sapOv=ov;
   return location.origin+location.pathname+"#r="+b64urlEnc(JSON.stringify(payload));
+}
+/* Supplier SAP figures live outside the recipe, so they have to be picked out and
+   sent alongside it — otherwise the link quietly rebuilds the recipe on our
+   reference numbers and the lye comes out different from the sender's. Only the
+   oils this recipe actually uses travel; the rest are none of the recipient's
+   business. */
+function usedOverrides(r){
+  var ov=state.sapOverrides||{}, out=null;
+  (r.oils||[]).forEach(function(it){
+    if(it.key && it.g>0 && ov[it.key]>0){ if(!out) out={}; out[it.key]=ov[it.key]; }
+  });
+  return out;
 }
 function importSharedFromHash(){
   var m=(location.hash||"").match(/[#&]r=([^&]+)/); if(!m) return null;
-  try{ var r=sanitizeRecipe(JSON.parse(b64urlDec(m[1])));
+  try{ var raw=JSON.parse(b64urlDec(m[1])), r=sanitizeRecipe(raw);
+    sharedOverrides=cleanOverrides(raw.sapOv);
     history.replaceState(null,"",location.pathname+location.search);   // so a refresh doesn't re-import
     return r;
   }catch(e){ return null; }
+}
+function cleanOverrides(o){
+  if(!o||typeof o!=="object") return null;
+  var out=null;
+  Object.keys(o).forEach(function(k){ if(OILS[k] && o[k]>0 && o[k]<1){ if(!out) out={}; out[k]=o[k]; } });
+  return out;
 }
 function openShare(){
   syncCurrent(); var r=libById(currentId); if(!r) return;
@@ -3062,7 +3142,15 @@ function initState(){
   if(shared) sharedImportName=shared.name;
   var view=loaded?loaded.view:{unit:"g",tab:"base",scaleMode:"batch"};
   var r=libById(currentId)||library[0]; currentId=r.id;
-  return stateFromRecipe(r,view);
+  var st=stateFromRecipe(r,view);
+  // A SAP figure you set yourself is yours; a shared link only fills gaps.
+  if(sharedOverrides){
+    if(!st.sapOverrides) st.sapOverrides={};
+    Object.keys(sharedOverrides).forEach(function(k){
+      if(!(st.sapOverrides[k]>0)){ st.sapOverrides[k]=sharedOverrides[k]; sharedOvUsed++; }
+    });
+  }
+  return st;
 }
 function sanitizeRecipe(r){ if(!r||typeof r!=="object") return null;
   var out={ id:(typeof r.id==="string"&&r.id)?r.id:uid(),
@@ -3180,7 +3268,11 @@ applyTheme();
 render();
 initCollapsibles();
 detectAI();
-if(sharedImportName){ save(); showToast('Added “'+sharedImportName+'” from a shared link',true); }
+if(sharedImportName){ save();
+  // say it out loud: a supplier SAP figure changes every recipe that uses that oil,
+  // not just the one that arrived
+  showToast('Added “'+sharedImportName+'” from a shared link'
+    +(sharedOvUsed?' · kept '+sharedOvUsed+' supplier SAP value'+(sharedOvUsed>1?'s':""):""),true); }
 
 (function initBuildStamp(){
   var b=$("buildStamp"); if(!b) return;
