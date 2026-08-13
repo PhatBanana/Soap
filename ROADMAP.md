@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v55 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 1686 test assertions, run on every pull request.
+**Today:** v56 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 1712 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -466,11 +466,40 @@ one passed first time, which is the best evidence the extraction was faithful.
 
 Everything above was mutation-checked, including the hoisting bug.
 
+**21. Third bug round: a recipe that left didn't come back** — ✅ **shipped in v56**
+Another pass hunting bugs, aimed at the paths where a recipe leaves the app and returns.
+Round-trips that came back **clean**: units (g → oz → lb → kg → g, no drift), ten
+scale-up/scale-down cycles, `%` mode, zero-gram oils, a 500 kg batch and a 1 g one,
+inventory clamping, and deleting the last recipe. Two that didn't.
+
+**CSV export wrote `section,name,amount,unit` and nothing else.** That drops both the fact
+that an oil is custom and the SAP value you typed off its bottle, so re-importing handed
+the name to the matcher, which substituted whichever reference oil it read like. A custom
+"Coconut blend" at SAP 0.10 came back as coconut oil at 0.178: **114 g of lye became 144 g,
+26% over, in the direction that burns** — and the safety check called the batch balanced,
+because as far as it could tell it was. Export now carries `key` and `sap`; an explicit key
+beats name matching, a keyless row with a SAP stays custom, and a SAP that disagrees with
+our reference is kept as a supplier override rather than quietly reverting to ours. Files
+from other calculators are unaffected — no key column means today's behaviour, and a `sap`
+column in mg KOH/g (what SoapCalc prints) is ignored rather than believed.
+
+**Share links had the same hole, twice.** A custom oil travelled with no SAP at all, so it
+fell out of the lye maths entirely — 114 g became 76 g, the harmless direction but not the
+recipe you sent. And supplier SAP values live outside the recipe, so the link rebuilt it on
+the recipient's reference figures. Both now travel: only the overrides the shared recipe
+actually uses, validated on arrival, applied only where the recipient hasn't set their own,
+and named in the arrival toast — a supplier SAP figure changes every recipe using that oil,
+so it shouldn't land silently.
+
+The common thread with v55's data-loss bug: **the app was confident about numbers it had
+lost.** Nine of the twenty-six new assertions pin the exported text itself, because the
+failure is invisible downstream — the imported recipe looks perfectly reasonable.
+
 ---
 
 ## Part 3 — What's next
 
-Short and honest: every numbered item is done, so this is what's actually left.
+Short and honest: every numbered item is done, so this is what is actually left.
 
 - **Split `src/main.js`.** It is still 3160 lines of rendering and feature modals — the
   open half of v54. The seams are there (41 section headings, and the modals are largely
