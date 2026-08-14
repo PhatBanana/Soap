@@ -69,6 +69,10 @@ function store(recOverrides = {}, view = {}) {
 const { OILS, OIL_INCI } = await import("../src/data/oils.js");
 const { ADDITIVES, COLORANTS, AROMAS } = await import("../src/data/ingredients.js");
 const { EXAMPLES, TROUBLESHOOTING } = await import("../src/data/guides.js");
+const { RECIPE_FIELDS } = await import("../src/core/schema.js");
+// SHARE_SKIP is module-local to main.js, so the deny-list is read from source (the
+// release-hygiene block does the same for the service-worker shell)
+const appSrcForShare = fs.readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 
 const pageErrors = [];
 // assertion counts quoted in the docs, collected by the release-hygiene block and
@@ -82,12 +86,20 @@ async function newPage() {
   p.on("console", (m) => { if (m.type() === "error") pageErrors.push("CE: " + m.text()); });
   return p;
 }
+/* The first goto only exists to reach a same-origin document so localStorage is
+   writable; once this page is already on the app it is a second full load for
+   nothing. And reload() resolves at `load`, by which point the deferred module has
+   run render() — the 200 ms that used to sit here was 62 s of the suite. */
 async function open(p, storeObj) {
-  await p.goto(base + "/index.html");
+  if (!p.url().startsWith(base)) await p.goto(base + "/index.html");
   await p.evaluate((s) => localStorage.setItem("soapcalc.v4", JSON.stringify(s)), storeObj);
   await p.reload();
-  await p.waitForTimeout(200);
 }
+// open the ☰ sheet and fire one of its actions
+const menu = (p, a) => p.evaluate((x) => { document.getElementById("menuBtn").click();
+  document.querySelector('[data-a="' + x + '"]').click(); }, a);
+// the Safety Check's findings, in order
+const items = (p) => p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
 const LS = (p) => p.evaluate(() => JSON.parse(localStorage.getItem("soapcalc.v4")));
 const txt = (p, sel) => p.evaluate((s) => { const e = document.querySelector(s); return e ? e.textContent : null; }, sel);
 const num = async (p, sel) => parseFloat(await txt(p, sel));
@@ -132,41 +144,60 @@ async function addOil(p, key, g) {
 {
   const p = await newPage();
   const verdictClass = () => p.evaluate(() => document.getElementById("safetyVerdict").className);
-  const items = () => p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
 
   await open(p, store({ oils:[OIL("olive",500),OIL("coconut",300),OIL("palm",200)] }));
   has("Balanced bar → ok verdict", await verdictClass(), "ok");
 
   await open(p, store({ oils:[OIL("coconut",1000)], superfat:0 }));
-  ok("0% superfat skin → warns no cushion", (await items()).includes("No superfat cushion"));
+  ok("0% superfat skin → warns no cushion", (await items(p)).includes("No superfat cushion"));
 
   await open(p, store({ oils:[OIL("coconut",1000)], superfat:0, use:"laundry" }));
   has("0% superfat laundry → ok verdict", await verdictClass(), "ok");
 
   await open(p, store({ oils:[OIL("olive",500), { name:"Mystery", key:null, g:500 }] }));
-  ok("Custom oil → warns not in lye math", (await items()).includes("Custom oils aren't in the lye math"));
+  ok("Custom oil → warns not in lye math", (await items(p)).includes("Custom oils aren't in the lye math"));
 
   await open(p, store({ oils:[OIL("coconut",1000)], superfat:5 }));
-  ok("100% coconut skin → lauric warning", (await items()).includes("Very high coconut / lauric oil"));
+  ok("100% coconut skin → lauric warning", (await items(p)).includes("Very high lauric oil"));
+  /* The warning used to run off a hardcoded ["coconut","palmkernel","babassu"], so the
+     lauric oils added later were silently exempt — murumuru is 85% lauric-family, more
+     than coconut's 79%. It is derived from the fatty-acid data now, so this asserts the
+     derivation rather than a second copy of the list. */
+  const lauricOils = Object.keys(OILS).filter((k) => {
+    const f = OILS[k].fa || {};
+    return (f.la || 0) + (f.my || 0) + (f.cy || 0) + (f.cp || 0) >= 50;
+  });
+  ok("Every lauric oil is derived, not listed", lauricOils.length >= 6, lauricOils.join(","));
+  for (const k of lauricOils) {
+    await open(p, store({ oils:[OIL(k, 1000)], superfat:5 }));
+    ok(`100% ${k} warns too`, (await items(p)).includes("Very high lauric oil"));
+  }
+  await open(p, store({ oils:[OIL("murumuru",1000)], superfat:5 }));
+  has("…and it names the oil in the recipe, not always coconut",
+      await p.$$eval("#safetyList .safety-item .si-detail", (es) => es.map((e) => e.textContent).join(" ")),
+      "Murumuru");
+  // an oil nowhere near the family must not trip it
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:5 }));
+  ok("100% olive does not", !(await items(p)).includes("Very high lauric oil"));
 
   await open(p, store({ oils:[OIL("coconut",1000)], additives:[{name:"Salt",key:"salt",g:500}], superfat:5 }));
-  ok("Salt bar low superfat → warns", (await items()).includes("Salt bar needs more superfat"));
+  ok("Salt bar low superfat → warns", (await items(p)).includes("Salt bar needs more superfat"));
 
   await open(p, store({ oils:[OIL("olive",600),OIL("coconut",400)], waterPct:50 }));
-  ok("High water → very dilute lye warning", (await items()).includes("Very dilute lye"));
+  ok("High water → very dilute lye warning", (await items(p)).includes("Very dilute lye"));
 
   await open(p, store({ oils:[OIL("olive",600),OIL("coconut",370),OIL("beeswax",30)], aromas:[{name:"Cinnamon",key:"cinnamon",g:8}] }));
-  const fastItems = await items();
+  const fastItems = await items(p);
   ok("Beeswax/cinnamon → fast-trace warning", fastItems.includes("Fast trace ahead"));
   ok("Cinnamon → skin-irritant warning", fastItems.includes("Skin-irritant scents"));
 
   await open(p, store({ oils:[OIL("olive",36),OIL("coconut",24)] })); // 60 g oils
-  ok("Tiny batch → small-batch warning", (await items()).includes("Very small batch"));
+  ok("Tiny batch → small-batch warning", (await items(p)).includes("Very small batch"));
 
   await open(p, store({ oils:[OIL("palm",1000)] }));
-  ok("100% palm → single-oil typo warning", (await items()).includes("Nearly a single-oil recipe"));
+  ok("100% palm → single-oil typo warning", (await items(p)).includes("Nearly a single-oil recipe"));
   await open(p, store({ oils:[OIL("olive",1000)] }));
-  ok("100% olive (castile) → NOT flagged single-oil", !(await items()).includes("Nearly a single-oil recipe"));
+  ok("100% olive (castile) → NOT flagged single-oil", !(await items(p)).includes("Nearly a single-oil recipe"));
   await p.close();
 }
 
@@ -351,7 +382,7 @@ async function addOil(p, key, g) {
     }));
   }, { b: blank, stock, tab });
   const openShop = async () => {
-    await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="shopping"]').click(); });
+    await menu(p, "shopping");
     await p.waitForTimeout(150);
     const r = await p.evaluate(() => ({ rows: [...document.querySelectorAll(".shop-row")].map((x) => x.textContent),
       covered: document.querySelectorAll(".shop-row.covered").length,
@@ -378,7 +409,7 @@ async function addOil(p, key, g) {
   has("Total counts only what must be bought", s.tot, "$3.2");
 
   // inventory modal lists library ingredients + lye, and reports coverage
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="stock"]').click(); });
+  await menu(p, "stock");
   await p.waitForTimeout(150);
   const names = await p.$$eval(".cost-table tr td:first-child", (ts) => ts.map((t) => t.textContent));
   has("Inventory lists oils", names.join("|"), "Olive oil");
@@ -429,7 +460,7 @@ async function addOil(p, key, g) {
   const order = await p.$$eval(".batch-row .bh-head b", (bs) => bs.map((b) => b.textContent));
   eq("History lists newest first", order.join("|"), "Aug 15, 2026|Jul 1, 2026");
 
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="library"]').click(); });
+  await menu(p, "library");
   await p.waitForTimeout(150);
   has("Library blurb counts the makes", await txt(p, ".lib-open span"), "made 2×");
   await p.evaluate(() => { const b = document.querySelector(".modal-back"); if (b) b.remove(); document.body.style.overflow = ""; });
@@ -562,7 +593,7 @@ async function addOil(p, key, g) {
   eq("Favourites lead the appbar picker, starred", opts[0], "★ Milk & Honey");
   eq("Then alphabetical", opts.slice(1).join("|"), "Aloe Facial Bar|Liquid Hand Soap|Zesty Lemon Bar");
 
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="library"]').click(); });
+  await menu(p, "library");
   await p.waitForTimeout(150);
   const names = () => p.$$eval(".lib-open b", (bs) => bs.map((b) => b.textContent));
   eq("Library lists favourites first, then A–Z", (await names()).join("|"), "Milk & Honey|Aloe Facial Bar|Liquid Hand Soap|Zesty Lemon Bar");
@@ -622,7 +653,7 @@ async function addOil(p, key, g) {
   // theme cycles auto → light → dark → auto and sticks
   const theme = () => p.evaluate(() => ({ attr: document.documentElement.getAttribute("data-theme"),
     label: document.getElementById("themeLabel").textContent }));
-  const tap = async () => { await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="theme"]').click(); }); await p.waitForTimeout(120); };
+  const tap = async () => { await menu(p, "theme"); await p.waitForTimeout(120); };
   eq("Theme starts on auto", (await theme()).attr, null);
   await tap(); eq("First tap forces light", (await theme()).attr, "light");
   await tap();
@@ -664,7 +695,7 @@ async function addOil(p, key, g) {
       ]}));
   }, blank);
   await p.reload(); await p.waitForTimeout(250);
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="shopping"]').click(); });
+  await menu(p, "shopping");
   await p.waitForTimeout(150);
 
   eq("Shopping list offers every recipe", (await p.$$(".shop-rec")).length, 3);
@@ -728,7 +759,7 @@ async function addOil(p, key, g) {
   await p.click("#lotGen");
   await p.waitForTimeout(150);
   eq("Lot generated from the made-on date", (await LS(p)).recipes[0].lot, "20260725-A");
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="wrapper"]').click(); });
+  await menu(p, "wrapper");
   await p.waitForTimeout(120);
   has("Wrapper prints the lot number", await p.evaluate(() => document.querySelector(".wrapper-card").textContent), "Lot 20260725-A");
   await p.close();
@@ -805,6 +836,23 @@ async function addOil(p, key, g) {
   has("Honey → soap cooler", await tip({ oils:[OIL("olive",600),OIL("coconut",400)], additives:[{name:"Honey",key:"honey",g:10}] }), "cooler");
   has("Accelerating scent → soap cooler", await tip({ oils:[OIL("olive",600),OIL("coconut",400)], aromas:[{name:"Cinnamon",key:"cinnamon",g:8}] }), "cooler");
   has("Both warm + cool → work-quickly note", await tip({ oils:[OIL("olive",600),OIL("coconut",370),OIL("beeswax",30)], aromas:[{name:"Cinnamon",key:"cinnamon",g:8}] }), "work quickly");
+
+  /* CP and CPOP each used to keep their own list of the additives that run a batch hot —
+     a name regex on one side, four hardcoded keys on the other — so a beer soap was
+     warned under CPOP and told there was nothing to watch under CP. Both read the data
+     flag now, so this walks every flagged additive through both methods. */
+  const hotKeys = Object.keys(ADDITIVES).filter((k) => ADDITIVES[k].hot);
+  ok("Hot additives are flagged in the data", hotKeys.length >= 8, hotKeys.join(","));
+  for (const k of hotKeys) {
+    const oils = [OIL("olive",600),OIL("coconut",400)], add = [{ name:ADDITIVES[k].name, key:k, g:20 }];
+    has(`CP warns about ${k}`,  await tip({ oils, additives:add, method:"cp" }), "cooler");
+    has(`CPOP warns about ${k}`, await tip({ oils, additives:add, method:"cpop" }), "run hotter still");
+  }
+  // a plain additive must not trip either
+  has("CP is quiet about kaolin",
+      await tip({ oils:[OIL("olive",600),OIL("coconut",400)], additives:[{name:"Kaolin clay",key:"kaolin",g:20}], method:"cp" }), "~100°F");
+  ok("CPOP is quiet about kaolin",
+     !(await tip({ oils:[OIL("olive",600),OIL("coconut",400)], additives:[{name:"Kaolin clay",key:"kaolin",g:20}], method:"cpop" })).includes("run hotter still"));
   await p.close();
 }
 
@@ -854,9 +902,8 @@ async function addOil(p, key, g) {
 
   // duplicate: deep-copied lists, fresh checklist, "… copy" name
   await open(p, store({ id:"rD", name:"Orig", oils:[OIL("olive",500)], checklist:{s0:true} }, { currentId:"rD" }));
+  await menu(p, "dup");
   const dup = await p.evaluate(() => {
-    document.getElementById("menuBtn").click();
-    document.querySelector('[data-a="dup"]').click();
     const s = JSON.parse(localStorage.getItem("soapcalc.v4"));
     const orig = s.recipes.find((r) => r.name === "Orig");
     const copy = s.recipes.find((r) => r.name === "Orig copy");
@@ -872,9 +919,8 @@ async function addOil(p, key, g) {
   // clear the only recipe → all fields reset to defaults, id & name kept
   await open(p, store({ id:"rC", name:"Keeper", oils:[OIL("olive",500)],
     lyeType:"koh", superfat:12, waterMode:"conc", lyeConc:40, cureWeeks:10, checklist:{s0:true}, use:"dish" }, { currentId:"rC" }));
+  await menu(p, "delete");
   const cleared = await p.evaluate(() => {
-    document.getElementById("menuBtn").click();
-    document.querySelector('[data-a="delete"]').click();
     return JSON.parse(localStorage.getItem("soapcalc.v4")).recipes[0];
   });
   eq("Clear keeps id", cleared.id, "rC"); eq("Clear keeps name", cleared.name, "Keeper");
@@ -931,9 +977,8 @@ async function addOil(p, key, g) {
     await p.evaluate(() => {
       window.__csv = null; const orig = URL.createObjectURL.bind(URL);
       URL.createObjectURL = (b) => { b.text().then((t) => { window.__csv = t; }); return orig(b); };
-      document.getElementById("menuBtn").click();
-      document.querySelector('[data-a="export"]').click();
     });
+    await menu(p, "export");
     await p.waitForTimeout(200);
     return p.evaluate(() => window.__csv);
   }
@@ -1045,7 +1090,7 @@ async function addOil(p, key, g) {
   const p = await newPage();
   async function label(rec, view) {
     await open(p, store(rec, view));
-    await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="label"]').click(); });
+    await menu(p, "label");
     await p.waitForTimeout(120);
     const box = await p.evaluate(() => { const e = document.querySelector(".inci-box"); return e ? e.textContent : null; });
     const warn = await p.evaluate(() => { const e = document.querySelector(".inci-warn"); return e ? e.textContent : null; });
@@ -1080,7 +1125,7 @@ async function addOil(p, key, g) {
 {
   const p = await newPage();
   await open(p, store({ oils:[OIL("olive",500)] }));
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="trouble"]').click(); });
+  await menu(p, "trouble");
   await p.waitForTimeout(120);
   const groups = await p.$$eval(".ts-group", (es) => es.map((e) => e.textContent));
   eq("Troubleshooting groups", groups.join(","), "In the pot,In the mold,Curing & storing,Using the bar");
@@ -1113,7 +1158,7 @@ async function addOil(p, key, g) {
 {
   const p = await newPage();
   const openRebatch = async () => {
-    await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="rebatch"]').click(); });
+    await menu(p, "rebatch");
     await p.waitForTimeout(150);
   };
   const amounts = () => p.$$eval("#modalRoot .rb-row .sr-amt", (es) => es.map((e) => e.textContent.trim()));
@@ -1190,7 +1235,7 @@ async function addOil(p, key, g) {
   eq("Colorant keeps its name", add.name, "Madder root powder");
   eq("Colorant keeps its weight", add.g, 8);
 
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="label"]').click(); });
+  await menu(p, "label");
   await p.waitForTimeout(150);
   has("Colorant appears on the INCI label",
     await p.evaluate(() => document.querySelector(".inci-box").textContent), "Rubia Tinctorum (Madder) Root Powder");
@@ -1198,7 +1243,7 @@ async function addOil(p, key, g) {
   await p.evaluate(() => { document.querySelector(".modal-back").remove(); document.body.style.overflow = ""; });
 
   // the guide
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="colors"]').click(); });
+  await menu(p, "colors");
   await p.waitForTimeout(150);
   const families = await p.$$eval("#modalRoot .ts-group", (es) => es.map((e) => e.textContent));
   eq("Colour families in order", families.join(","),
@@ -1242,9 +1287,8 @@ async function addOil(p, key, g) {
   const p = await newPage();
   // paste text, return what the review screen shows, optionally committing it
   async function paste(text, { total = null, commit = false } = {}) {
+    await menu(p, "paste");
     await p.evaluate((t) => {
-      document.getElementById("menuBtn").click();
-      document.querySelector('[data-a="paste"]').click();
       const ta = document.querySelector(".paste-in");
       ta.value = t; ta.dispatchEvent(new Event("input"));
     }, text);
@@ -1354,9 +1398,8 @@ Water:Lye Ratio 2.5`, { commit: true });
 
   // --- rubbish in, nothing out ---
   await open(p, store({ oils:[] }));
+  await menu(p, "paste");
   await p.evaluate(() => {
-    document.getElementById("menuBtn").click();
-    document.querySelector('[data-a="paste"]').click();
     const ta = document.querySelector(".paste-in");
     ta.value = "just some prose with no numbers at all"; ta.dispatchEvent(new Event("input"));
   });
@@ -1382,8 +1425,6 @@ Water:Lye Ratio 2.5`, { commit: true });
 {
   const p = await newPage();
   await open(p, store({ oils:[OIL("olive",500),OIL("coconut",300)] }));
-  const menu = (a) => p.evaluate((x) => { document.getElementById("menuBtn").click();
-    document.querySelector('[data-a="' + x + '"]').click(); }, a);
   const title = () => p.$eval("#modalRoot h3", (e) => e.textContent);
   const backdrops = async () => (await p.$$("#modalRoot .modal-back")).length;
   const expanded = () => p.$$eval("#modalRoot .ts-item[open] summary", (es) => es.map((e) => e.textContent.trim()));
@@ -1392,7 +1433,7 @@ Water:Lye Ratio 2.5`, { commit: true });
   const close = async () => { await p.click("#modalRoot .mfoot .primary"); await p.waitForTimeout(150); };
 
   // a fix that says "rebatch it" can now get you there
-  await menu("trouble"); await p.waitForTimeout(150);
+  await menu(p, "trouble"); await p.waitForTimeout(150);
   await search("separated");
   eq("Rebatch-able problem offers a link",
     await p.$$eval("#modalRoot .ts-item[open] .see-btn", (es) => es.map((e) => e.textContent).join(",")),
@@ -1404,7 +1445,7 @@ Water:Lye Ratio 2.5`, { commit: true });
   await close();
 
   // links can carry a search term, so you land on the entry, not the top of the guide
-  await menu("trouble"); await p.waitForTimeout(150);
+  await menu(p, "trouble"); await p.waitForTimeout(150);
   await search("glycerin");
   await follow("#modalRoot .ts-item[open] .see-btn");
   eq("Glycerin rivers links to the colorant guide", await title(), "Colorants");
@@ -1419,7 +1460,7 @@ Water:Lye Ratio 2.5`, { commit: true });
   await close();
 
   // the rebatch helper has no entries of its own, so it links at modal level
-  await menu("rebatch"); await p.waitForTimeout(150);
+  await menu(p, "rebatch"); await p.waitForTimeout(150);
   eq("Rebatch links back to troubleshooting",
     await p.$$eval("#modalRoot .see-btn", (es) => es.map((e) => e.textContent).join(",")), "🔧 Troubleshooting");
   await follow("#modalRoot .see-btn");
@@ -1427,7 +1468,7 @@ Water:Lye Ratio 2.5`, { commit: true });
   await close();
 
   // a colorant that browns links to the discoloration entry
-  await menu("colors"); await p.waitForTimeout(150);
+  await menu(p, "colors"); await p.waitForTimeout(150);
   await search("botanical");
   await follow("#modalRoot .ts-item[open] .see-btn");
   eq("Botanicals link to the discoloration entry", await title(), "Troubleshooting");
@@ -1438,7 +1479,7 @@ Water:Lye Ratio 2.5`, { commit: true });
   ok("Page scroll is restored", await p.evaluate(() => document.body.style.overflow === ""));
 
   // exactly the entries that declare a `see` get a link — no dead buttons, none missing
-  await menu("trouble"); await p.waitForTimeout(150);
+  await menu(p, "trouble"); await p.waitForTimeout(150);
   const counts = await p.evaluate(() => ({
     rendered: document.querySelectorAll("#modalRoot .see-btn").length,
     entries: document.querySelectorAll("#modalRoot .ts-item").length
@@ -1464,26 +1505,28 @@ Water:Lye Ratio 2.5`, { commit: true });
   eq("Notes shown back in the field", await p.evaluate(() => document.getElementById("notesField").value), "Traced fast, great lather at week 4.");
 
   // private notes are NOT in a share link
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="share"]').click(); });
+  await menu(p, "share");
   await p.waitForTimeout(100);
   const url = await p.evaluate(() => document.querySelector(".share-url").value);
   const payload = await p.evaluate((u) => { let s = u.split("#r=")[1].replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return decodeURIComponent(escape(atob(s))); }, url);
   ok("Share link omits private notes", !payload.includes("Traced fast"));
-  // the payload is built by exclusion, so pin exactly what is and isn't personal —
-  // a field silently missing here hands the other person a different soap
+  /* The payload is built by exclusion, so this check is derived the same way: every
+     RECIPE_FIELDS entry must either be named in SHARE_SKIP or actually travel. Listing
+     the field names here by hand would repeat the very mistake the deny-list fixed —
+     a new field would appear in neither list and nothing would assert anything. */
   const shared = JSON.parse(payload);
-  ["notes","batches","checklist","madeOn","lot","fav","lastUsed","barWeight"].forEach((k) =>
-    ok(`Share link omits ${k}`, !(k in shared)));
-  ["oils","additives","aromas","lyeType","dualKoh","saltMode","superfat","waterPct",
-   "waterMode","lyeConc","kohPurity","cureWeeks","use","method","sfMode","sfOil",
-   "dilution","waterRatio"].forEach((k) =>
-    ok(`Share link carries ${k}`, k in shared));
+  const skip = new Set((appSrcForShare.match(/var SHARE_SKIP=\{([\s\S]*?)\};/)[1]
+    .match(/(\w+):\s*1/g) || []).map((m) => m.split(":")[0]));
+  ok("SHARE_SKIP parsed from source", skip.size > 0, [...skip].join(","));
+  RECIPE_FIELDS.forEach((f) => skip.has(f.k)
+    ? ok(`Share link omits ${f.k}`, !(f.k in shared))
+    : ok(`Share link carries ${f.k}`, f.k in shared));
   await p.evaluate(() => { const bk = document.querySelector(".modal-back"); if (bk) bk.remove(); document.body.style.overflow = ""; });
 
   // bar wrapper content
   await open(p, store({ name:"Lavender Bar", oils:[OIL("olive",400),OIL("coconut",300),OIL("palm",300)],
     aromas:[{name:"Lavender EO",key:"lavender",g:20}], madeOn:"2026-07-01", cureWeeks:4 }, { barWeight:100 }));
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="wrapper"]').click(); });
+  await menu(p, "wrapper");
   await p.waitForTimeout(100);
   const w = await p.evaluate(() => document.querySelector(".wrapper-card").textContent);
   has("Wrapper shows the name", w, "Lavender Bar");
@@ -1506,7 +1549,7 @@ Water:Lye Ratio 2.5`, { commit: true });
     oils:[OIL("olive",400),OIL("coconut",300),{name:"Mystery oil",key:null,g:50}],
     additives:[{name:"Honey",key:"honey",g:10}], aromas:[{name:"Lavender EO",key:"lavender",g:20}],
     lyeType:"koh", superfat:8, waterMode:"conc", lyeConc:35, kohPurity:92, cureWeeks:9, checklist:{s0:true}, use:"hair" }));
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="share"]').click(); });
+  await menu(p, "share");
   await p.waitForTimeout(120);
   const url = await p.evaluate(() => document.querySelector(".share-url").value);
   ok("Share URL carries the recipe in #r=", /#r=[A-Za-z0-9_-]+$/.test(url));
@@ -1557,7 +1600,7 @@ Water:Lye Ratio 2.5`, { commit: true });
   async function shareURL(recOv, viewOv) {
     await open(p, store(recOv, viewOv));
     const lye = await txt(p, "#lyeVal");
-    await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="share"]').click(); });
+    await menu(p, "share");
     await p.waitForTimeout(120);
     return { lye, url: await p.evaluate(() => document.querySelector(".share-url").value) };
   }
@@ -1619,7 +1662,7 @@ Water:Lye Ratio 2.5`, { commit: true });
   const p = await newPage();
   await open(p, store({ id:"r1", name:"Kitchen Bar", oils:[OIL("olive",500),OIL("coconut",300)],
     additives:[{name:"Kaolin clay",key:"kaolin",g:20}] }, { stock:{ olive: 5000 } }));
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="shopping"]').click(); });
+  await menu(p, "shopping");
   await p.waitForTimeout(200);
 
   const btns = await p.$$eval("#modalRoot .mfoot button", (bs) => bs.map((b) => b.textContent));
@@ -1685,7 +1728,6 @@ Water:Lye Ratio 2.5`, { commit: true });
   // 1000 g oils at 33% water = 330 g water, so the arithmetic is easy to check
   const salty = (g, mode, extra = {}, view = {}) => store(Object.assign({
     oils:[OIL("coconut",1000)], superfat:15, waterPct:33, additives:SALT(g), saltMode:mode }, extra), view);
-  const titles = () => p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
 
   // the control only exists if there's salt to decide about
   await open(p, store({ oils:[OIL("coconut",1000)] }));
@@ -1697,26 +1739,26 @@ Water:Lye Ratio 2.5`, { commit: true });
   // 500 g salt in 330 g water = 151.5 g per 100 g, over four times what dissolves.
   await open(p, salty(500, "brine"));
   has("Brine strength is quoted per 100 g of water", await txt(p, "#brineHint"), "151.5 g");
-  ok("An impossible brine is a stop, not a shrug", (await titles()).includes("That salt won't dissolve"));
+  ok("An impossible brine is a stop, not a shrug", (await items(p)).includes("That salt won't dissolve"));
   has("…and it says how much would fit",
     await p.$$eval("#safetyList .safety-item", (es) => {
       const e = es.find((x) => /won't dissolve/.test(x.textContent)); return e ? e.textContent : ""; }), "83 g");
-  ok("…and that this is salt-bar territory", (await titles()).includes("That's salt-bar amounts, dissolved"));
+  ok("…and that this is salt-bar territory", (await items(p)).includes("That's salt-bar amounts, dissolved"));
 
   // the same recipe made the normal way is fine
   await open(p, salty(500, "trace"));
   has("Dry at trace explains itself", await txt(p, "#brineHint"), "at trace");
-  ok("…and raises no dissolving problem", !(await titles()).includes("That salt won't dissolve"));
+  ok("…and raises no dissolving problem", !(await items(p)).includes("That salt won't dissolve"));
 
   // a realistic soleseife dissolves comfortably: 80 g in 330 g = 24.2
   await open(p, salty(80, "brine", { superfat:5 }));
   has("A real brine is quoted too", await txt(p, "#brineHint"), "24.2 g");
-  ok("…and passes", (await titles()).includes("Brine will dissolve"));
-  ok("…without the salt-bar note", !(await titles()).includes("That's salt-bar amounts, dissolved"));
+  ok("…and passes", (await items(p)).includes("Brine will dissolve"));
+  ok("…without the salt-bar note", !(await items(p)).includes("That's salt-bar amounts, dissolved"));
 
   // just under the ceiling warns rather than passing silently
   await open(p, salty(100, "brine", { superfat:5 }));       // 30.3 per 100 g
-  ok("Near saturation warns", (await titles()).includes("Close to a saturated brine"));
+  ok("Near saturation warns", (await items(p)).includes("Close to a saturated brine"));
 
   // salt neither saponifies nor consumes lye, so the mode must change no chemistry
   await open(p, salty(500, "trace"));
@@ -1738,10 +1780,8 @@ Water:Lye Ratio 2.5`, { commit: true });
 
   // it's a property of the recipe, so it travels
   await open(p, salty(80, "brine", { id:"rB", name:"Brine Share", superfat:5 }));
-  const url = await p.evaluate(() => {
-    document.getElementById("menuBtn").click(); document.querySelector('[data-a="share"]').click();
-    return document.querySelector(".share-url").value;
-  });
+  await menu(p, "share");
+  const url = await p.evaluate(() => document.querySelector(".share-url").value);
   const ctx = await browser.newContext();
   const rp = await ctx.newPage();
   await rp.goto(url); await rp.waitForTimeout(400);
@@ -1769,7 +1809,7 @@ Water:Lye Ratio 2.5`, { commit: true });
       recipe({ id:"b", name:"Short one",   oils:[OIL("olive",300),OIL("coconut",900)] }),
       recipe({ id:"c", name:"Untracked",   oils:[OIL("shea",300)] })
     ] }, view));
-    await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="library"]').click(); });
+    await menu(p, "library");
     await p.waitForTimeout(180);
   };
   const names = () => p.$$eval("#modalRoot .lib-open b", (es) => es.map((e) => e.childNodes[0].textContent.trim()));
@@ -1814,7 +1854,7 @@ Water:Lye Ratio 2.5`, { commit: true });
 
   // the inventory modal's own readout still works after the extraction
   await open(p, store({ oils:[OIL("olive",300)] }, { stock:{ olive:1000 } }));
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="stock"]').click(); });
+  await menu(p, "stock");
   await p.waitForTimeout(180);
   has("Inventory still reports coverage", await p.$eval("#modalRoot .subinfo", (e) => e.textContent), "enough of everything");
   await p.close();
@@ -1873,7 +1913,7 @@ Water:Lye Ratio 2.5`, { commit: true });
 
   // downstream: a dual batch needs buying and stocking as two chemicals
   await open(p, store({ oils:[OIL("olive",1000)], superfat:0, lyeType:"dual", dualKoh:50 }));
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="shopping"]').click(); });
+  await menu(p, "shopping");
   await p.waitForTimeout(220);
   const lyeLines = await p.$$eval("#modalRoot .shop-row .sr-name", (es) =>
     es.map((e) => e.textContent).filter((t) => /hydroxide/i.test(t)));
@@ -1890,7 +1930,7 @@ Water:Lye Ratio 2.5`, { commit: true });
 
   // a dual-lye soap genuinely contains both salts
   await open(p, store({ oils:[OIL("olive",1000)], superfat:0, lyeType:"dual", dualKoh:50 }));
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="label"]').click(); });
+  await menu(p, "label");
   await p.waitForTimeout(180);
   const inci = await p.evaluate(() => document.querySelector(".inci-box").textContent);
   has("INCI lists the sodium salt", inci, "Sodium Olivate");
@@ -1900,10 +1940,8 @@ Water:Lye Ratio 2.5`, { commit: true });
   // the share link must carry the share, or the recipient gets a different soap
   await open(p, store({ id:"rS", name:"Dual Share", oils:[OIL("olive",1000)],
     lyeType:"dual", dualKoh:70 }));
-  const url = await p.evaluate(() => {
-    document.getElementById("menuBtn").click(); document.querySelector('[data-a="share"]').click();
-    return document.querySelector(".share-url").value;
-  });
+  await menu(p, "share");
+  const url = await p.evaluate(() => document.querySelector(".share-url").value);
   const ctx = await browser.newContext();
   const rp = await ctx.newPage();
   await rp.goto(url); await rp.waitForTimeout(400);
@@ -1918,9 +1956,9 @@ Water:Lye Ratio 2.5`, { commit: true });
 
   // the worked examples exist and load as dual
   await open(p, store({ oils:[] }));
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="examples"]').click(); });
+  await menu(p, "examples");
   await p.waitForTimeout(200);
-  const groups = await p.$$eval("#modalRoot .ex-h", (es) => es.map((e) => e.textContent));
+  const groups = await p.$$eval("#modalRoot .subhead", (es) => es.map((e) => e.textContent));
   ok("Examples has a dual-lye group", groups.some((g) => /Shaving/.test(g)));
   await p.evaluate(() => {
     [...document.querySelectorAll("#modalRoot .ex-item")].find((b) => /Soft Shaving/.test(b.textContent)).click();
@@ -1980,19 +2018,19 @@ Water:Lye Ratio 2.5`, { commit: true });
   await open(p, store({ oils:[OIL("olive",1000)], superfat:0, additives:acid("citric",10) }));
   has("Lye card names the adjustment", await txt(p, "#lyeInfo"), "for Citric acid");
   has("…with the amount", await txt(p, "#lyeInfo"), "6.25");
-  let titles = await p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
+  let titles = await items(p);
   ok("Safety Check reports the raise", titles.includes("Lye raised for Citric acid"));
   ok("…and doesn't cry wolf at a normal dose", !titles.includes("That's a lot of acid"));
 
   await open(p, store({ oils:[OIL("olive",1000)], superfat:0, additives:acid("citric",50) }));
-  titles = await p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
+  titles = await items(p);
   ok("5% of oils is flagged as too much acid", titles.includes("That's a lot of acid"));
 
   // the real failure mode: typed as a custom additive, so the app has no data for it
   await open(p, store({ oils:[OIL("olive",1000)], superfat:0,
     additives:[{ name:"Citric acid", key:null, g:10 }] }));
   near("A custom-typed acid can't adjust the lye", await num(p, "#lyeVal"), BASE, 0.05);
-  titles = await p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
+  titles = await items(p);
   ok("…so it's called out as a failure", titles.includes("Acid isn't in the lye math"));
   eq("…at stop-level severity",
     await p.$$eval("#safetyList .safety-item", (es) => {
@@ -2009,7 +2047,7 @@ Water:Lye Ratio 2.5`, { commit: true });
     ok(`${k} is not filed as a colorant`, !opts[2].values.includes("add:" + k));
   });
   await open(p, store({ oils:[OIL("olive",1000)], additives:acid("citric",10) }));
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="label"]').click(); });
+  await menu(p, "label");
   await p.waitForTimeout(150);
   has("Citric acid appears on the INCI label",
     await p.evaluate(() => document.querySelector(".inci-box").textContent), "Citric Acid");
@@ -2032,7 +2070,7 @@ Water:Lye Ratio 2.5`, { commit: true });
   near("Supplier SAP overrides the reference", await num(p, "#lyeVal"), 1000*190/1000/KOHF, 0.05);
   has("Lye card says supplier values are in use", await txt(p, "#lyeInfo"), "supplier SAP value");
   ok("Override raises a safety note",
-    (await p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent)))
+    (await items(p))
       .includes("Supplier SAP values in use"));
 
   // an override for an oil that isn't in the recipe changes nothing
@@ -2045,7 +2083,7 @@ Water:Lye Ratio 2.5`, { commit: true });
   await addOil(p, "castor", 1);                       // force a save through the schema
   let r = (await LS(p)).recipes[0];
   eq("Custom SAP persists", r.oils[0].sap, 0.14);
-  const titles = await p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent));
+  const titles = await items(p);
   ok("…and it's no longer reported as excluded", !titles.includes("Custom oils aren't in the lye math"));
   ok("…but it is called out as your own figure", titles.includes("Custom oil using the SAP you entered"));
 
@@ -2053,7 +2091,7 @@ Water:Lye Ratio 2.5`, { commit: true });
   await open(p, store({ oils:[OIL("olive",500), { name:"Mystery oil", key:null, g:500 }], superfat:0 }));
   near("Custom oil with no SAP contributes no lye", await num(p, "#lyeVal"), 500*0.134, 0.05);
   ok("…and is still flagged as excluded",
-    (await p.$$eval("#safetyList .safety-item .si-title", (es) => es.map((e) => e.textContent)))
+    (await items(p))
       .includes("Custom oils aren't in the lye math"));
 
   // nonsense overrides are ignored by the maths and dropped on the next save
@@ -2065,7 +2103,7 @@ Water:Lye Ratio 2.5`, { commit: true });
 
   // the modal: type a spec-sheet figure, watch the lye move, flip the unit
   await open(p, store({ oils:[OIL("olive",1000)], superfat:0 }));
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="sap"]').click(); });
+  await menu(p, "sap");
   await p.waitForTimeout(180);
   has("Modal shows our reference in mg KOH/g", await p.$eval("#modalRoot .sap-ref", (e) => e.textContent), "188");
   await p.fill("#modalRoot .cost-table input", "190");
@@ -2130,7 +2168,7 @@ Water:Lye Ratio 2.5`, { commit: true });
 
   // switching recipes must not carry a pending edit onto the wrong one
   await open(p, store({ id:"rA", name:"A", oils:[OIL("olive",600),OIL("coconut",400)] }));
-  await p.evaluate(() => { document.getElementById("menuBtn").click(); document.querySelector('[data-a="dup"]').click(); });
+  await menu(p, "dup");
   await p.waitForTimeout(250);
   const st = await LS(p);
   eq("Duplicate wrote both recipes", st.recipes.length, 2);
@@ -2506,7 +2544,7 @@ Water:Lye Ratio 2.5`, { commit: true });
 {
   const p = await newPage();
   await open(p, store({ oils:[OIL("olive",500)] }));
-  const openMenu = () => p.evaluate(() => document.getElementById("menuBtn").click());
+  const openMenu = () => p.evaluate(() => document.getElementById("menuBtn").click());  // sheet only, no action
   const type = async (q) => { await p.fill("#sheetFilter", q); await p.waitForTimeout(80); };
   // what's actually on screen — the install button carries .hide when unavailable
   const shown = () => p.evaluate(() => [...document.querySelectorAll("#sheet .sheet-btn")]
