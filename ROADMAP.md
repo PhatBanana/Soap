@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v57 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 1741 test assertions, run on every pull request.
+**Today:** v58 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 1753 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -531,12 +531,44 @@ Both rot repairs were mutation-checked, and the share-link test's own allow-list
 derived from `RECIPE_FIELDS` ∖ `SHARE_SKIP`, so a new field can no longer appear in neither
 list with nothing asserting anything.
 
-**Not taken:** the service worker fetches network-first with `cache:"no-store"`, so every
-online launch re-downloads all 325 KB of shell — measured at **616 ms to first paint and
-1.9 s to load** on throttled wifi against 92 ms / 145 ms for stale-while-revalidate. That is
-the biggest single win found, but it changes what "auto-updating" means (one launch showing
-the previous version before the existing `controllerchange` handler reloads), so it is a
-call to make deliberately rather than fold into a cleanup.
+The one finding held back was the service-worker caching strategy — a real win, but it
+changes what "auto-updating" means, so it wanted a deliberate decision rather than being
+folded into a cleanup. It got one: **23**.
+
+**23. The app opens from disk** — ✅ **shipped in v58**
+The service worker fetched network-first with `cache:"no-store"`, so every online launch
+re-downloaded all 325 KB of shell before anything appeared. The cache existed only as an
+offline fallback. Measured against a server delayed 120 ms per request — a fair stand-in
+for kitchen wifi — that was the entire launch:
+
+| | network-first | stale-while-revalidate |
+|---|---|---|
+| load | 703 ms | **104 ms** |
+| first paint | 360 ms | **76 ms** |
+
+Now the cached copy answers immediately and a fresh copy is fetched behind it for next
+time. Nothing new had to be built to make that safe: `sw.js` was already registered with
+`updateViaCache:"none"` and re-checked on load and on every return to the foreground, the
+worker already called `skipWaiting()` and `clients.claim()`, and `main.js` already reloaded
+once on `controllerchange`. The old handler was doing by brute force what that machinery
+does properly.
+
+**The honest cost:** the launch that discovers a deploy paints the previous version for a
+moment before reloading itself. That is the trade, and it is the reason this was a decision
+rather than a cleanup.
+
+The background revalidate is what keeps it from rotting — if a file ever changes without
+the version being bumped, the next launch repairs the cache on its own rather than serving
+a stale copy indefinitely.
+
+Guarding it took two goes. The first assertion checked that the fetch handler *mentions*
+`caches.match`, which network-first also does, as its fallback — so the revert sailed
+straight past it. It now checks what `respondWith` is actually handed, and more to the
+point there is a **behavioural block**: a real worker against the delayed server, asserting
+the second launch beats the network, that it still reloads offline with its data, and that
+bumping the version the way a release does gets the open app onto it by itself. Reverting
+to network-first fails it with the real number (569 ms); deleting `skipWaiting()` fails the
+takeover check with the app still showing the old version.
 ---
 
 ## Part 3 — What's next
