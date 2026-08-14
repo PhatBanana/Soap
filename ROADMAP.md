@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v56 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 1712 test assertions, run on every pull request.
+**Today:** v57 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 1741 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -495,6 +495,48 @@ The common thread with v55's data-loss bug: **the app was confident about number
 lost.** Nine of the twenty-six new assertions pin the exported text itself, because the
 failure is invisible downstream — the imported recipe looks perfectly reasonable.
 
+
+**22. Code-hygiene pass over the whole codebase** — ✅ **shipped in v57**
+Four review passes — reuse, simplification, efficiency, altitude — then the fixes. No new
+features; the point was to delete duplication and to kill hand-kept lists before they rot.
+
+Two had **already rotted**, which is the whole argument for the exercise. The "100%
+coconut" safety warning ran off a hardcoded `["coconut","palmkernel","babassu"]`, so the
+lauric oils added in v52 were silently exempt — a 100% **murumuru** bar (85% lauric family,
+*more* than coconut's 79%) never got the "push superfat to 15–20%" advice. It is derived
+from the fatty-acid data now, and the cutoff sits in a wide gap: sixth-highest oil is 71%,
+seventh is 3%. Separately, cold process and oven-gelled each kept their own list of the
+additives that make a batch run hot — a name regex on one side, four hardcoded keys on the
+other — and had drifted: a **beer soap was warned under CPOP and told "no special heat
+concerns" under CP**. Both read a `hot:true` flag on the ingredient data now.
+
+The duplication that went: `openColors` was a third copy of the guide-list renderer that
+`openGuideList` had been extracted to prevent; the 28-case action `switch` and the tab
+if/else became lookup tables; seven segmented controls became `bindSeg`; four modal footers,
+four number inputs, two hand-rolled modal backdrops and an open-coded file download all
+call the helper that already existed. Three compare-table labels, the scale-unit list and
+the HP step rewritten by magic index are all derived now. `#scentUnitNote` was an element
+nothing ever filled.
+
+**The suite went from 127 s to 77 s.** `open()` was loading every page twice — a `goto`
+only to reach a same-origin document, then a `reload` — and then sleeping 200 ms for a
+render that had already happened. 169 calls. The test file also grew a `menu()` helper: the
+same "open the sheet, click an action" incantation was written out 30 times, three of those
+as private copies of each other.
+
+Verified as a refactor should be: **24 of 26 screenshots byte-identical** across three tabs
+and ten modals at phone and desktop widths — the two that differ are the compare table,
+whose labels now come from `QUALITIES` and read "Bubbly lather" like the rest of the app.
+Both rot repairs were mutation-checked, and the share-link test's own allow-list is now
+derived from `RECIPE_FIELDS` ∖ `SHARE_SKIP`, so a new field can no longer appear in neither
+list with nothing asserting anything.
+
+**Not taken:** the service worker fetches network-first with `cache:"no-store"`, so every
+online launch re-downloads all 325 KB of shell — measured at **616 ms to first paint and
+1.9 s to load** on throttled wifi against 92 ms / 145 ms for stale-while-revalidate. That is
+the biggest single win found, but it changes what "auto-updating" means (one launch showing
+the previous version before the existing `controllerchange` handler reloads), so it is a
+call to make deliberately rather than fold into a cleanup.
 ---
 
 ## Part 3 — What's next

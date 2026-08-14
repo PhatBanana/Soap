@@ -7,7 +7,7 @@ import { ADDITIVES, ADDITIVE_INCI, COLORANTS, AROMAS } from "./data/ingredients.
 import { BLEND_TIPS, FIRST_AID, TROUBLESHOOTING, EXAMPLES } from "./data/guides.js";
 import { UNITS, UORDER, CONV, IMPORT_UNITS, fromG, fmt, sumG, clamp } from "./core/units.js";
 import {
-  QUALITIES, IOD_RANGE, INS_RANGE, KOH_FACTOR, SALT_MAX_PER100,
+  QUALITIES, IOD_RANGE, INS_RANGE, KOH_FACTOR, SALT_MAX_PER100, LAURIC_OILS,
   oilsGof, brineOf, lyeConcOf, qualitiesOf, qFn, useSapOverrides
 } from "./core/chem.js";
 import * as Chem from "./core/chem.js";
@@ -69,9 +69,7 @@ unitsEl.addEventListener("change",function(){
   var u=unitsEl.value; state.unit=u; if(u!=="pct") state.lastWeightUnit=u;
   scaleDirty=false; save(); render();
 });
-Array.prototype.forEach.call($("tabs").children,function(b){
-  b.addEventListener("click",function(){ state.tab=b.dataset.tab; save(); render(); });
-});
+bindSeg("tabs","tab","tab");
 
 // base picker: oils (optgroup) + additives (optgroup) + custom
 (function(){
@@ -112,21 +110,22 @@ $("aromaSelect").addEventListener("change",function(){
   $("aromaCustom").classList.toggle("hide", $("aromaSelect").value!=="__custom__");
 });
 
-Array.prototype.forEach.call($("saltModeSeg").children,function(b){
-  b.addEventListener("click",function(){ state.saltMode=b.dataset.sm; save(); render(); });
-});
-Array.prototype.forEach.call($("lyeType").children,function(b){
-  b.addEventListener("click",function(){ state.lyeType=b.dataset.t; save(); render(); });
-});
+bindSeg("saltModeSeg","sm","saltMode");
+bindSeg("lyeType","t","lyeType");
 bindRange($("sf"),"sfVal","superfat");
 bindRange($("water"),"waterVal","waterPct");
 bindRange($("lyeConc"),"concVal","lyeConc");
 bindRange($("purity"),"purVal","kohPurity");
-Array.prototype.forEach.call($("waterMode").children,function(b){
-  b.addEventListener("click",function(){ state.waterMode=b.dataset.w; save(); render(); });
-});
+bindSeg("waterMode","w","waterMode");
 $("recalcBtn").addEventListener("click",function(){ save(); render(); showToast("Recalculated ✓",true); });
 $("aiExplain").addEventListener("click",runAIExplain);
+/* Every segmented control in the app is the same three lines: click a child, store its
+   data attribute in state, save, redraw. Seven of them were written out in full. */
+function bindSeg(id,attr,key,redraw){
+  Array.prototype.forEach.call($(id).children,function(b){
+    b.addEventListener("click",function(){ state[key]=b.dataset[attr]; save(); (redraw||render)(); });
+  });
+}
 function bindRange(input,labelId,key){
   input.addEventListener("input",function(){ state[key]=parseFloat(input.value); $(labelId).textContent=input.value; refreshDerived(); saveSoon(); });
 }
@@ -144,9 +143,7 @@ $("scaleUnit").addEventListener("change",function(){ state.scaleUnit=$("scaleUni
 $("scaleApply").addEventListener("click",applyWeightScale);
 ["mL","mW","mH","mD","mRH","mCount","mCavVol"].forEach(function(id){ $(id).addEventListener("input",updateMoldHint); });
 $("mUnit").addEventListener("change",updateMoldHint);
-Array.prototype.forEach.call($("moldShape").children,function(b){
-  b.addEventListener("click",function(){ state.moldShape=b.dataset.ms; save(); updateScaleCard(); });
-});
+bindSeg("moldShape","ms","moldShape",updateScaleCard);
 $("moldApply").addEventListener("click",applyMold);
 
 // recipe selector + single action menu (sheet)
@@ -171,12 +168,8 @@ $("barW").addEventListener("input",function(){
 $("scentSuggest").addEventListener("click",suggestScents);
 $("clearOils").addEventListener("click",clearRecipe);
 $("useSelect").addEventListener("change",function(){ state.use=$("useSelect").value; save(); render(); });
-Array.prototype.forEach.call($("methodSeg").children,function(b){
-  b.addEventListener("click",function(){ state.method=b.dataset.mt; save(); render(); });
-});
-Array.prototype.forEach.call($("sfModeSeg").children,function(b){
-  b.addEventListener("click",function(){ state.sfMode=b.dataset.sf; save(); render(); });
-});
+bindSeg("methodSeg","mt","method");
+bindSeg("sfModeSeg","sf","sfMode");
 $("sfOilSelect").addEventListener("change",function(){ state.sfOil=$("sfOilSelect").value; save(); render(); });
 bindRange($("waterRatio"),"ratioVal","waterRatio");
 bindRange($("dualKoh"),"dualKohVal","dualKoh");
@@ -197,18 +190,18 @@ $("cureWeeks").addEventListener("input",function(){ state.cureWeeks=parseInt($("
 $("resetChecklist").addEventListener("click",function(){ if(confirm("Uncheck all steps?")){ state.checklist={}; save(); renderMake(); } });
 
 /* ================= RENDER ================= */
+/* Which panel each tab shows. One table rather than three hidden= lines plus an
+   if/else chain that had to agree with them. */
+var TABS={base:renderBase, scents:renderScents, make:renderMake};
 function render(){
   rebuildRecipeSelect();
   unitsEl.value=state.unit;
   setActive($("tabs"),"tab",state.tab);
-  $("tab-base").hidden = state.tab!=="base";
-  $("tab-scents").hidden = state.tab!=="scents";
-  $("tab-make").hidden = state.tab!=="make";
-
-  if(state.tab==="base") renderBase();
-  else if(state.tab==="scents") renderScents();
-  else renderMake();
-  updateMiniSummary();   // the scents/make renderers don't run refreshDerived
+  Object.keys(TABS).forEach(function(t){ $("tab-"+t).hidden = state.tab!==t; });
+  (TABS[state.tab]||TABS.base)();
+  // the scents/make renderers don't run refreshDerived, so they need this; on the base
+  // tab refreshDerived has already called it and a second run is pure duplicate work
+  if(state.tab!=="base") updateMiniSummary();
   syncWakeLock();        // leaving the Make tab has to drop the lock
 }
 
@@ -750,9 +743,9 @@ function safetyChecks(){
   }
 
   // the classic "100% coconut" trap: very cleansing lauric oils need a big superfat on skin
-  var lauric=oilPct(["coconut","palmkernel","babassu"]);
+  var lauric=oilPct(LAURIC_OILS);
   if(skin && lauric>=80 && sf<15)
-    add("warn","Very high coconut / lauric oil","This is "+Math.round(lauric)+"% coconut/palm-kernel — famously harsh and drying on skin at a normal superfat. Either treat it as a salt or laundry bar, or push superfat up to ~15–20%.");
+    add("warn","Very high lauric oil","This is "+Math.round(lauric)+"% "+lauricNames().join(", ")+" — famously harsh and drying on skin at a normal superfat. Either treat it as a salt or laundry bar, or push superfat up to ~15–20%.");
 
   // brine is only a method if the salt will actually dissolve
   var B=brineOf(curRV());
@@ -975,7 +968,7 @@ function updateScaleCard(){
   $("moldCavity").classList.toggle("hide",ms!=="cavity");
   $("moldUnitRow").classList.toggle("hide",ms==="cavity");
   var isBars=state.scaleMode==="bars";
-  if(!$("scaleUnit").options.length){ var uh=""; ["g","oz","lb","kg"].forEach(function(u){ uh+='<option value="'+u+'">'+UNITS[u].label+'</option>'; }); $("scaleUnit").innerHTML=uh; }
+  if(!$("scaleUnit").options.length){ var uh=""; UORDER.filter(function(u){ return u!=="pct"; }).forEach(function(u){ uh+='<option value="'+u+'">'+UNITS[u].label+'</option>'; }); $("scaleUnit").innerHTML=uh; }
   $("scaleUnit").value=sunit;
   $("scaleUnit").classList.toggle("hide",isBars);
   $("scaleBarsUnit").classList.toggle("hide",!isBars);
@@ -1072,7 +1065,6 @@ function updateScents(active){
       var seg=el("div","seg2"); seg.appendChild(el("div","n",share+"%")); seg.appendChild(el("div","l",p[1])); pyr.appendChild(seg);
     });
   }
-  $("scentUnitNote").textContent="";
   buildScentTips();
 }
 
@@ -1172,12 +1164,20 @@ var CPOP_STEPS=[
   "Unmold and cut into bars after 1–2 days.",
   "Cure the bars on a rack until the ready date — a forced gel doesn't shorten the cure."
 ];
+/* Steps are rewritten in place rather than inserted, so a tick you've already made
+   stays on the step you made it against. Find them by what they say — a hardcoded
+   index silently overwrites the wrong instruction the moment a step is added. */
+function stepIndex(steps,re){
+  for(var i=0;i<steps.length;i++){ if(re.test(steps[i])) return i; }
+  return -1;
+}
 function checkSteps(){
   var byMethod={cp:CP_STEPS,hp:HP_STEPS,cpop:CPOP_STEPS};
   var steps=(byMethod[state.method]||CP_STEPS).slice(), L=computeLye(), wu=weightUnit();
   if(state.method==="hp" && state.sfMode==="after" && L.reserveG>0){
     // say it on the step where you'd actually be doing it
-    steps[7]="Let it cool a few minutes, then stir in your held-back "+
+    var hpIdx=stepIndex(steps,/AFTER the cook/i);
+    if(hpIdx>=0) steps[hpIdx]="Let it cool a few minutes, then stir in your held-back "+
       fmt(fromG(L.reserveG,wu),1)+" "+UNITS[wu].label+(L.reserveName?" of "+L.reserveName:" of oil")+
       ", plus fragrance, additives and colour — all after the cook.";
   }
@@ -1186,14 +1186,10 @@ function checkSteps(){
   // so adding a step would shift what someone's already ticked.
   var B=brineOf(curRV());
   if(B.salt>0 && state.saltMode==="brine"){
-    for(var i=0;i<steps.length;i++){
-      if(/lye TO the water/i.test(steps[i])){
-        steps[i]="Dissolve "+fmt(fromG(B.salt,wu),1)+" "+UNITS[wu].label+
-          " of salt into the water and stir until clear, THEN add the lye to it "+
-          "(never the reverse) and stir until clear again.";
-        break;
-      }
-    }
+    var brIdx=stepIndex(steps,/lye TO the water/i);
+    if(brIdx>=0) steps[brIdx]="Dissolve "+fmt(fromG(B.salt,wu),1)+" "+UNITS[wu].label+
+      " of salt into the water and stir until clear, THEN add the lye to it "+
+      "(never the reverse) and stir until clear again.";
   }
   return steps;
 }
@@ -1446,7 +1442,7 @@ function updateTempSuggest(){
     // is the failure mode people actually hit
     box.textContent="Oven-gelled: mix at ordinary cold-process temperatures (~100°F / 38°C), then into an oven preheated to its lowest setting — and turn it OFF as the mould goes in. The residual heat is plenty. Leaving the oven on is how a batch volcanoes or cracks down the middle."+
       (state.additives.some(function(it){ var d=it.key?ADDITIVES[it.key]:null;
-        return d && it.g>0 && /milk|honey|sugar|beer|wine/i.test(d.name); })
+        return d && it.g>0 && d.hot; })
         ? " Your milk, honey or sugar will make it run hotter still — consider skipping the oven for this one." : "");
     return;
   }
@@ -1461,8 +1457,8 @@ function updateTempSuggest(){
   if(state.oils.some(function(it){return it.key==="stearic"&&it.g>0;})) warm.push("stearic acid");
   var B=blendFA(); if(B.tot>0 && qualitiesOf(B.fa).hardness>52) warm.push("lots of hard fats/butters");
   state.aromas.forEach(function(it){ var d=it.key?AROMAS[it.key]:null; if(d&&d.accel&&it.g>0) cool.push(d.name); });
-  ["honey","sugar","goatmilk","coconutmilk"].forEach(function(k){
-    if(state.additives.some(function(it){return it.key===k&&it.g>0;})) cool.push(ADDITIVES[k].name); });
+  state.additives.forEach(function(it){ var d=it.key?ADDITIVES[it.key]:null;
+    if(d && d.hot && it.g>0 && cool.indexOf(d.name)<0) cool.push(d.name); });
   var msg;
   if(warm.length && cool.length)
     msg="Heads-up: this recipe has both fast-tracers ("+cool.join(", ")+") and high-melt fats ("+warm.join(", ")+"). Keep the oils just barely melted (~100°F / 38°C) and work quickly by hand — ease off the stick blender once the scent is in.";
@@ -1506,6 +1502,11 @@ function nudge(goal){
   lastGoal=goal; save(); render();
 }
 // percent of total oils made up by one oil key, or the combined total of several keys
+function lauricNames(){
+  var out=[];
+  state.oils.forEach(function(it){ if(it.g>0 && LAURIC_OILS.indexOf(it.key)>=0 && out.indexOf(OILS[it.key].name)<0) out.push(OILS[it.key].name); });
+  return out;
+}
 function oilPct(keys){ keys=[].concat(keys); var g=0,t=totalOilsG(); state.oils.forEach(function(it){ if(keys.indexOf(it.key)>=0) g+=it.g; }); return t>0?g/t*100:0; }
 /* Live balance check for the current blend — updates as you drag the oil
    sliders or tap a goal. Flags any downside and suggests a fix ingredient. */
@@ -1567,38 +1568,39 @@ $("aromaForm").addEventListener("submit",function(ev){
 });
 
 /* ---------- action dispatcher (single menu sheet) ---------- */
-function doAction(a){
-  switch(a){
-    case "new": newRecipe(); break;
-    case "dup": duplicateRecipe(); break;
-    case "rename": renameRecipe(); break;
-    case "delete": deleteRecipe(); break;
-    case "library": openLibrary(); break;
-    case "compare": openCompare(); break;
-    case "costs": openCosts(); break;
-    case "stock": openStock(); break;
-    case "sap": openSAP(); break;
-    case "shopping": openShopping(); break;
-    case "theme": cycleTheme(); break;
-    case "card": openCard(); break;
-    case "label": openLabel(); break;
-    case "wrapper": openWrapper(); break;
-    case "share": openShare(); break;
-    case "trouble": openTrouble(); break;
-    case "firstaid": openFirstAid(); break;
-    case "rebatch": openRebatch(); break;
-    case "colors": openColors(); break;
-    case "examples": openExamples(); break;
-    case "scan": $("photoInput").click(); break;
-    case "import": $("csvInput").click(); break;
-    case "paste": openPaste(); break;
-    case "export": exportCSV(); break;
-    case "backup": backupAll(); break;
-    case "restore": $("restoreInput").click(); break;
-    case "clear": clearRecipe(); break;
-    case "install": doInstall(); break;
-  }
-}
+/* The sheet's data-a values dispatch straight through this table. hasOwnProperty so
+   a stray data-a="constructor" can't reach Object.prototype. */
+var ACTIONS={
+  new:newRecipe,
+  dup:duplicateRecipe,
+  rename:renameRecipe,
+  delete:deleteRecipe,
+  library:openLibrary,
+  compare:openCompare,
+  costs:openCosts,
+  stock:openStock,
+  sap:openSAP,
+  shopping:openShopping,
+  theme:cycleTheme,
+  card:openCard,
+  label:openLabel,
+  wrapper:openWrapper,
+  share:openShare,
+  trouble:openTrouble,
+  firstaid:openFirstAid,
+  rebatch:openRebatch,
+  colors:openColors,
+  examples:openExamples,
+  scan:function(){ $("photoInput").click(); },
+  import:function(){ $("csvInput").click(); },
+  paste:openPaste,
+  export:exportCSV,
+  backup:backupAll,
+  restore:function(){ $("restoreInput").click(); },
+  clear:clearRecipe,
+  install:doInstall
+};
+function doAction(a){ if(ACTIONS.hasOwnProperty(a)) ACTIONS[a](); }
 function clearRecipe(){
   if(!(state.oils.length||state.additives.length||state.aromas.length)) return;
   pushUndo();
@@ -1652,7 +1654,7 @@ function openExamples(){
   groups.forEach(function(gp){
     var items=(EXAMPLES||[]).filter(function(e){ return e.cat===gp[0]; });
     if(!items.length) return;
-    out.appendChild(el("div","ex-h",gp[1]));
+    out.appendChild(el("div","subhead",gp[1]));
     items.forEach(function(ex){
       var b=el("button","ex-item"); b.type="button";
       b.innerHTML="<b>"+escapeHtml(ex.name)+"</b><span>"+escapeHtml(ex.note||"")+"</span>";
@@ -1682,9 +1684,7 @@ function exportCSV(){
   state.oils.forEach(function(it){ lines.push(csvRow(["oil",it.name,fmt(it.g,3),"g",it.key||"",fmt(Chem.sapOf(it),4)])); });
   state.additives.forEach(function(it){ lines.push(csvRow(["additive",it.name,fmt(it.g,3),"g",it.key||"",""])); });
   state.aromas.forEach(function(it){ lines.push(csvRow(["scent",it.name,fmt(it.g,3),"g",it.key||"",""])); });
-  var blob=new Blob([lines.join("\n")],{type:"text/csv"});
-  var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="soap-recipe.csv";
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
+  downloadFile("soap-recipe.csv",lines.join("\n"),"text/csv");
 }
 function csvRow(vals){ return vals.map(function(v){ v=String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }).join(","); }
 function parseCSV(text){
@@ -1888,8 +1888,7 @@ function openPaste(){
   ta.placeholder="Olive Oil            40      362.87\nCoconut Oil, 76 deg  30      272.16\nPalm Oil             25      226.80\nCastor Oil            5       45.36\nSuper Fat 5%";
   md.m.appendChild(ta);
   var totWrap=el("div","scale-row"); totWrap.hidden=true;
-  var totIn=document.createElement("input"); totIn.type="number"; totIn.step="any"; totIn.min="0";
-  totIn.id="pasteTotal"; totIn.value="1000"; totIn.inputMode="decimal";
+  var totIn=numInput(); totIn.id="pasteTotal"; totIn.value="1000";
   totWrap.appendChild(totIn); totWrap.appendChild(el("span","u","g"));
   var totLabel=el("div","subhead","Total oils (the paste is in percentages)"); totLabel.hidden=true;
   md.m.appendChild(totLabel); md.m.appendChild(totWrap);
@@ -1949,9 +1948,7 @@ function applyPastedSettings(s){
 
 /* ---------- confirm modal (CSV + OCR) ---------- */
 function openConfirm(rows,title,sub,previewURL){
-  var back=el("div","modal-back");
-  var m=el("div","modal");
-  forceVisible(back,"flex"); forceVisible(m,"block");
+  var md=makeModal(), back=md.back, m=md.m;
   m.appendChild(el("h3",null,title));
   m.appendChild(el("p","sub",sub));
   if(previewURL){ var img=document.createElement("img"); img.className="ocr-preview"; img.src=previewURL; m.appendChild(img); }
@@ -1986,14 +1983,9 @@ function openConfirm(rows,title,sub,previewURL){
   }
   drawRows();
   var foot=el("div","mfoot");
-  var cancel=el("button","ghost","Cancel"); cancel.addEventListener("click",function(){ document.body.style.overflow=""; back.remove(); });
-  var ok=el("button","primary","Add to recipe"); ok.addEventListener("click",function(){ commitRows(rowsState); document.body.style.overflow=""; back.remove(); });
+  var cancel=el("button","ghost","Cancel"); cancel.addEventListener("click",function(){ closeModal(back); });
+  var ok=el("button","primary","Add to recipe"); ok.addEventListener("click",function(){ commitRows(rowsState); closeModal(back); });
   foot.appendChild(cancel); foot.appendChild(ok); m.appendChild(foot);
-  back.appendChild(m);
-  back.addEventListener("click",function(e){ if(e.target===back){ document.body.style.overflow=""; back.remove(); } });
-  document.body.style.overflow="hidden";
-  $("modalRoot").appendChild(back);
-  return { setRows:function(rs){ rowsState=rs.slice(); drawRows(); }, body:body };
 }
 function commitRows(rows){
   var added=0, wantScents=false;
@@ -2040,15 +2032,15 @@ $("photoInput").addEventListener("change",function(e){
   var f=e.target.files&&e.target.files[0]; if(!f) return;
   var url=URL.createObjectURL(f);
   // open modal in loading state
-  var back=el("div","modal-back"); var m=el("div","modal");
-  forceVisible(back,"flex"); forceVisible(m,"block");
+  var md=makeModal(), back=md.back, m=md.m;
   m.appendChild(el("h3",null,"Reading photo…"));
   var img=document.createElement("img"); img.className="ocr-preview"; img.src=url; m.appendChild(img);
   var status=el("div","ocr-status","<span class='spin'></span>Loading the text reader…");
-  m.appendChild(status); back.appendChild(m);
-  document.body.style.overflow="hidden"; $("modalRoot").appendChild(back);
+  m.appendChild(status);
+  // makeModal already closes on a backdrop tap; this one only has to note that the
+  // scan in flight should stop when it does
   var cancelled=false;
-  back.addEventListener("click",function(ev){ if(ev.target===back){ cancelled=true; document.body.style.overflow=""; back.remove(); } });
+  back.addEventListener("click",function(ev){ if(ev.target===back) cancelled=true; });
 
   loadTesseract().then(function(){
     if(cancelled) return;
@@ -2056,14 +2048,14 @@ $("photoInput").addEventListener("change",function(e){
     return window.Tesseract.recognize(f,"eng",{ logger:function(mm){ if(mm.status==="recognizing text"&&!cancelled) status.innerHTML="<span class='spin'></span>Recognizing text… "+Math.round(mm.progress*100)+"%"; } });
   }).then(function(res){
     if(cancelled||!res) return;
-    document.body.style.overflow=""; back.remove();
+    closeModal(back);
     var rows=parseOCR(res.data.text);
     if(!rows.length) rows=[{name:"",amount:0,unit:"g",section:"oil"}];
     openConfirm(rows,"Check the scanned recipe","OCR is rough — fix names, amounts & units, then add. Values default to grams.",url);
   }).catch(function(err){
     if(cancelled) return;
     status.innerHTML="Couldn't read the photo. "+(navigator.onLine?"Try a clearer, well-lit shot.":"You appear to be offline — the first scan needs internet to fetch the reader.");
-    var foot=el("div","mfoot"); var b=el("button","ghost","Close"); b.addEventListener("click",function(){ document.body.style.overflow=""; back.remove(); }); foot.appendChild(b); m.appendChild(foot);
+    modalFoot(md,"Close");
   });
 });
 function loadTesseract(){
@@ -2242,8 +2234,7 @@ function openCompare(){
   var out=el("div","cmp-out"); md.m.appendChild(out);
   function draw(){ renderCompare(out, libById(selA.value), libById(selB.value)); }
   selA.addEventListener("change",draw); selB.addEventListener("change",draw); draw();
-  var foot=el("div","mfoot"); var close=el("button","primary","Done");
-  close.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(close); md.m.appendChild(foot);
+  modalFoot(md,"Done");
 }
 function renderCompare(out, A, B){
   var sa=statsFor(A), sb=statsFor(B), wunit=weightUnit(), ul=UNITS[wunit].label;
@@ -2257,7 +2248,7 @@ function renderCompare(out, A, B){
   h+=sec("Oils (% of oils)");
   order.forEach(function(k){ var r=map[k]; h+=row(escapeHtml(r.name), fmt(r.a,1)+"%", fmt(r.b,1)+"%"); });
   h+=sec("Qualities");
-  [["Hardness","hardness"],["Cleansing","cleansing"],["Conditioning","conditioning"],["Bubbly","bubbly"],["Creamy","creamy"]].forEach(function(q){
+  QUALITIES.map(function(q){ return [q.label,q.key]; }).forEach(function(q){
     h+=row(q[0], Math.round(sa.q[q[1]]), Math.round(sb.q[q[1]])); });
   h+=row("Iodine", Math.round(sa.iod), Math.round(sb.iod));
   h+=row("INS", Math.round(sa.ins), Math.round(sb.ins));
@@ -2517,14 +2508,15 @@ function openRebatch(){
   md.m.appendChild(ol);
   var back1=guideLinks("trouble",md.back); if(back1) md.m.appendChild(back1);
   md.m.appendChild(el("div","safety long","⚠️ Water is the safe default — milk, beer and purées can scorch at rebatch temperatures. And if the soap <b>zaps</b>, it's lye-heavy: rebatching alone won't fix that, it needs extra oil stirred in. Never add more lye to a rebatch."));
-  var foot=el("div","mfoot"); var cl=el("button","primary","Done");
-  cl.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(cl); md.m.appendChild(foot);
+  modalFoot(md,"Done");
 }
 
 /* ---------- "why did my soap do X?" troubleshooting reference ---------- */
-/* Troubleshooting and first aid are the same thing on screen — grouped, searchable
-   when/q/why/fix entries — so they share one renderer rather than keeping two copies
-   that drift. o: {title, sub, placeholder, rows, whyLabel, fixLabel, noMatch, lead} */
+/* Troubleshooting, first aid and the colorant guide are the same thing on screen —
+   grouped, searchable when/q/why/fix entries — so they share one renderer rather than
+   keeping copies that drift. Colours were the copy that got missed for a while.
+   o: {title, sub, placeholder, rows, whyLabel, fixLabel, noMatch, lead, tagClass, see, tail}
+   A row may carry `tag`, shown beside its summary. */
 function openGuideList(o,q0){
   var md=makeModal();
   md.m.appendChild(el("h3",null,o.title));
@@ -2541,12 +2533,15 @@ function openGuideList(o,q0){
   function draw(q){
     q=(q||"").toLowerCase().trim(); wrap.innerHTML="";
     groups.forEach(function(g){
-      var hits=g.items.filter(function(t){ return !q || (t.q+" "+t.why+" "+t.fix).toLowerCase().indexOf(q)>=0; });
+      var hits=g.items.filter(function(t){ return !q || (t.q+" "+t.when+" "+t.why+" "+t.fix).toLowerCase().indexOf(q)>=0; });
       if(!hits.length) return;
       wrap.appendChild(el("div","ts-group",escapeHtml(g.when)));
       hits.forEach(function(t){
         var d=document.createElement("details"); d.className="ts-item"; if(q) d.open=true;
-        var s=document.createElement("summary"); s.textContent=t.q; d.appendChild(s);
+        var s=document.createElement("summary");
+        if(t.tag) s.innerHTML=escapeHtml(t.q)+" <span class='"+o.tagClass+"'>"+escapeHtml(t.tag)+"</span>";
+        else s.textContent=t.q;
+        d.appendChild(s);
         var body=el("div","ts-body","<p><b>"+o.whyLabel+":</b> "+escapeHtml(t.why)+"</p>"+
           "<p><b>"+o.fixLabel+":</b> "+escapeHtml(t.fix)+"</p>");
         var links=guideLinks(t.see,md.back); if(links) body.appendChild(links);
@@ -2558,6 +2553,8 @@ function openGuideList(o,q0){
   }
   filter.addEventListener("input",function(){ draw(filter.value); });
   filter.value=q0||""; draw(filter.value);
+  if(o.see){ var seeAlso=guideLinks(o.see,md.back); if(seeAlso) md.m.appendChild(seeAlso); }
+  if(o.tail) md.m.appendChild(el("div","safety long",o.tail));
   modalFoot(md);
   return md;
 }
@@ -2586,41 +2583,17 @@ function openFirstAid(q0){
 
 /* ---------- colorant guide: dose, how to disperse, what survives high pH ---------- */
 function openColors(q0){
-  var md=makeModal();
-  md.m.appendChild(el("h3",null,"Colorants"));
-  md.m.appendChild(el("p","sub","How much, how to mix it in, and what soap's high pH will do to it. Doses are per <b>lb (450 g) of oils</b> — “PPO”."));
-  var filter=document.createElement("input"); filter.className="ts-filter"; filter.type="search";
-  filter.placeholder="Search colours (pink, fades, clay…)"; md.m.appendChild(filter);
-  var wrap=el("div","ts-wrap"); md.m.appendChild(wrap);
-  var groups=[];
-  (COLORANTS||[]).forEach(function(t){
-    var g=null; groups.forEach(function(x){ if(x.family===t.family) g=x; });
-    if(!g){ g={family:t.family,items:[]}; groups.push(g); } g.items.push(t);
-  });
-  function draw(q){
-    q=(q||"").toLowerCase().trim(); wrap.innerHTML="";
-    groups.forEach(function(g){
-      var hits=g.items.filter(function(t){ return !q || (t.name+" "+t.family+" "+t.how+" "+t.behaviour).toLowerCase().indexOf(q)>=0; });
-      if(!hits.length) return;
-      wrap.appendChild(el("div","ts-group",escapeHtml(g.family)));
-      hits.forEach(function(t){
-        var d=document.createElement("details"); d.className="ts-item"; if(q) d.open=true;
-        var s=document.createElement("summary");
-        s.innerHTML=escapeHtml(t.name)+" <span class='cl-dose'>"+escapeHtml(t.dose)+"</span>";
-        d.appendChild(s);
-        var body=el("div","ts-body","<p><b>How:</b> "+escapeHtml(t.how)+"</p><p><b>In soap:</b> "+escapeHtml(t.behaviour)+"</p>");
-        var links=guideLinks(t.see,md.back); if(links) body.appendChild(links);
-        d.appendChild(body);
-        wrap.appendChild(d);
-      });
-    });
-    if(!wrap.children.length) wrap.appendChild(el("p","sub","No match — try another word (e.g. “blue”, “clay”, “fades”)."));
-  }
-  filter.addEventListener("input",function(){ draw(filter.value); });
-  filter.value=q0||""; draw(filter.value);
-  var back2=guideLinks("trouble:discolored",md.back); if(back2) md.m.appendChild(back2);
-  md.m.appendChild(el("div","safety long","⚠️ Colour is cosmetic — nothing here changes the lye maths. Add colorants to the recipe as ordinary ingredients if you want them costed and on the label. Use skin-safe, soap-stable colorants only: craft dyes, food colouring and candle pigments don't belong in soap."));
-  modalFoot(md);
+  return openGuideList({
+    title:"Colorants",
+    sub:"How much, how to mix it in, and what soap's high pH will do to it. Doses are per <b>lb (450 g) of oils</b> — “PPO”.",
+    placeholder:"Search colours (pink, fades, clay…)",
+    rows:(COLORANTS||[]).map(function(t){
+      return { when:t.family, q:t.name, tag:t.dose, why:t.how, fix:t.behaviour, see:t.see }; }),
+    tagClass:"cl-dose", whyLabel:"How", fixLabel:"In soap",
+    noMatch:"No match — try another word (e.g. “blue”, “clay”, “fades”).",
+    see:"trouble:discolored",
+    tail:"⚠️ Colour is cosmetic — nothing here changes the lye maths. Add colorants to the recipe as ordinary ingredients if you want them costed and on the label. Use skin-safe, soap-stable colorants only: craft dyes, food colouring and candle pigments don't belong in soap."
+  },q0);
 }
 
 function nz(list){ return list.filter(function(it){ return it.g>0; }); }
@@ -2840,7 +2813,7 @@ function openSAP(){
     function cell(tr,label,getVal,setVal,ref){
       tr.appendChild(el("td",null,escapeHtml(label)+(ref!=null?"<div class='sap-ref'>ours: "+fmt(asKOH?sapToKOH(ref):ref,dp)+"</div>":"<div class='sap-ref'>no reference</div>")));
       var td=document.createElement("td");
-      var inp=document.createElement("input"); inp.type="number"; inp.min="0"; inp.step="any";
+      var inp=numInput();
       inp.placeholder=ref!=null ? fmt(asKOH?sapToKOH(ref):ref,dp) : "—";
       var cur=getVal(); inp.value = cur>0 ? fmt(asKOH?sapToKOH(cur):cur,dp) : "";
       inp.addEventListener("input",function(){
@@ -2902,7 +2875,7 @@ function openStock(){
       var tr=document.createElement("tr");
       tr.appendChild(el("td",null,escapeHtml(x.name)));
       var td=document.createElement("td");
-      var inp=document.createElement("input"); inp.type="number"; inp.min="0"; inp.step="any"; inp.placeholder="0";
+      var inp=numInput(); inp.placeholder="0";
       var have=state.stock[x.key];
       inp.value = have>0 ? fmt(fromG(have,wunit),UNITS[wunit].dp) : "";
       inp.addEventListener("input",function(){
@@ -2924,8 +2897,7 @@ function openStock(){
       : "“"+r.name+"”: you have enough of everything you're tracking. ✓";
   }
   showCoverage();
-  var foot=el("div","mfoot"); var done=el("button","primary","Done");
-  done.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(done); md.m.appendChild(foot);
+  modalFoot(md,"Done");
 }
 
 /* ---------- shopping list: what to buy across a batch plan ---------- */
@@ -3048,8 +3020,7 @@ function openCosts(){
       var pk=priceKeyOf(x.it), tr=document.createElement("tr");
       tr.appendChild(el("td",null,escapeHtml(x.it.name)));
       var td2=document.createElement("td");
-      var inp=document.createElement("input"); inp.type="number"; inp.min="0"; inp.step="any";
-      inp.value=state.prices[pk]||""; inp.placeholder="0";
+      var inp=numInput(); inp.value=state.prices[pk]||""; inp.placeholder="0";
       inp.addEventListener("input",function(){ var v=parseFloat(inp.value); if(isFinite(v)&&v>0) state.prices[pk]=v; else delete state.prices[pk]; saveSoon(); recompute(); });
       td2.appendChild(inp); td2.appendChild(document.createTextNode(" "+state.currency+"/kg"));
       tr.appendChild(td2);
@@ -3069,7 +3040,7 @@ function openCosts(){
     }
   }
   draw();
-  var foot=el("div","mfoot"); var close=el("button","primary","Done"); close.addEventListener("click",function(){ closeModal(md.back); }); foot.appendChild(close); md.m.appendChild(foot);
+  modalFoot(md,"Done");
 }
 
 /* ---------- recipe library ---------- */

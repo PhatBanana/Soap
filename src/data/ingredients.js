@@ -8,12 +8,16 @@
    it from the water you pour. Only the four that genuinely stand in for water carry it;
    honey, sodium lactate, glycerin and vitamin E are liquids you add on top in teaspoons,
    and subtracting those would leave the batch short of liquid.  */
+/* `hot:true` marks the sugars and milks that make a batch run hot — they caramelise and
+   can scorch or volcano. The cold-process and oven-gelled temperature advice both read
+   this flag; they used to keep separate lists and had already drifted apart, so a beer
+   soap was warned under one method and told "no special heat concerns" under the other. */
 export const ADDITIVES = {
-  goatmilk:      { name:"Goat milk",        kind:"liquid", replacesWater:true,
+  goatmilk:      { hot:true, name:"Goat milk",        kind:"liquid", replacesWater:true,
                    note:"Replaces some or all of your water. Creamy lather & skin-loving fats. Freeze it and add lye slowly to avoid scorching (or use powder)." },
-  coconutmilk:   { name:"Coconut milk",     kind:"liquid", replacesWater:true,
+  coconutmilk:   { hot:true, name:"Coconut milk",     kind:"liquid", replacesWater:true,
                    note:"Replaces part of the water. Adds creamy, conditioning lather. Keep cool to avoid scorching." },
-  honey:         { name:"Honey",            kind:"liquid",
+  honey:         { hot:true, name:"Honey",            kind:"liquid",
                    note:"~1 tsp per lb (450 g) of oils. Boosts lather & draws moisture, but can overheat/volcano — soap cool." },
   sodiumlactate: { name:"Sodium lactate",   kind:"liquid",
                    note:"~1 tsp per lb of oils (≈3% of oils). Hardens bars for easier unmolding. Stir into cooled lye water. Already a salt, so it doesn't touch the lye." },
@@ -41,7 +45,7 @@ export const ADDITIVES = {
                    note:"Humectant that pulls moisture to skin. A little (1–2 tsp PPO) adds a silky feel; too much softens the bar." },
   aloe:          { name:"Aloe vera juice",    kind:"liquid", replacesWater:true,
                    note:"Swap for part of your water. Soothing and skin-loving — keep it cool when adding the lye." },
-  sugar:         { name:"White sugar",        kind:"dry",
+  sugar:         { hot:true, name:"White sugar",        kind:"dry",
                    note:"~1 tsp per lb of oils, dissolved in the water. Boosts big bubbly lather. Can heat the batch up." },
   salt:          { name:"Salt (table/sea)",   kind:"dry",
                    note:"A little (~1 tsp PPO) hardens bars; a lot makes 'salt bars' (pair with high coconut + high superfat). Cut salt bars while warm." },
@@ -55,15 +59,15 @@ export const ADDITIVES = {
                    note:"A small pinch dissolved into the hot lye water gives a silky, luxurious skin feel." },
   // --- more water replacers. Beer and wine stand in for water like milk does, so they
   //     carry replacesWater and get subtracted from what you pour.
-  beer:          { name:"Beer",               kind:"liquid", replacesWater:true,
+  beer:          { hot:true, name:"Beer",               kind:"liquid", replacesWater:true,
                    note:"Swap for part of your water. The sugars boost lather beautifully. Boil it first and let it go flat and cold, or the CO₂ will foam over when the lye goes in." },
-  wine:          { name:"Wine",               kind:"liquid", replacesWater:true,
+  wine:          { hot:true, name:"Wine",               kind:"liquid", replacesWater:true,
                    note:"Swap for part of your water. Cook off the alcohol and chill it first — alcohol and hot lye is a bad combination. Expect the colour to darken to tan." },
   // --- powdered milks: same idea as the liquids, but stirred into the oils instead, so
   //     they do NOT replace water
-  goatmilkpwd:   { name:"Goat milk powder",   kind:"dry",
+  goatmilkpwd:   { hot:true, name:"Goat milk powder",   kind:"dry",
                    note:"1–2 Tbsp per lb of oils. All the creaminess of fresh milk with none of the scorching risk — whisk it into the oils, not the lye water." },
-  coconutmilkpwd:{ name:"Coconut milk powder",kind:"dry",
+  coconutmilkpwd:{ hot:true, name:"Coconut milk powder",kind:"dry",
                    note:"1–2 Tbsp per lb of oils. Creamy, conditioning lather and much easier to handle than the tinned kind. Blend into the oils before the lye." },
   // --- exfoliants beyond oatmeal and coffee grounds
   poppyseed:     { name:"Poppy seeds",        kind:"dry",

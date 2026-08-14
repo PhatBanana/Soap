@@ -45,6 +45,16 @@ export const QUALITIES = [
   { key:"bubbly",       label:"Bubbly lather",scale:76, lo:17, hi:54, fn:function(f){return f.la+f.my+f.ri+f.cy+f.cp;} },
   { key:"creamy",       label:"Creamy lather",scale:70, lo:16, hi:48, fn:function(f){return f.pa+f.st+f.ri+f.ar;} }
 ];
+/* The "100% coconut" trap isn't really about coconut — it's the short-chain lauric
+   family that makes a bar harsh, and the app now carries six such oils. Derived from the
+   fatty-acid data so a new one joins the warning by existing, rather than by someone
+   remembering to add its key to a list; the hardcoded trio missed murumuru (85%), which
+   is more lauric than coconut. The cutoff sits in a wide gap — sixth-highest is 71%,
+   seventh is 3% — so nothing sits near the boundary. */
+export const LAURIC_OILS = Object.keys(OILS).filter(function(k){
+  var f=OILS[k].fa||{};
+  return (f.la||0)+(f.my||0)+(f.cy||0)+(f.cp||0) >= 50;
+});
 export const IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
 
 export function oilsGof(rv){ return sumG(rv.oils); }
