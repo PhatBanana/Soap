@@ -2750,6 +2750,84 @@ Water:Lye Ratio 2.5`, { commit: true });
 }
 
 /* =======================================================================
+   SERVICE WORKER: the app opens from disk, and still updates
+
+   Network-first re-fetched all 325 KB of shell on every online launch. On a slow
+   connection that was the whole launch: 703 ms to load, 360 ms to first paint,
+   against 104 ms / 76 ms once the cache answers first. Source shape is asserted in
+   RELEASE HYGIENE; this block runs a real worker and checks the three behaviours
+   that actually matter — it's fast, it works offline, and a deploy still lands.
+======================================================================= */
+{
+  const DELAY = 120;                       // per request, standing in for kitchen wifi
+  let hits = 0;
+  const slow = http.createServer((req, res) => {
+    let rel = decodeURIComponent(req.url.split("?")[0]);
+    if (rel === "/") rel = "/index.html";
+    const file = path.join(ROOT, path.normalize(rel).replace(/^(\.\.[/\\])+/, ""));
+    fs.readFile(file, (err, buf) => {
+      if (err) { res.statusCode = 404; res.end("not found"); return; }
+      hits++;
+      res.setHeader("Content-Type", MIME[path.extname(file)] || "application/octet-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      setTimeout(() => res.end(buf), DELAY);
+    });
+  });
+  const slowBase = await new Promise((r) =>
+    slow.listen(0, "127.0.0.1", () => r(`http://127.0.0.1:${slow.address().port}`)));
+
+  const ctx = await browser.newContext();
+  const p1 = await ctx.newPage();
+  p1.on("pageerror", (e) => pageErrors.push("PE(sw): " + e.message));
+  await p1.goto(slowBase + "/index.html", { waitUntil: "load" });
+  await p1.waitForFunction(() => navigator.serviceWorker.controller !== null, { timeout: 20000 });
+  await p1.close();
+
+  // second launch: the shell comes off disk, so the network delay is off the critical path
+  const p2 = await ctx.newPage();
+  p2.on("pageerror", (e) => pageErrors.push("PE(sw): " + e.message));
+  hits = 0;
+  const t0 = Date.now();
+  await p2.goto(slowBase + "/index.html", { waitUntil: "load" });
+  const load = Date.now() - t0;
+  ok("Second launch loads without waiting on the network", load < DELAY * 3, `${load} ms of a ${DELAY} ms/request server`);
+  ok("The app really rendered", await p2.evaluate(() => !!document.getElementById("lyeVal")));
+  ok("Ingredient data really loaded", await p2.evaluate(() => document.getElementById("baseSelect").options.length > 50));
+
+  // offline: the point of precaching in the first place
+  await ctx.setOffline(true);
+  await p2.reload({ waitUntil: "load" }).catch(() => {});
+  await p2.waitForTimeout(400);
+  ok("Reloads offline", await p2.evaluate(() => !!document.getElementById("lyeVal")));
+  ok("…with its data", await p2.evaluate(() => document.getElementById("baseSelect").options.length > 50));
+  await ctx.setOffline(false);
+  await p2.close();
+
+  /* A cache-first shell only stays fresh because the worker itself is replaced, so this
+     is the half that must not rot: bump the version the way a release does and the open
+     app has to end up on it by itself. */
+  const schemaPath = path.join(ROOT, "src/core/schema.js"), swPath = path.join(ROOT, "sw.js");
+  const schemaBak = fs.readFileSync(schemaPath, "utf8"), swBak = fs.readFileSync(swPath, "utf8");
+  const curV = (swBak.match(/soapcalc-(v\d+)/) || [])[1];
+  try {
+    fs.writeFileSync(schemaPath, schemaBak.replace(/APP_VERSION = "v\d+"/, 'APP_VERSION = "v999"'));
+    fs.writeFileSync(swPath, swBak.replace("soapcalc-" + curV, "soapcalc-v999"));
+    const p3 = await ctx.newPage();
+    let landed = true;
+    await p3.goto(slowBase + "/index.html", { waitUntil: "load" });
+    await p3.waitForFunction(() => /v999/.test(document.getElementById("buildStamp").textContent),
+      { timeout: 25000 }).catch(() => { landed = false; });
+    ok("A new version takes over on its own", landed,
+       landed ? "" : await p3.evaluate(() => document.getElementById("buildStamp").textContent));
+    await p3.close();
+  } finally {
+    fs.writeFileSync(schemaPath, schemaBak); fs.writeFileSync(swPath, swBak);
+  }
+  await ctx.close();
+  await new Promise((r) => slow.close(r));
+}
+
+/* =======================================================================
    RELEASE HYGIENE (the version/cache coupling that keeps phones off stale copies)
 ======================================================================= */
 {
@@ -2771,6 +2849,23 @@ Water:Lye Ratio 2.5`, { commit: true });
   const shell = (swSrc.match(/var SHELL\s*=\s*\[([\s\S]*?)\]/) || [])[1] || "";
   const files = shell.match(/"\.\/[^"]+"/g).map((s) => s.slice(3, -1));
   ok("Service worker precaches a shell", files.length >= 5, String(files.length));
+  /* The cache has to answer first. Network-first re-downloaded all 325 KB of shell on
+     every online launch, which on a throttled connection was 703 ms to load and 360 ms
+     to first paint against 104 ms / 76 ms serving from disk. Updates come from the
+     worker being replaced, not from re-fetching the shell on the critical path. */
+  const fetchBody = (swSrc.match(/addEventListener\("fetch"[\s\S]*$/) || [""])[0];
+  // what respondWith is actually handed — "mentions caches.match somewhere" is not
+  // enough, network-first names it too, as the fallback
+  const responded = fetchBody.slice(fetchBody.indexOf("e.respondWith("));
+  ok("Fetch handler answers from the cache, not the network",
+     /^e\.respondWith\(\s*caches\.match\(req\)/.test(responded), responded.slice(0, 60));
+  ok("…and revalidates in the background", /waitUntil\(fresh\)/.test(fetchBody));
+  ok("…with the HTTP cache bypassed, so revalidation reaches the real server",
+     /cache:\s*"no-store"/.test(fetchBody));
+  // the update path is what keeps a cache-first shell fresh, so it is pinned too
+  ok("sw.js is registered with updateViaCache:none", /updateViaCache:"none"/.test(appSrc), "main.js");
+  ok("A new worker skips waiting and claims the page", /skipWaiting\(\)/.test(swSrc) && /clients\.claim\(\)/.test(swSrc));
+  ok("A claimed page reloads once onto the fresh files", /controllerchange/.test(appSrc) && /location\.reload\(\)/.test(appSrc));
   files.forEach((f) => ok(`Precached file exists: ${f}`, fs.existsSync(path.join(ROOT, f))));
 
   // The app's own source files must all be in the shell, or an update half-applies offline.
