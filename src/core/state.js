@@ -11,6 +11,9 @@
    have always done `save(); render();` and that stays true, which is what keeps this
    module free of a cycle back into the UI. */
 import { OILS } from "../data/oils.js";
+import * as Chem from "./chem.js";
+import { useSapOverrides } from "./chem.js";
+import { UNITS, sumG } from "./units.js";
 import { STORE_KEY, RECIPE_FIELDS, VIEW_FIELDS, defOf } from "./schema.js";
 import { $, uid, downloadFile } from "./dom.js";
 import { todayISO, b64urlDec } from "./util.js";
@@ -201,5 +204,22 @@ export function initState(){
    written the moment we stop being visible. */
 window.addEventListener("pagehide",flushSave);
 document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="hidden") flushSave(); });
+
+/* Small readers of the open recipe. They live here rather than in the UI because they
+   answer questions about state, and half the app asks them. */
+export function weightUnit(){ return state.unit==="pct" ? (UNITS[state.lastWeightUnit]&&state.lastWeightUnit!=="pct" ? state.lastWeightUnit : "g") : state.unit; }
+export function scaleUnit(){ return (UNITS[state.scaleUnit]&&state.scaleUnit!=="pct") ? state.scaleUnit : weightUnit(); }
+export function oilInfo(it){ return it.key ? OILS[it.key] : null; }
+export function cleansingCap(use){ return use==="face" ? 18 : (use==="hair" ? 20 : 22); }
+export function totalOilsG(){ return sumG(state.oils); }
+
+/* chem.js takes an explicit recipe and knows nothing about application state. These four
+   supply "the recipe currently open" so that the ~90 call sites below read as they always
+   did, and tell chem where to find your supplier SAP figures. */
+useSapOverrides(function(){ return state.sapOverrides; });
+export function blendFA(rv){ return Chem.blendFA(rv||curRV()); }
+export function computeLye(rv){ return Chem.computeLye(rv||curRV()); }
+export function currentBatchG(rv){ return Chem.currentBatchG(rv||curRV()); }
+export function curedBatchG(rv){ return Chem.curedBatchG(rv||curRV()); }
 
 export var state = initState();

@@ -43,3 +43,6 @@ export function downloadFile(name,text,mime){
   var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },2000);
 }
+
+/* Segmented controls: mark the child whose data attribute matches. */
+export function setActive(container, attr, val){ Array.prototype.forEach.call(container.children,function(b){ b.classList.toggle("active", b.dataset[attr]===val); }); }

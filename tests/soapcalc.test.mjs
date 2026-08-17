@@ -72,7 +72,12 @@ const { EXAMPLES, TROUBLESHOOTING } = await import("../src/data/guides.js");
 const { RECIPE_FIELDS } = await import("../src/core/schema.js");
 // SHARE_SKIP is module-local to main.js, so the deny-list is read from source (the
 // release-hygiene block does the same for the service-worker shell)
-const appSrcForShare = fs.readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+const appSrcForShare = fs.readdirSync(new URL("../src", import.meta.url), { withFileTypes:true })
+  .flatMap((d) => d.isDirectory()
+    ? fs.readdirSync(new URL("../src/" + d.name, import.meta.url)).map((n) => `../src/${d.name}/${n}`)
+    : [`../src/${d.name}`])
+  .filter((f) => f.endsWith(".js"))
+  .map((f) => fs.readFileSync(new URL(f, import.meta.url), "utf8")).join("\n");
 
 const pageErrors = [];
 // assertion counts quoted in the docs, collected by the release-hygiene block and
@@ -2831,7 +2836,100 @@ Water:Lye Ratio 2.5`, { commit: true });
    RELEASE HYGIENE (the version/cache coupling that keeps phones off stale copies)
 ======================================================================= */
 {
-  const appSrc = fs.readFileSync(path.join(ROOT, "src/main.js"), "utf8");
+  /* Every shipped source file, not just main.js. These checks look for code by what it
+     says, so pinning them to one filename means they quietly stop checking anything the
+     moment that code moves to another module — which is exactly what happened when
+     ADD_CAP moved to ui/render.js. */
+  const srcFiles = [];
+  (function walkSrc(dir) {
+    fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).forEach((d) => {
+      if (d.isDirectory()) walkSrc(`${dir}/${d.name}`);
+      else if (d.name.endsWith(".js")) srcFiles.push(`${dir}/${d.name}`);
+    });
+  })("src");
+  const appSrc = srcFiles.map((f) => fs.readFileSync(path.join(ROOT, f), "utf8")).join("\n");
+  ok("Release checks read every src file", srcFiles.length >= 8, String(srcFiles.length));
+
+  /* Modules only help if the imports are right, and a missing one is invisible until the
+     line runs: the app loads, the page looks fine, and the feature you didn't click is
+     dead. That is how cloneItem, INS_RANGE and $ each shipped broken during the split,
+     and how a missing clamp shipped in v54. So: every name one module exports, referenced
+     by another that doesn't import it. Only known export names are considered, so prose
+     in a comment can never produce a false positive. */
+  const strip = (c) => c
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/[^\n]*$/gm, "")
+    .replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g, '""')
+    .replace(/(?<=[=(,:[!&|?{;\s])\/(?:[^/\\\n[]|\\.|\[(?:[^\]\\]|\\.)*\])+\/[gimsuy]*/g, "RE");
+  const srcText = {};
+  srcFiles.forEach((f) => { srcText[f] = fs.readFileSync(path.join(ROOT, f), "utf8"); });
+  const exportedBy = {};
+  srcFiles.forEach((f) => {
+    const c = strip(srcText[f]);
+    // one statement can declare several: `export const A=1, B=2, C=3;`
+    for (const m of c.matchAll(/^export (?:function|var|const|let)\s+([^;\n]+)/gm)) {
+      let depth = 0, cur = "";
+      const parts = [];
+      for (const ch of m[1]) {
+        if ("([{".includes(ch)) depth++;
+        else if (")]}".includes(ch)) depth--;
+        if (ch === "," && depth === 0) { parts.push(cur); cur = ""; } else cur += ch;
+      }
+      parts.push(cur);
+      parts.forEach((part) => {
+        const n = part.trim().split("=")[0].trim();
+        if (/^[A-Za-z_$][\w$]*$/.test(n)) exportedBy[n] = f;
+      });
+    }
+  });
+  ok("Modules export something to check", Object.keys(exportedBy).length >= 40, String(Object.keys(exportedBy).length));
+  const missing = [];
+  srcFiles.forEach((f) => {
+    const c = strip(srcText[f]);
+    const imported = new Set();
+    for (const m of c.matchAll(/import\s*\{([^}]*)\}\s*from/g))
+      m[1].split(",").forEach((n) => { n = n.trim().split(" as ").pop().trim(); if (n) imported.add(n); });
+    for (const m of c.matchAll(/import\s*\*\s*as\s*([A-Za-z_$][\w$]*)/g)) imported.add(m[1]);
+    const local = new Set();
+    for (const m of c.matchAll(/\b(?:function|var|let|const)\s+([A-Za-z_$][\w$]*)/g)) local.add(m[1]);
+    for (const m of c.matchAll(/\b(?:var|let|const)\s+([^;=\n]+?)=/g))
+      m[1].split(",").forEach((n) => { n = n.trim(); if (/^[A-Za-z_$][\w$]*$/.test(n)) local.add(n); });
+    Object.entries(exportedBy).forEach(([n, from]) => {
+      if (from === f || imported.has(n) || local.has(n)) return;
+      if (new RegExp(`(?<![\\w$.])${n.replace(/\$/g, "\\$")}(?![\\w$])`).test(c)) missing.push(`${f} uses ${n} (from ${from})`);
+    });
+  });
+  ok("No module uses another's export without importing it", missing.length === 0, missing.join(" · "));
+
+  /* The four wrappers in core/state.js share their names with the raw functions in
+     core/chem.js. The wrappers default to the recipe you have open; the raw ones require
+     an explicit recipe and return nonsense without one. Importing the wrong pair is a
+     silent wrong number, and it happened once during the split. */
+  const RAW = ["computeLye", "blendFA", "currentBatchG", "curedBatchG"];
+  const wrongChem = srcFiles.filter((f) => f !== "src/core/state.js").filter((f) => {
+    // raw source, not stripped: strip() blanks double-quoted strings, and that includes
+    // the module path this has to match on
+    const m = srcText[f].match(/import\s*\{([^}]*)\}\s*from\s*"[^"]*chem\.js"/);
+    return m && RAW.some((n) => m[1].split(",").map((x) => x.trim()).includes(n));
+  });
+  ok("Only core/state.js imports the raw chem functions", wrongChem.length === 0, wrongChem.join(", "));
+
+  /* An orphaned array element left at top level joins the next declaration through the
+     comma operator, and it silently stops being a function. It parses, it loads, and the
+     button just does nothing — which is exactly what happened to logBatch. */
+  const strays = [];
+  srcFiles.forEach((f) => {
+    const lines = srcText[f]
+      .replace(/\/\*[\s\S]*?\*\//g, (m) => "\n".repeat((m.match(/\n/g) || []).length))
+      .replace(/^\s*\/\/[^\n]*$/gm, "").split("\n");
+    lines.forEach((l, i) => {
+      if (!/^\s{0,3}["']/.test(l)) return;
+      let prev = "";
+      for (let k = i - 1; k >= 0; k--) { const t = lines[k].trim(); if (t) { prev = t; break; } }
+      if (prev && !/[[,(]$/.test(prev)) strays.push(`${f}:${i + 1}`);
+    });
+  });
+  ok("No orphaned literals at the top level of a module", strays.length === 0, strays.join(", "));
   // the version and build date live with the rest of the persisted-shape constants
   const schemaSrc = fs.readFileSync(path.join(ROOT, "src/core/schema.js"), "utf8");
   const swSrc  = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
