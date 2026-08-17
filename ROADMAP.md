@@ -575,13 +575,22 @@ takeover check with the app still showing the old version.
 
 Short and honest: every numbered item is done, so this is what is actually left.
 
-- **Split `src/main.js`.** It is still 3160 lines of rendering and feature modals — the
-  open half of v54. The seams are there (41 section headings, and the modals are largely
-  independent), but they share `state`, `render()` and each other, so it needs untangling
-  rather than cutting. Worth doing when someone next has to find something in it; not
-  worth rushing, since three of the four bugs in v54 came from moving code mechanically.
+- **Split `src/main.js`.** Still one file of rendering and feature modals — the open half
+  of v54, and the largest thing in the repo by some way. The seams are there (the section
+  headings, and the modals are largely independent), but they share `state`, `render()` and
+  each other, so it needs untangling rather than cutting. Worth doing when someone next has
+  to find something in it; not worth rushing, since three of the four bugs in v54 came from
+  moving code mechanically.
+- **Split `tests/soapcalc.test.mjs`** into a harness plus suites — deferred from the same
+  plan and easy to forget, because nothing breaks while it stays one file. Whatever shape
+  it takes, `npm test` has to stay one command, one browser, one process: that property is
+  the reason the suite gets run at all.
 - **Nothing else is queued.** New entries should earn their place against the scope at the
   top of this file, not be added because the list looks short.
+
+<sub>Deliberately no line counts here — the last one said 3160 and had drifted to 3259
+before anyone noticed, which is the same rot this file keeps recording elsewhere. The
+counts at the top are checked by the suite; prose numbers aren't, so they don't belong.</sub>
 
 ---
 
