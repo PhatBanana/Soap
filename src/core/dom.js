@@ -35,3 +35,11 @@ export function numInput() {
   inp.type = "number"; inp.step = "any"; inp.min = "0"; inp.inputMode = "decimal";
   return inp;
 }
+
+/* Hand the browser a file. Used by the backup, the CSV export and the rescue download
+   on the storage-failure warning. */
+export function downloadFile(name,text,mime){
+  var blob=new Blob([text],{type:mime||"application/json"});
+  var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },2000);
+}
