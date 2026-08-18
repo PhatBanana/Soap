@@ -437,7 +437,7 @@ the real app and asserts on the computed numbers and saved state. **1753 asserti
 ```sh
 npm ci                            # installs playwright (dev-only)
 npx playwright install chromium   # one-time browser download
-npm test                          # runs tests/soapcalc.test.mjs
+npm test                          # runs tests/run.mjs (harness + tests/suites/)
 ```
 
 The suite is self-contained (it starts its own static server) and exits non-zero

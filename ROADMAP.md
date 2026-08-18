@@ -622,7 +622,7 @@ off the roadmap. Written down so the reasoning survives:
 ## How this gets built
 
 Every change follows the same loop: build it, cover it with assertions in
-`tests/soapcalc.test.mjs`, run the full suite, bump the version in `app.js` and
+`tests/suites/`, run the full suite, bump the version in `src/core/schema.js` and
 `sw.js`, then PR and merge. The suite has caught six schema changes on its own —
 it's the reason the chemistry can be refactored without fear.
 
