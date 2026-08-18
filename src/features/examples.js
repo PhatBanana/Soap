@@ -4,15 +4,13 @@
    render() back. That cycle was expected when the layer was designed and is safe for the
    same reason the rest are: the call happens when someone taps the button, never while a
    module is still evaluating. */
-import { EXAMPLES } from "../data/guides.js";
-import { OILS } from "../data/oils.js";
-import { ADDITIVES, AROMAS } from "../data/ingredients.js";
+import { closeModal, el, escapeHtml, makeModal } from "../core/dom.js";
+import { blankRecipe, currentId, libById, library, loadRecipeIntoState, save, setCurrentId, syncCurrent } from "../core/state.js";
 import { clamp } from "../core/units.js";
-import { el, escapeHtml, makeModal, closeModal } from "../core/dom.js";
-import { library, currentId, setCurrentId, libById, blankRecipe, loadRecipeIntoState,
-         syncCurrent, save } from "../core/state.js";
-import { render, setScaleDirty, setLastGoal } from "../ui/render.js";
-
+import { EXAMPLES } from "../data/guides.js";
+import { ADDITIVES, AROMAS } from "../data/ingredients.js";
+import { OILS } from "../data/oils.js";
+import { render, setLastGoal, setScaleDirty } from "../ui/render.js";
 function mapItems(obj,db){
   if(!obj) return [];
   return Object.keys(obj).map(function(k){ return {name:db[k]?db[k].name:k, key:db[k]?k:null, g:obj[k]}; });

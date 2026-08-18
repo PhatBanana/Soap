@@ -6,10 +6,9 @@
    from here. That cycle is fine because every one of those calls happens when someone
    taps something, never while a module is still evaluating; the rule for this whole
    layer is that nothing calls across a cycle at module top level. */
-import { render, setLastGoal } from "./render.js";
 import { $ } from "../core/dom.js";
 import { cloneItem, currentId, save, state } from "../core/state.js";
-
+import { render, setLastGoal } from "./render.js";
 export var UNDO_MAX=10, undoStack=[], toastTimer=null;
 export function pushUndo(){
   undoStack.push({ id:currentId, oils:state.oils.map(cloneItem),

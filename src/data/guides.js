@@ -1,7 +1,6 @@
 /* Soap Calc reference data — guidance text and worked example recipes.
    Values are STANDARD REFERENCES and vary by supplier. Always verify before a
    real batch. Lye is caustic — wear gloves & eye protection. */
-
 /* General blending guidance shown in the Scents tab. */
 export const BLEND_TIPS = [
   { h:"Aim for ~3% total scent", t:"For cold-process bars, total fragrance around 3% of oil weight is a safe, strong default (EOs often 2–4%; FOs per supplier/IFRA). This app totals it for you." },

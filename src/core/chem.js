@@ -9,10 +9,9 @@
 
    Reference SAP values vary by supplier. Always verify before a real batch.
    Lye is caustic — gloves and eye protection, every time. */
-import { OILS } from "../data/oils.js";
+import { clamp, sumG } from "./units.js";
 import { ADDITIVES } from "../data/ingredients.js";
-import { sumG, clamp } from "./units.js";
-
+import { OILS } from "../data/oils.js";
 /* Injected by main.js; defaults to "no overrides" so the module stands alone. */
 let sapOverrides = () => ({});
 export function useSapOverrides(fn) { sapOverrides = fn; }

@@ -2867,7 +2867,9 @@ Water:Lye Ratio 2.5`, { commit: true });
   srcFiles.forEach((f) => {
     const c = strip(srcText[f]);
     // one statement can declare several: `export const A=1, B=2, C=3;`
-    for (const m of c.matchAll(/^export (?:function|var|const|let)\s+([^;\n]+)/gm)) {
+    // [^;\n] would stop at the first newline, and this codebase declares three lye rows
+    // in one statement across three lines — LYE_KOH and WATER_ROW went unchecked that way
+    for (const m of c.matchAll(/^export (?:function|var|const|let)\s+([\s\S]*?)(?:;|\n(?=\S))/gm)) {
       let depth = 0, cur = "";
       const parts = [];
       for (const ch of m[1]) {

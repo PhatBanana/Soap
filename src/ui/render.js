@@ -6,19 +6,21 @@
    The cycle rule for this layer: modules here may import each other, because the calls
    happen when someone taps something. Nothing here may be called while a module is
    still evaluating. */
-import { showToast, pushUndo } from "./toast.js";
-import { openExamples } from "../features/examples.js";
-import { todayISO } from "../core/util.js";
-import { SALT_MAX_PER100, IOD_RANGE, INS_RANGE, LAURIC_OILS, QUALITIES,
-         brineOf, lyeConcOf, qFn, qualitiesOf } from "../core/chem.js";
+import { INS_RANGE, IOD_RANGE, LAURIC_OILS, QUALITIES, SALT_MAX_PER100, brineOf, lyeConcOf, qFn, qualitiesOf } from "../core/chem.js";
 import { $, el, escapeHtml, numInput, setActive, uid } from "../core/dom.js";
 import { USES } from "../core/schema.js";
-import { blendFA, cleansingCap, computeLye, curRV, curedBatchG, currentBatchG, currentId,
-         oilInfo, save, saveSoon, scaleUnit, sortedLibrary, state, totalOilsG, weightUnit } from "../core/state.js";
+import { blendFA, cleansingCap, computeLye, curRV, curedBatchG, currentBatchG, currentId, oilInfo, save, saveSoon, scaleUnit, sortedLibrary, state, totalOilsG, weightUnit } from "../core/state.js";
 import { UNITS, UORDER, clamp, fmt, fromG, sumG } from "../core/units.js";
+import { todayISO } from "../core/util.js";
 import { BLEND_TIPS } from "../data/guides.js";
 import { ADDITIVES, AROMAS } from "../data/ingredients.js";
 import { OILS } from "../data/oils.js";
+import { openExamples } from "../features/examples.js";
+import { pushUndo, showToast } from "./toast.js";
+export function rememberPick(sel){
+  if(!Array.isArray(state.recent)) state.recent=[];
+  state.recent=[sel].concat(state.recent.filter(function(x){ return x!==sel; })).slice(0,8);
+}
 
 export var unitsEl=$("unitSelect"), oilList=$("oilList"), addList=$("addList"), aromaList=$("aromaList");
 export var oilRefs=[], addRefs=[], aromaRefs=[];

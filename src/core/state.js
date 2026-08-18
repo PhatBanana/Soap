@@ -10,13 +10,37 @@
    Depends on data, schema and dom — never on rendering. save() does not redraw; callers
    have always done `save(); render();` and that stays true, which is what keeps this
    module free of a cycle back into the UI. */
-import { OILS } from "../data/oils.js";
 import * as Chem from "./chem.js";
-import { useSapOverrides } from "./chem.js";
+import { oilsGof, qualitiesOf, useSapOverrides } from "./chem.js";
+import { $, downloadFile, uid } from "./dom.js";
+import { RECIPE_FIELDS, STORE_KEY, VIEW_FIELDS, defOf } from "./schema.js";
 import { UNITS, sumG } from "./units.js";
-import { STORE_KEY, RECIPE_FIELDS, VIEW_FIELDS, defOf } from "./schema.js";
-import { $, uid, downloadFile } from "./dom.js";
-import { todayISO, b64urlDec } from "./util.js";
+import { b64urlDec, todayISO } from "./util.js";
+import { OILS } from "../data/oils.js";
+/* Namespace import on purpose: the four wrappers below share their names with the raw
+   functions in chem.js, so they cannot be imported by name without colliding. */
+export function statsFor(r){
+  var B=blendFA(r), L=computeLye(r), tot=oilsGof(r);
+  var scentG=sumG(r.aromas);
+  return { oilsG:tot, batchG:currentBatchG(r), lyeG:L.lyeG, waterG:L.waterG, kind:L.kind,
+    sf:r.superfat, waterPct:r.waterPct, q:qualitiesOf(B.fa), iod:B.iod, ins:B.ins,
+    oilPcts:r.oils.map(function(it){ return {name:it.name,key:it.key,pct:tot>0?it.g/tot*100:0}; }),
+    scentPct: tot>0?scentG/tot*100:0 };
+}
+
+
+
+
+
+
+/* ---------- deterministic safety check (all on-device, works on every phone) ---------- */
+
+
+
+
+
+/* Set each scent to a proper amount: known scents to their typical usage rate,
+   custom scents to an even share of a 3% total — so the bar isn't over/under-scented. */
 
 export var library=[];      // [{ id, name } + the RECIPE_FIELDS in schema.js]
 export var currentId=null;
