@@ -1,12 +1,12 @@
 /* One schema per persisted thing. Adding a field is a row here and nothing else — the
    save, load, copy and share paths all read this table, which is what keeps them in
    lockstep. Every hand-kept parallel list this app has ever grown was a bug. */
-import { UNITS, clamp } from "./units.js";
-import { OILS } from "../data/oils.js";
-import { ADDITIVES, AROMAS } from "../data/ingredients.js";
 import { uid } from "./dom.js";
+import { UNITS, clamp } from "./units.js";
+import { ADDITIVES, AROMAS } from "../data/ingredients.js";
+import { OILS } from "../data/oils.js";
 export const STORE_KEY = "soapcalc.v4";
-export const APP_VERSION = "v58", BUILD_DATE = "2026-08-14";   // bump both (and sw.js CACHE) each release
+export const APP_VERSION = "v59", BUILD_DATE = "2026-08-18";   // bump both (and sw.js CACHE) each release
 export const USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 function validUse(u){ for(var i=0;i<USES.length;i++) if(USES[i][0]===u) return true; return false; }
 

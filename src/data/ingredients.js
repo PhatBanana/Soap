@@ -1,7 +1,6 @@
 /* Soap Calc reference data — additives, colorants and scents.
    Values are STANDARD REFERENCES and vary by supplier. Always verify before a
    real batch. Lye is caustic — wear gloves & eye protection. */
-
 /* Additives are dosed relative to oils and do NOT go through the lye math.
    kind: "liquid" is poured, "dry" is stirred in at trace — that's about handling.
    replacesWater: this one is used *instead of* part of the water, so the app subtracts

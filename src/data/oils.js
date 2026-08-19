@@ -1,7 +1,6 @@
 /* Soap Calc reference data — oils, fats, and their saponified label names.
    Values are STANDARD REFERENCES and vary by supplier. Always verify before a
    real batch. Lye is caustic — wear gloves & eye protection. */
-
 export const OILS = {
   olive:      { name:"Olive oil",         sap:.134,  iod:85,  ins:105, fa:{la:0, my:0, pa:14,st:3, ri:0, ol:69,li:12,ln:1},
                 desc:"The gentle workhorse. Very mild and conditioning — makes a soft bar that's slow to trace but cures rock-hard and lasts. Great for sensitive skin. Use up to 100%." },

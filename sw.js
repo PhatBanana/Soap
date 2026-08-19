@@ -17,7 +17,7 @@
 
    This never touches localStorage, so your saved recipes are unaffected by any cache
    update or clear. */
-var CACHE = "soapcalc-v58";
+var CACHE = "soapcalc-v59";
 var SHELL = [
   "./",
   "./index.html",
@@ -27,6 +27,16 @@ var SHELL = [
   "./src/core/chem.js",
   "./src/core/dom.js",
   "./src/core/schema.js",
+  "./src/core/state.js",
+  "./src/core/util.js",
+  "./src/ui/render.js",
+  "./src/ui/toast.js",
+  "./src/features/examples.js",
+  "./src/features/recipes.js",
+  "./src/features/planning.js",
+  "./src/features/output.js",
+  "./src/features/io.js",
+  "./src/features/guides.js",
   "./src/data/oils.js",
   "./src/data/ingredients.js",
   "./src/data/guides.js",
