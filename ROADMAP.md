@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v58 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 1753 test assertions, run on every pull request.
+**Today:** v59 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 1795 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -569,28 +569,64 @@ the second launch beats the network, that it still reloads offline with its data
 bumping the version the way a release does gets the open app onto it by itself. Reverting
 to network-first fails it with the real number (569 ms); deleting `skipWaiting()` fails the
 takeover check with the app still showing the old version.
+
+**24. One file became fifteen** — ✅ **shipped in v59**
+The open half of v54, and the last thing on the list. `src/main.js` was 3288 lines;
+it is now **366** — the imports, the control wiring, the theme, the action sheet and the
+collapsible cards. Everything else moved into `core/`, `ui/` and `features/`, none of it
+over 1300 lines. The test suite went the same way: 3147 lines in one file became a
+54-line runner, a 118-line harness and seven suites.
+
+**The seam was in the data, not in the section headings.** A dependency map of the file
+showed 344 of its cross-references were to `state` alone — it was the hub everything hung
+off, and nothing could move while it lived in the entry point. But `state` is only ever
+*reassigned* once, at its own declaration; the other 343 uses read it or mutate a
+property. So it moved to `core/state.js` with **no changes at any call site**, because an
+imported binding can be read and its properties written — just not reassigned. `library`
+and `currentId` were the exceptions, and they got setters. The entry point exports
+nothing now, so the graph runs data → core → ui → features → main with no ring.
+
+**Six things went wrong, and each one is a test now.** Three were missing imports —
+`cloneItem`, `INS_RANGE`, `$` — the class that shipped a broken `clamp` in v54: the app
+loads, the page looks right, and the feature you didn't click is dead. One was worse:
+`ui/render.js` got wired to `chem.js`'s raw `computeLye` instead of the wrapper that
+defaults to the open recipe, which is a silent wrong number in the lye maths. One was
+subtler still — orphaned array elements left above `function logBatch(){`, where the comma
+operator turns a declaration into an expression: it parsed, it loaded, and the button did
+nothing. And `ADD_CAP`'s own test read `src/main.js` by name and quietly stopped checking
+anything the moment `ADD_CAP` moved to another module.
+
+The guards that now catch all of that are mutation-checked against mutations *the app
+survives*, so it is the guard failing rather than an unrelated test falling over. Two of
+the guards had holes found the same way: one stopped at the first newline and never
+checked `LYE_KOH`, declared with `LYE_NAOH` in a single statement across three lines.
+
+The suite split kept the property that matters: **one command, one browser, one process.**
+The harness owns the server, the single browser launch and the counters; the suites are
+separate files for reading, not separate runs — and a suite file nothing imports, or
+imports without calling, now fails the run rather than going quietly missing. The split
+is provably faithful: the same 1778 assertions before and after, and a diff of every
+literal assertion name shows none lost.
+
+Verified as a refactor should be: **all 38 screenshots byte-identical** across three tabs
+and sixteen modals at phone and desktop widths. The first comparison showed four
+differing — the Make tab and the recipe card rendering today's date against a baseline
+taken four days earlier, the same drift that produced a false alarm in v54. Re-captured
+the same day: identical.
 ---
 
 ## Part 3 — What's next
 
-Short and honest: every numbered item is done, so this is what is actually left.
+Short and honest: **nothing is queued.** Every numbered item is done, and the two
+structural jobs that sat here through v54–v58 both landed in v59.
 
-- **Split `src/main.js`.** Still one file of rendering and feature modals — the open half
-  of v54, and the largest thing in the repo by some way. The seams are there (the section
-  headings, and the modals are largely independent), but they share `state`, `render()` and
-  each other, so it needs untangling rather than cutting. Worth doing when someone next has
-  to find something in it; not worth rushing, since three of the four bugs in v54 came from
-  moving code mechanically.
-- **Split `tests/soapcalc.test.mjs`** into a harness plus suites — deferred from the same
-  plan and easy to forget, because nothing breaks while it stays one file. Whatever shape
-  it takes, `npm test` has to stay one command, one browser, one process: that property is
-  the reason the suite gets run at all.
-- **Nothing else is queued.** New entries should earn their place against the scope at the
-  top of this file, not be added because the list looks short.
+New entries should earn their place against the scope at the top of this file, rather
+than being added because the list looks short. The obvious candidates are all in
+**Non-goals** below, and the reasons they're there haven't changed.
 
-<sub>Deliberately no line counts here — the last one said 3160 and had drifted to 3259
-before anyone noticed, which is the same rot this file keeps recording elsewhere. The
-counts at the top are checked by the suite; prose numbers aren't, so they don't belong.</sub>
+<sub>Deliberately no line counts in this file — the last one said 3160 and had drifted to
+3259 before anyone noticed, which is the same rot recorded elsewhere here. The counts at
+the top are checked by the suite; prose numbers aren't, so they don't belong.</sub>
 
 ---
 
