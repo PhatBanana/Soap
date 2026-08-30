@@ -107,7 +107,7 @@ export function touchRecipe(id){ var r=libById(id); if(r) r.lastUsed=Date.now();
 export function curRV(){ var rv={}; RECIPE_FIELDS.forEach(function(f){ rv[f.k]=state[f.k]; }); return rv; }
 
 export function cleanList(list,db){ if(!Array.isArray(list)) return [];
-  return list.filter(function(it){ return it&&typeof it.name==="string"&&typeof it.g==="number"&&isFinite(it.g); })
+  return list.filter(function(it){ return it&&typeof it.name==="string"&&typeof it.g==="number"&&isFinite(it.g)&&it.g>=0; })
     .map(function(it){ var k=(it.key&&db[it.key])?it.key:null;
       var o={name:it.name,key:k,g:it.g};
       // a custom oil can carry the SAP value off its own bottle, which is what

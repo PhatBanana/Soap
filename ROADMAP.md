@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v59 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 1795 test assertions, run on every pull request.
+**Today:** v60 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 1939 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -613,6 +613,46 @@ and sixteen modals at phone and desktop widths. The first comparison showed four
 differing — the Make tab and the recipe card rendering today's date against a baseline
 taken four days earlier, the same drift that produced a false alarm in v54. Re-captured
 the same day: identical.
+
+**25. Safety sweep: two reference SAP values were wrong** — ✅ **shipped in v60**
+A fresh audit of the numbers a mistake in would burn someone, treating nothing from
+earlier audits as still true. The tool that paid for itself: **INS is by definition the
+KOH saponification value minus the iodine value**, so every oil's three numbers can be
+cross-checked against each other — fabricated or transposed data breaks the identity.
+
+It caught two. **Lanolin carried its KOH value (0.1065) in the NaOH slot** — the exact
+mg-KOH-versus-NaOH confusion the CSV importer guards against, sitting in our own
+reference table. That's 40% excess lye on lanolin's share of a recipe, the direction
+that burns; at the 10–30% shares lanolin takes in shaving and liquid soaps it eats most
+of the superfat cushion. Corrected to 0.076 against the published table, with the app's
+own stored INS (82) as the internal witness — it's only consistent with 0.076. **Palm
+kernel was 0.156 against the published 0.176** — its own INS implied exactly 0.176 —
+which under-dosed lye by 11% on its share: the safe direction, but a wrong bar. Three
+advisory INS typos (meadowfoam, mustard, kokum) fixed the same way. The identity now
+runs over all 65 oils on every test run, so the next transposition fails in CI.
+
+The sweep also property-tested the lye maths over 4,000 random recipes — superfat and
+purity monotonicity, NaOH+KOH additivity, acid stoichiometry outside the discount,
+dual-lye edges all hold — and closed what the fuzzing's edge probes found instead:
+
+- **The SAP editor accepted any positive number live, then the schema silently dropped
+  anything ≥1 on reload** — so a decimal slip (1.78 for 0.178) sized the lye at ten
+  times the real figure until the next restart, then quietly changed it. Mutation
+  testing showed the readout at 1,780 g against the correct 134. Entry now refuses,
+  visibly, exactly what the schema would refuse.
+- **A slip inside the valid band warned nobody.** Real fats saponify between ~0.05 and
+  ~0.24 g NaOH per gram; a SAP in use outside 0.04–0.30 is now a hard stop in the
+  Safety Check, not advice — while beeswax-grade supplier figures (0.067) pass clean.
+- **A hand-edited backup could carry negative-weight rows** that quietly subtracted
+  from the lye. Not an ingredient; dropped on load.
+
+Checked and clean: the citric-acid factor is exact stoichiometry (3 × 39.997 ⁄ 192.124),
+KOH's factor is the true molar ratio, the printed card and comparison take their lye
+from the same computeLye as the live panel, every aroma carries a usage cap, and the
+first-aid guidance matches current medical advice on all five scenarios — water only,
+never vinegar, no induced vomiting. No example recipe used either corrected oil.
+
+Every new guard was mutation-checked against a change the app otherwise survives.
 ---
 
 ## Part 3 — What's next

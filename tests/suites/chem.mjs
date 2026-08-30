@@ -3,7 +3,7 @@
    Part of the suite; run by tests/run.mjs, which owns the server, the browser and
    the assertion counts. Everything shared arrives in `t` — see tests/harness.mjs. */
 export default async function chemSuite(t) {
-  const { LS, OIL, addOil, browser, eq, has, items, menu, near, newPage, num, ok, open, recipe, store, txt } = t;
+  const { LS, OIL, OILS, addOil, browser, eq, has, items, menu, near, newPage, num, ok, open, recipe, store, txt } = t;
 
 /* =======================================================================
    LYE, WATER & QUALITIES
@@ -491,6 +491,47 @@ export default async function chemSuite(t) {
   await p.waitForTimeout(250);
   near("Use ours restores the reference", await num(p, "#lyeVal"), 134, 0.05);
   eq("…and clears the stored override", JSON.stringify((await LS(p)).sapOverrides), "{}");
+
+  /* A decimal slip used to be accepted live and then silently dropped by the schema on
+     reload — the lye was sized on 1.78 until a restart, then quietly changed. Now the
+     editor refuses what the schema would refuse, at the moment it's typed. */
+  await open(p, store({ oils:[OIL("olive",1000)], superfat:0 }));
+  await menu(p, "sap");
+  await p.waitForTimeout(180);
+  await p.evaluate(() => document.querySelectorAll("#modalRoot .seg button")[1].click()); // NaOH mode
+  await p.waitForTimeout(120);
+  await p.fill("#modalRoot .cost-table input", "1.78");
+  await p.waitForTimeout(250);
+  near("A decimal-slip SAP is refused, lye stays on the reference", await num(p, "#lyeVal"), 134, 0.05);
+  ok("…and the input says so", await p.$eval("#modalRoot .cost-table input", (e) => e.classList.contains("sap-bad")));
+  eq("…and nothing is stored to change on reload", JSON.stringify((await LS(p)).sapOverrides), "{}");
+  await p.evaluate(() => document.querySelectorAll("#modalRoot .seg button")[0].click()); // back to mg KOH
+  await p.waitForTimeout(120);
+  await p.fill("#modalRoot .cost-table input", "1780");
+  await p.waitForTimeout(250);
+  near("Same slip in mg KOH/g is refused too", await num(p, "#lyeVal"), 134, 0.05);
+  await p.evaluate(() => document.querySelector("#modalRoot .mfoot .primary").click());
+  await p.waitForTimeout(150);
+
+  /* The entry band is the schema's (0,1); a slip inside it — 0.5 is no fat either —
+     is the Safety Check's job, and it's a stop, not advice. */
+  await open(p, store({ oils:[OIL("olive",600),OIL("coconut",400)] }, { sapOverrides:{ coconut:0.5 } }));
+  ok("A SAP no fat has is a hard fail", (await items(p)).includes("A SAP value doesn't look like a fat"));
+  await open(p, store({ oils:[OIL("olive",600),{ name:"Odd blend", key:null, g:400, sap:0.035 }] }));
+  ok("…including on a custom oil, low side", (await items(p)).includes("A SAP value doesn't look like a fat"));
+  await open(p, store({ oils:[OIL("olive",600),OIL("beeswax",50)] }, { sapOverrides:{ beeswax:0.067 } }));
+  ok("A genuine low-SAP supplier figure (beeswax) does not trip it",
+     !(await items(p)).includes("A SAP value doesn't look like a fat"));
+  await open(p, store({ oils:[OIL("olive",600),OIL("coconut",400)] }, { sapOverrides:{ coconut:0.191 } }));
+  ok("An ordinary supplier figure does not trip it",
+     !(await items(p)).includes("A SAP value doesn't look like a fat"));
+
+  // a negative weight in a hand-edited backup is not an ingredient
+  await open(p, store({ oils:[OIL("coconut",1000),{ name:"Olive oil", key:"olive", g:-500 }], superfat:0 }));
+  await addOil(p, "castor", 1);      // first save rewrites storage through the schema
+  const afterOils = await p.evaluate(() => JSON.parse(localStorage.getItem("soapcalc.v4")).recipes[0].oils.map(o=>o.key));
+  ok("…really dropped, not carried", !afterOils.includes("olive"), afterOils.join(","));
+  near("…so the lye is sized on the real oils only", await num(p, "#lyeVal"), 1000*0.178 + 1*0.1286, 0.2);
   await p.close();
 }
 
@@ -578,6 +619,27 @@ export default async function chemSuite(t) {
   const brine = Chem.brineOf(rv({ oils:[oil("olive",1000)], saltMode:"brine",
     additives:[{ name:"Salt (table/sea)", key:"salt", g:500 }] }));
   ok("Salt beyond saturation is detectable", brine.per100 > 35.9, String(brine.per100));
+
+  /* DATA CROSS-CHECK: INS is by definition the KOH saponification value minus the
+     iodine value, so sap x 1402.74 - iod must land near the stored ins for genuine
+     data. Published tables are internally sloppy to about +/-22, so the tolerance is
+     +/-26 - wide enough for their noise, tight enough to catch the two real errors
+     this found: lanolin carrying its KOH value (0.1065) in the NaOH slot, which
+     meant 40% excess lye on its share, and palm kernel at 0.156 against the 0.176
+     its own INS implied. A future transposition fails here, not on someone's skin. */
+  for (const [k, o] of Object.entries(OILS)) {
+    const implied = o.sap * 1402.74 - o.iod;
+    ok(`INS identity holds for ${k}`, Math.abs(implied - o.ins) <= 26,
+       `sap ${o.sap} & iod ${o.iod} imply INS ${implied.toFixed(0)}, data says ${o.ins}`);
+    ok(`SAP for ${k} is a real fat's`, o.sap >= 0.04 && o.sap <= 0.30, String(o.sap));
+  }
+  near("Lanolin uses the NaOH value, not its KOH value", OILS.lanolin.sap, 0.076, 0.003);
+  near("Palm kernel matches the published 0.176", OILS.palmkernel.sap, 0.176, 0.003);
+
+  // a negative weight is not an ingredient: the lye must never be sized on one
+  const negProbe = Chem.computeLye(rv({ oils:[oil("coconut",1000), oil("olive",-500)] }));
+  ok("chem.js given a negative row underestimates — which is why cleanList must drop it",
+     negProbe.lyeG < Chem.computeLye(rv({ oils:[oil("coconut",1000)] })).lyeG);
 }
 
 }

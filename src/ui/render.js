@@ -519,6 +519,20 @@ export function safetyChecks(){
     if(missedAcid.length) add("fail","Acid isn't in the lye math",
       "“"+missedAcid[0].name+"” was entered as a custom additive, so the app can't know it neutralises lye — the batch will be short. Remove it and pick the matching entry from the ingredient list instead.");
     if(L.customSap) add("ok","Custom oil using the SAP you entered","A custom oil is in the lye maths on your own SAP figure. The number is only as good as the source you took it from — check it against the supplier's spec sheet.");
+    /* Real fats saponify between ~0.05 (wax esters) and ~0.24 (MCT) g NaOH per gram.
+       A figure outside 0.04–0.30 means a decimal or units slip that the (0,1) entry
+       band can't catch, and the lye is provably mis-sized — a hard stop, not advice. */
+    var oddSap=[];
+    state.oils.forEach(function(it){
+      if(!(it.g>0)) return;
+      var v = it.key ? (state.sapOverrides||{})[it.key] : it.sap;
+      if(v>0 && (v<0.04 || v>0.30)){
+        var nm = it.key ? OILS[it.key].name : it.name;
+        if(oddSap.indexOf(nm)<0) oddSap.push(nm);
+      }
+    });
+    if(oddSap.length) add("fail","A SAP value doesn't look like a fat",
+      "The SAP entered for "+oddSap.join(", ")+" is outside 0.04–0.30 g NaOH per gram — no real fat saponifies at that figure, so the lye amount is wrong. It's usually a decimal slip or an mg KOH/g number entered as NaOH; fix it in SAP values before making this.");
     if(L.overrides.length) add("warn","Supplier SAP values in use",
       "The lye for "+L.overrides.map(function(k){ return OILS[k].name; }).join(", ")+
       " is sized on the value you entered, not our reference. That's the right thing to do if it came off the spec sheet — just be sure it's the current one.");
