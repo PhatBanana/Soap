@@ -167,7 +167,14 @@ export function openSAP(){
       var cur=getVal(); inp.value = cur>0 ? fmt(asKOH?sapToKOH(cur):cur,dp) : "";
       inp.addEventListener("input",function(){
         var v=parseFloat(inp.value);
-        setVal(isFinite(v)&&v>0 ? (asKOH?sapFromKOH(v):v) : 0);
+        var naoh = isFinite(v)&&v>0 ? (asKOH?sapFromKOH(v):v) : 0;
+        /* The schema silently drops anything outside (0,1) g NaOH/g on reload, so a
+           value past that must be refused here too — otherwise the lye is sized on it
+           until the next restart and then quietly changes. Typical slip: a decimal
+           (1.78 for 0.178) or units (an mg KOH figure typed into NaOH mode). */
+        var bad = inp.value.trim()!=="" && !(naoh>0 && naoh<1);
+        inp.classList.toggle("sap-bad", bad);
+        setVal(!bad ? naoh : 0);
         saveSoon(); refreshDerived(); showNote();
       });
       td.appendChild(inp); tr.appendChild(td);
