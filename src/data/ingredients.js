@@ -230,7 +230,8 @@ export const AROMAS = {
                 tips:"Cheerful but FADES in CP — anchor with litsea or a base note. Pairs with clove, cinnamon, lavender." },
   lemon:      { name:"Lemon EO",          type:"EO", note:"top", rate:[3,4,5],
                 tips:"Bright, fades fast — anchor with litsea/may chang. Pairs with lavender, rosemary, mint." },
-  litsea:     { name:"Litsea (may chang)",type:"EO", note:"top", rate:[2,3,4], anchor:true,
+  // litsea is 70–85% citral — more than lemongrass, which has always carried the flag
+  litsea:     { name:"Litsea (may chang)",type:"EO", note:"top", rate:[2,3,4], anchor:true, irritant:true,
                 tips:"Lemony AND a natural anchor — helps citrus scents stick. Pairs with citrus and florals." },
   lemongrass: { name:"Lemongrass EO",     type:"EO", note:"top", rate:[2,3,3], irritant:true,
                 tips:"Strong, grassy-citrus; can irritate skin at high rates. Pairs with cedarwood, lavender, geranium." },

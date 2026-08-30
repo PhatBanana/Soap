@@ -3,7 +3,7 @@
    Part of the suite; run by tests/run.mjs, which owns the server, the browser and
    the assertion counts. Everything shared arrives in `t` — see tests/harness.mjs. */
 export default async function safetySuite(t) {
-  const { ADDITIVES, OIL, OILS, eq, has, items, menu, near, newPage, ok, open, recipe, store, txt } = t;
+  const { ADDITIVES, AROMAS, OIL, OILS, eq, has, items, menu, near, newPage, ok, open, recipe, store, txt } = t;
 
 /* =======================================================================
    SAFETY CHECK
@@ -57,6 +57,14 @@ export default async function safetySuite(t) {
   const fastItems = await items(p);
   ok("Beeswax/cinnamon → fast-trace warning", fastItems.includes("Fast trace ahead"));
   ok("Cinnamon → skin-irritant warning", fastItems.includes("Skin-irritant scents"));
+  /* The irritant flag must sit on every citral-heavy scent, not just the famous one.
+     Litsea is 70–85% citral — more than lemongrass — and shipped unflagged for a while,
+     so its absence produced no warning and no failure. Pinned by name now. */
+  for (const k of ["lemongrass", "litsea", "clove", "cinnamon"])
+    ok(`${k} carries the irritant flag`, AROMAS[k].irritant === true);
+  await open(p, store({ oils:[OIL("olive",600),OIL("coconut",400)],
+    aromas:[{ name:"Litsea (may chang)", key:"litsea", g:30 }] }));
+  ok("Litsea in a recipe → skin-irritant warning", (await items(p)).includes("Skin-irritant scents"));
 
   await open(p, store({ oils:[OIL("olive",36),OIL("coconut",24)] })); // 60 g oils
   ok("Tiny batch → small-batch warning", (await items(p)).includes("Very small batch"));

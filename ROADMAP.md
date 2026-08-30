@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v60 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 1939 test assertions, run on every pull request.
+**Today:** v61 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 1945 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -653,6 +653,30 @@ first-aid guidance matches current medical advice on all five scenarios — wate
 never vinegar, no induced vomiting. No example recipe used either corrected oil.
 
 Every new guard was mutation-checked against a change the app otherwise survives.
+
+**26. Triple check: every other number, independently** — ✅ **shipped in v61**
+v60 verified the lye maths and the SAP data; this pass verified everything *else*
+someone weighs, pours or follows — by recomputing it outside the app entirely, in
+Python from first principles, and comparing against what the app displays.
+
+**All clean, to the last digit.** A deliberately nasty recipe — dual lye at 40% KOH and
+92% purity, 7% superfat, concentration-mode water, citric acid, goat milk replacing
+water — recomputed by hand gives lye 161.28 g split 79.98 ⁄ 81.30, water-to-add 86.72,
+batch 1363; the panel and the printed card show exactly those figures. Also verified
+independently: the mould geometry (the cylinder uses the radius, and 0.4 oz/in³ equals
+the metric 0.6917 g/cm³ to 0.04% — and both agree with batter density ÷ the
+batch-to-oils ratio), every unit conversion (oz and lb are the exact legal definitions;
+all volumetric imports derive from one oil density), all 13 °F/°C pairs printed in the
+guidance, the linearity that makes scaling exact in one step, dilution and rebatch
+arithmetic, cure-date arithmetic, cost-per-kg maths, INCI descending-weight structure,
+and every scent band ordered and capped — including that the stocked cinnamon is the
+*leaf* type, which is why 1% is right where bark would need 0.2%.
+
+**The one defect: litsea wasn't flagged as a skin irritant.** It's 70–85% citral — more
+than lemongrass, which has always carried the flag — so a litsea recipe missed the
+"keep it low and patch-test" warning its chemistry warrants. Flagged now, with the
+citral-family flags pinned by name in the suite and a behavioural check that a litsea
+recipe actually produces the warning. Mutation-checked: unflagging it fails both.
 ---
 
 ## Part 3 — What's next
