@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v61 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 1945 test assertions, run on every pull request.
+**Today:** v62 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 1970 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -677,6 +677,37 @@ than lemongrass, which has always carried the flag — so a litsea recipe missed
 "keep it low and patch-test" warning its chemistry warrants. Flagged now, with the
 citral-family flags pinned by name in the suite and a behavioural check that a litsea
 recipe actually produces the warning. Mutation-checked: unflagging it fails both.
+
+**27. A batch record now remembers what was actually made** — ✅ **shipped in v62**
+Logging a batch used to file the date, lot, cure time and notes — but not *what went in
+it*. Tweak the recipe next month and the log no longer said what bar #1 was made from,
+which is precisely the question when a bar zaps three weeks later. Every logged batch
+now snapshots the formula (oils, additives, scents, superfat, lye type, water settings —
+deep-copied, so later edits can't rewrite history) plus the supplier SAP figures in
+force and the lye and water that were **actually weighed**, since overrides live outside
+the recipe and can change after the fact. The history shows an "as made" line and the
+full formula, with a **Use this formula** button that restores it into the recipe.
+
+The definition of "the formula" — the soap itself, minus your personal records — already
+existed as the share link's hand-kept deny-list. That list is now a `personal` flag on
+the schema's own field rows, and the share link, the snapshot and the tests all derive
+from it: one definition, three consumers, no drift. Shipped before the first real batch,
+so the log is complete from its first entry.
+
+**And milk soaps get the lye step they actually need.** The app already sized the water
+around milk and warned about scorching, but the checklist still said "add the lye TO the
+water." Lye poured into room-temperature milk scorches the sugars — orange, ammonia
+smell — and can overheat. When milk, aloe or beer stands in for the water, that step now
+says: freeze it to a slush, add the lye a spoonful at a time, and still lye TO the
+liquid, never the reverse. Rewritten in place by content match like the brine and
+hot-process steps; when brine and milk both apply, the brine text wins, since dissolving
+the salt is the step that can fail outright.
+
+Building it tripped the split's guards twice — a missing `waterReplacersOf` import and a
+missing `RECIPE_FIELDS` import, both caught before a browser ever loaded them — and my
+first placement of the milk rewrite landed inside the brine branch where it could never
+run, caught by reading the assembled function back. All three mutations (no snapshot,
+shallow snapshot, no milk rewrite) fail exactly the tests built for them.
 ---
 
 ## Part 3 — What's next

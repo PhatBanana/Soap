@@ -246,4 +246,28 @@ export function computeLye(rv){ return Chem.computeLye(rv||curRV()); }
 export function currentBatchG(rv){ return Chem.currentBatchG(rv||curRV()); }
 export function curedBatchG(rv){ return Chem.curedBatchG(rv||curRV()); }
 
+/* Supplier SAP figures live outside the recipe, so they have to be picked out and
+   sent alongside it — otherwise the link quietly rebuilds the recipe on our
+   reference numbers and the lye comes out different from the sender's. Only the
+   oils this recipe actually uses travel; the rest are none of the recipient's
+   business. */
+export function usedOverrides(r){
+  var ov=state.sapOverrides||{}, out=null;
+  (r.oils||[]).forEach(function(it){
+    if(it.key && it.g>0 && ov[it.key]>0){ if(!out) out={}; out[it.key]=ov[it.key]; }
+  });
+  return out;
+}
+/* The formula as the batch was actually made: the non-personal recipe fields (the same
+   set a share link carries), deep-copied so later edits to the recipe cannot rewrite a
+   batch record, plus the supplier SAP figures that were in force. */
+export function snapshotFormula(){
+  var f={};
+  RECIPE_FIELDS.forEach(function(fld){
+    if(fld.personal) return;
+    f[fld.k]=fld.list ? state[fld.k].map(cloneItem) : state[fld.k];
+  });
+  var ov=usedOverrides(state); if(ov) f.sapOv=ov;
+  return f;
+}
 export var state = initState();

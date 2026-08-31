@@ -3,7 +3,7 @@
    Part of the suite; run by tests/run.mjs, which owns the server, the browser and
    the assertion counts. Everything shared arrives in `t` — see tests/harness.mjs. */
 export default async function librarySuite(t) {
-  const { LS, OIL, addOil, base, eq, fs, has, items, menu, near, newPage, ok, open, recipe, store, txt } = t;
+  const { LS, OIL, addOil, base, eq, fs, has, items, menu, near, newPage, num, ok, open, recipe, store, txt } = t;
 
 /* =======================================================================
    INVENTORY (cupboard stock → shopping list → drawn down by a batch)
@@ -201,7 +201,75 @@ export default async function librarySuite(t) {
   eq("A batch with no checks gets an empty list", JSON.stringify(bs[1].checks), "[]");
   eq("A non-array checks value becomes an empty list", JSON.stringify(bs[2].checks), "[]");
   // batch-record shape (backup/restore compatibility)
-  eq("Batch record keys", Object.keys(bs[0]).sort().join(","), "checks,cureWeeks,id,lot,madeOn,notes");
+  eq("Batch record keys", Object.keys(bs[0]).sort().join(","), "checks,cureWeeks,formula,id,lot,madeOn,notes,weighed");
+
+  /* The snapshot is the point of the batch log: what bar #1 was actually made from,
+     immune to every later edit of the recipe. */
+  {
+    const p2 = await newPage();
+    // #lyeVal is the base tab's panel and only repaints while that tab renders, so the
+    // reference figure is read there before switching to Make to log the batch
+    await open(p2, store({ oils:[OIL("olive",600),OIL("coconut",400)], superfat:5,
+      madeOn:"2026-08-01", checklist:{s0:true} }, { tab:"base", sapOverrides:{ coconut:0.191 } }));
+    const lyeAtMake = await num(p2, "#lyeVal");
+    await p2.evaluate(() => { document.querySelectorAll("#tabs button")[2].click(); });
+    await p2.waitForTimeout(250);
+    await p2.evaluate(() => document.getElementById("logBatch").click());
+    await p2.waitForTimeout(300);
+    let b = (await LS(p2)).recipes[0].batches[0];
+    eq("Snapshot keeps the oils", b.formula.oils.map((o) => o.key + ":" + o.g).join(","), "olive:600,coconut:400");
+    eq("Snapshot keeps the superfat", b.formula.superfat, 5);
+    eq("Snapshot keeps the supplier SAP in force", b.formula.sapOv.coconut, 0.191);
+    near("Weighed lye is the panel figure at make time", b.weighed.lyeG, lyeAtMake, 0.01);
+    ok("Snapshot carries no personal fields", !("notes" in b.formula) && !("batches" in b.formula) && !("madeOn" in b.formula),
+       Object.keys(b.formula).join(","));
+
+    // now vandalise the recipe — the record must not move
+    await p2.evaluate(() => { document.querySelectorAll("#tabs button")[0].click(); });
+    await p2.waitForTimeout(200);
+    await p2.evaluate(() => document.querySelectorAll("#oilList .del")[1].click());
+    await p2.waitForTimeout(200);
+    await p2.fill("#sf", "12").catch(() => {});
+    await p2.evaluate(() => { const sf = document.getElementById("sf"); sf.value = 12; sf.dispatchEvent(new Event("input")); });
+    await p2.waitForTimeout(400);
+    b = (await LS(p2)).recipes[0].batches[0];
+    eq("Editing the recipe cannot rewrite the batch record",
+       b.formula.oils.map((o) => o.key + ":" + o.g).join(",") + "|sf" + b.formula.superfat, "olive:600,coconut:400|sf5");
+
+    // and the record survives a reload through the schema
+    await p2.reload(); await p2.waitForTimeout(250);
+    b = (await LS(p2)).recipes[0].batches[0];
+    eq("Snapshot survives the schema round-trip", b.formula.oils.length + "-" + b.formula.superfat + "-" + b.formula.sapOv.coconut, "2-5-0.191");
+
+    // Use this formula: the recipe returns to what was made
+    await p2.evaluate(() => { document.querySelectorAll("#tabs button")[2].click(); });
+    await p2.waitForTimeout(250);
+    p2.on("dialog", (d) => d.accept());
+    await p2.evaluate(() => { document.querySelector(".bh-formula").open = true;
+      document.querySelector(".bh-formula .cs-apply").click(); });
+    await p2.waitForTimeout(350);
+    const r = (await LS(p2)).recipes[0];
+    eq("Restore brings back the oils", r.oils.map((o) => o.key + ":" + o.g).join(","), "olive:600,coconut:400");
+    eq("Restore brings back the superfat", r.superfat, 5);
+    eq("Restore leaves the batch history alone", r.batches.length, 1);
+    await p2.evaluate(() => { document.querySelectorAll("#tabs button")[0].click(); });
+    await p2.waitForTimeout(250);
+    near("…and the lye is the figure that was weighed", await num(p2, "#lyeVal"), lyeAtMake, 0.05);
+
+    // a malformed snapshot in storage must coerce, not crash
+    await open(p2, store({ oils:[OIL("olive",500)],
+      batches:[{ id:"b1", madeOn:"2026-08-01", lot:"", cureWeeks:4, notes:"", checks:[],
+        formula:{ oils:[{name:"x",key:"nope",g:-4},{name:"Real",key:"coconut",g:200}], superfat:99, sapOv:{coconut:9,olive:0.13} },
+        weighed:{ lyeG:"junk", waterAddG:120 } }] }));
+    const cb = (await LS(p2) , await p2.evaluate(() => { const s=JSON.parse(localStorage.getItem("soapcalc.v4")); return s; }));
+    await addOil(p2, "castor", 1);   // force a save through the schema
+    const b2 = (await LS(p2)).recipes[0].batches[0];
+    eq("Bad snapshot rows are dropped or repaired", b2.formula.oils.map((o) => o.key + ":" + o.g).join(","), "coconut:200");
+    eq("Bad snapshot scalars are coerced", b2.formula.superfat, 15);
+    eq("Bad snapshot overrides are filtered", JSON.stringify(b2.formula.sapOv), JSON.stringify({ olive:0.13 }));
+    eq("Bad weighed values are dropped, good ones kept", JSON.stringify(Object.keys(b2.weighed)), JSON.stringify(["waterAddG","kind"]));
+    await p2.close();
+  }
   eq("Check record keys", Object.keys(bs[0].checks[0]).sort().join(","), "id,note,on,ph,zap");
   await p.close();
 }

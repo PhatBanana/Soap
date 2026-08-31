@@ -3,17 +3,17 @@
 import { QUALITIES } from "../core/chem.js";
 import { closeModal, el, escapeHtml, makeModal, modalFoot } from "../core/dom.js";
 import { RECIPE_FIELDS, USES } from "../core/schema.js";
-import { computeLye, curedBatchG, currentBatchG, currentId, libById, library, state, statsFor, syncCurrent, totalOilsG, weightUnit } from "../core/state.js";
+import { computeLye, curedBatchG, currentBatchG, currentId, libById, library, state, statsFor, syncCurrent, totalOilsG, usedOverrides, weightUnit } from "../core/state.js";
 import { UNITS, fmt, fromG } from "../core/units.js";
 import { b64urlEnc } from "../core/util.js";
 import { ADDITIVE_INCI, AROMAS } from "../data/ingredients.js";
 import { OIL_INCI } from "../data/oils.js";
 import { barCount, barG } from "../ui/render.js";
-export var SHARE_SKIP={
-  notes:1, batches:1, checklist:1,      // your own record of making it
-  madeOn:1, lot:1,                      // this batch, not the recipe
-  fav:1, lastUsed:1, barWeight:1        // your shelf, not theirs
-};
+/* What a share link leaves out: your record of making it, not the soap itself.
+   Derived from the schema's `personal` flags — the batch snapshot uses the same flags,
+   so the two ideas of "the formula" cannot drift apart. */
+export var SHARE_SKIP={};
+RECIPE_FIELDS.forEach(function(fld){ if(fld.personal) SHARE_SKIP[fld.k]=1; });
 
 export function openCompare(){
   if(library.length<2){ alert("Add another recipe first (tap ＋ or Duplicate) to compare."); return; }
@@ -189,18 +189,6 @@ export function recipeShareURL(r){
   });
   var ov=usedOverrides(r); if(ov) payload.sapOv=ov;
   return location.origin+location.pathname+"#r="+b64urlEnc(JSON.stringify(payload));
-}
-/* Supplier SAP figures live outside the recipe, so they have to be picked out and
-   sent alongside it — otherwise the link quietly rebuilds the recipe on our
-   reference numbers and the lye comes out different from the sender's. Only the
-   oils this recipe actually uses travel; the rest are none of the recipient's
-   business. */
-export function usedOverrides(r){
-  var ov=state.sapOverrides||{}, out=null;
-  (r.oils||[]).forEach(function(it){
-    if(it.key && it.g>0 && ov[it.key]>0){ if(!out) out={}; out[it.key]=ov[it.key]; }
-  });
-  return out;
 }
 export function openShare(){
   syncCurrent(); var r=libById(currentId); if(!r) return;

@@ -2,7 +2,7 @@
    clearing it, and filing a finished batch into its history. */
 import { $, uid } from "../core/dom.js";
 import { RECIPE_FIELDS, defOf } from "../core/schema.js";
-import { blankRecipe, cloneItem, computeLye, currentId, libById, library, loadRecipeIntoState, save, setCurrentId, setLibrary, state, syncCurrent, touchRecipe } from "../core/state.js";
+import { blankRecipe, cloneItem, computeLye, currentId, libById, library, loadRecipeIntoState, save, setCurrentId, setLibrary, snapshotFormula, state, syncCurrent, touchRecipe } from "../core/state.js";
 import { UNITS } from "../core/units.js";
 import { todayISO } from "../core/util.js";
 import { ADDITIVES, AROMAS } from "../data/ingredients.js";
@@ -68,8 +68,13 @@ $("csvInput").addEventListener("change",function(e){
 export function logBatch(){
   if(!Array.isArray(state.batches)) state.batches=[];
   var made=state.madeOn||todayISO();
+  // snapshot what was actually made: the formula, and the lye/water that were weighed.
+  // The recipe can be tweaked tomorrow; this record can't be.
+  var L=computeLye(), r2=function(n){ return Math.round(n*100)/100; };
   state.batches.push({ id:uid(), madeOn:made, lot:state.lot||"",
-    cureWeeks:state.cureWeeks||4, notes:state.notes||"", checks:[] });
+    cureWeeks:state.cureWeeks||4, notes:state.notes||"", checks:[],
+    formula:snapshotFormula(),
+    weighed:{ lyeG:r2(L.lyeG), naohG:r2(L.naohG), kohG:r2(L.kohG), waterAddG:r2(L.waterAddG), kind:L.kind } });
   if(state.batches.length>50) state.batches.shift();
   var used=drawDownStock();
   // the checklist and notes belonged to that make — start the next one clean

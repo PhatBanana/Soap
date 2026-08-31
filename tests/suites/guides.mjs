@@ -341,4 +341,45 @@ export default async function guidesSuite(t) {
   await p.close();
 }
 
+
+/* =======================================================================
+   MILK SOAPS — the lye step must say slush, or the milk scorches
+======================================================================= */
+{
+  const p = await newPage();
+  const stepTexts = () => p.$$eval("#checklist .txt", (ts) => ts.map((t) => t.textContent));
+  const oils = [OIL("olive",600), OIL("coconut",400)];
+
+  await open(p, store({ oils, additives:[{ name:"Goat milk", key:"goatmilk", g:300 }] }, { tab:"make" }));
+  let steps = await stepTexts();
+  ok("Milk recipe: the lye step says freeze it to a slush", steps.some((t) => /goat milk.*slush/i.test(t)), steps.join(" | "));
+  ok("…a spoonful at a time", steps.some((t) => /spoonful at a time/i.test(t)));
+  ok("…and still lye TO the liquid", steps.some((t) => /lye TO the liquid, never the reverse/i.test(t)));
+
+  await open(p, store({ oils }, { tab:"make" }));
+  steps = await stepTexts();
+  ok("Plain water recipe keeps the original step", steps.some((t) => /Add the lye TO the water \(never the reverse\)/.test(t)), steps.join(" | "));
+  ok("…and no slush talk", !steps.some((t) => /slush/i.test(t)));
+
+  // aloe replaces water too, and the step should name what you actually have
+  await open(p, store({ oils, additives:[{ name:"Aloe vera juice", key:"aloe", g:200 }] }, { tab:"make" }));
+  steps = await stepTexts();
+  ok("Aloe recipe names aloe in the step", steps.some((t) => /aloe vera juice.*slush/i.test(t)), steps.join(" | "));
+
+  // brine + milk together: dissolving the salt is the step that can fail outright, so it wins
+  await open(p, store({ oils, saltMode:"brine",
+    additives:[{ name:"Salt (table/sea)", key:"salt", g:60 }, { name:"Goat milk", key:"goatmilk", g:300 }] }, { tab:"make" }));
+  steps = await stepTexts();
+  ok("Brine text wins when both apply", steps.some((t) => /Dissolve .* of salt into the water/i.test(t)), steps.join(" | "));
+  ok("…and the milk rewrite stands down", !steps.some((t) => /slush/i.test(t)));
+
+  // the milk rewrite reaches every method's checklist
+  for (const method of ["hp", "cpop"]) {
+    await open(p, store({ oils, method, additives:[{ name:"Goat milk", key:"goatmilk", g:300 }] }, { tab:"make" }));
+    steps = await stepTexts();
+    ok(`${method} checklist gets the milk step too`, steps.some((t) => /slush/i.test(t)), steps.join(" | "));
+  }
+  await p.close();
+}
+
 }

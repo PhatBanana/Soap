@@ -318,9 +318,10 @@ Water:Lye Ratio 2.5`, { commit: true });
      the field names here by hand would repeat the very mistake the deny-list fixed —
      a new field would appear in neither list and nothing would assert anything. */
   const shared = JSON.parse(payload);
-  const skip = new Set((appSrcForShare.match(/var SHARE_SKIP=\{([\s\S]*?)\};/)[1]
-    .match(/(\w+):\s*1/g) || []).map((m) => m.split(":")[0]));
-  ok("SHARE_SKIP parsed from source", skip.size > 0, [...skip].join(","));
+  // SHARE_SKIP is derived from the schema's `personal` flags now, so the check reads
+  // the same source of truth the code does instead of parsing a literal out of source
+  const skip = new Set(RECIPE_FIELDS.filter((f) => f.personal).map((f) => f.k));
+  ok("The schema marks personal fields", skip.size >= 6, [...skip].join(","));
   RECIPE_FIELDS.forEach((f) => skip.has(f.k)
     ? ok(`Share link omits ${f.k}`, !(f.k in shared))
     : ok(`Share link carries ${f.k}`, f.k in shared));

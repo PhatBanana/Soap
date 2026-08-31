@@ -6,16 +6,19 @@ import { UNITS, clamp } from "./units.js";
 import { ADDITIVES, AROMAS } from "../data/ingredients.js";
 import { OILS } from "../data/oils.js";
 export const STORE_KEY = "soapcalc.v4";
-export const APP_VERSION = "v61", BUILD_DATE = "2026-08-18";   // bump both (and sw.js CACHE) each release
+export const APP_VERSION = "v62", BUILD_DATE = "2026-08-18";   // bump both (and sw.js CACHE) each release
 export const USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 function validUse(u){ for(var i=0;i<USES.length;i++) if(USES[i][0]===u) return true; return false; }
 
 
 /* One schema per persisted thing, so every save/load/copy function stays in lockstep and
    validation lives in exactly one place. Adding a field = one row here, nothing else.
-     def    — default (a function for fresh arrays/objects); also what coerce() returns for bad input
-     coerce — validate a raw value to a safe one (scalar fields)
-     list   — this is an ingredient list; validated/copied via cleanList / cloneItem instead      */
+     def      — default (a function for fresh arrays/objects); also what coerce() returns for bad input
+     coerce   — validate a raw value to a safe one (scalar fields)
+     list     — this is an ingredient list; validated/copied via cleanList / cloneItem instead
+     personal — your record of making it, not the soap itself. The share link omits these
+                fields, and a logged batch's formula snapshot omits them too — one flag,
+                so the two ideas of "the formula" can never drift apart.                   */
 export function defOf(fld){ return typeof fld.def==="function" ? fld.def() : fld.def; }
 export const RECIPE_FIELDS=[
   {k:"oils",      list:OILS,      def:function(){return [];}},
@@ -32,11 +35,11 @@ export const RECIPE_FIELDS=[
   {k:"waterMode", def:"oils", coerce:function(v){return (v==="conc"||v==="ratio")?v:"oils";}},
   {k:"lyeConc",   def:33,     coerce:function(v){return clamp(v,33,25,50);}},
   {k:"kohPurity", def:90,     coerce:function(v){return clamp(v,90,85,100);}},
-  {k:"madeOn",    def:"",     coerce:function(v){return typeof v==="string"?v:"";}},
+  {k:"madeOn",    def:"",     personal:true, coerce:function(v){return typeof v==="string"?v:"";}},
   {k:"cureWeeks", def:4,      coerce:function(v){return clamp(v,4,1,16);}},
-  {k:"checklist", def:function(){return {};}, coerce:function(v){return (v&&typeof v==="object")?v:{};}},
+  {k:"checklist", def:function(){return {};}, personal:true, coerce:function(v){return (v&&typeof v==="object")?v:{};}},
   {k:"use",       def:"body", coerce:function(v){return validUse(v)?v:"body";}},
-  {k:"notes",     def:"",     coerce:function(v){return typeof v==="string"?v:"";}},
+  {k:"notes",     def:"",     personal:true, coerce:function(v){return typeof v==="string"?v:"";}},
   {k:"method",    def:"cp",   coerce:function(v){return (v==="hp"||v==="cpop")?v:"cp";}},  // cold, hot, or oven-gelled cold
   // hot process only: superfat as a lye discount (which fats stay free is luck), or
   // a chosen oil held back and stirred in after the cook (you pick what superfats it)
@@ -44,15 +47,15 @@ export const RECIPE_FIELDS=[
   {k:"sfOil",     def:"",     coerce:function(v){return (typeof v==="string"&&OILS[v])?v:"";}},
   {k:"dilution",  def:1,      coerce:function(v){return clamp(v,1,0.25,4);}},           // KOH paste : water, by weight
   {k:"waterRatio",def:2,      coerce:function(v){return clamp(v,2,1,4);}},              // water : lye, by weight
-  {k:"lot",       def:"",     coerce:function(v){return typeof v==="string"?v.slice(0,32):"";}},
+  {k:"lot",       def:"",     personal:true, coerce:function(v){return typeof v==="string"?v.slice(0,32):"";}},
   // bar size belongs to the recipe's mould, not to the app — it drives bar count,
   // cost per bar, the wrapper's net weight and the "Bars" scale target
-  {k:"barWeight", def:110,    coerce:function(v){return clamp(v,110,10,2000);}},
-  {k:"fav",       def:false,  coerce:function(v){return !!v;}},
-  {k:"lastUsed",  def:0,      coerce:function(v){return (typeof v==="number"&&isFinite(v)&&v>0)?v:0;}},
+  {k:"barWeight", def:110,    personal:true, coerce:function(v){return clamp(v,110,10,2000);}},
+  {k:"fav",       def:false,  personal:true, coerce:function(v){return !!v;}},
+  {k:"lastUsed",  def:0,      personal:true, coerce:function(v){return (typeof v==="number"&&isFinite(v)&&v>0)?v:0;}},
   // every time you actually make this recipe, archived so a second make doesn't
   // overwrite the record of the first
-  {k:"batches",   def:function(){return [];}, coerce:function(v){
+  {k:"batches",   def:function(){return [];}, personal:true, coerce:function(v){
     if(!Array.isArray(v)) return [];
     return v.filter(function(b){ return b&&typeof b==="object"; }).slice(-50).map(function(b){
       return { id:(typeof b.id==="string"&&b.id)?b.id:uid(),
@@ -60,6 +63,12 @@ export const RECIPE_FIELDS=[
         lot:(typeof b.lot==="string")?b.lot.slice(0,32):"",
         cureWeeks:clamp(b.cureWeeks,4,1,16),
         notes:(typeof b.notes==="string")?b.notes.slice(0,4000):"",
+        /* The formula as made: the non-personal recipe fields, snapshotted at logBatch so
+           editing the recipe later can't rewrite history — plus the lye and water that
+           were actually weighed, because supplier SAP overrides live outside the recipe
+           and can change after the fact. Older batches predate this and stay null. */
+        formula:coerceFormula(b.formula),
+        weighed:coerceWeighed(b.weighed),
         // zap tests & pH readings taken while the bar cures
         checks:(Array.isArray(b.checks)?b.checks:[]).filter(function(k){ return k&&typeof k==="object"; })
           .slice(-20).map(function(k){
@@ -100,6 +109,38 @@ export const VIEW_FIELDS=[
 ];
 
 
+/* Validate a batch's formula snapshot: same rules as a recipe, minus the personal
+   fields it deliberately doesn't carry. Lists are re-validated against their own
+   database, the same checks cleanList applies on load. */
+export function coerceFormula(f){
+  if(!f||typeof f!=="object") return null;
+  var out={};
+  RECIPE_FIELDS.forEach(function(fld){
+    if(fld.personal) return;
+    if(fld.list){
+      out[fld.k]=(Array.isArray(f[fld.k])?f[fld.k]:[]).filter(function(it){
+        return it&&typeof it.name==="string"&&typeof it.g==="number"&&isFinite(it.g)&&it.g>=0;
+      }).map(function(it){
+        var k=(it.key&&fld.list[it.key])?it.key:null, o={name:it.name,key:k,g:it.g};
+        if(!k && it.sap>0 && it.sap<1) o.sap=it.sap;
+        return o;
+      });
+    } else out[fld.k]=fld.coerce(f[fld.k]);
+  });
+  // supplier SAP figures in use at make time (subject to the same band as sapOverrides)
+  if(f.sapOv&&typeof f.sapOv==="object"){ var ov={};
+    for(var k in f.sapOv){ var n=parseFloat(f.sapOv[k]); if(OILS[k]&&isFinite(n)&&n>0&&n<1) ov[k]=n; }
+    if(Object.keys(ov).length) out.sapOv=ov; }
+  return out;
+}
+function coerceWeighed(w){
+  if(!w||typeof w!=="object") return null;
+  var out={}, ok=false;
+  ["lyeG","naohG","kohG","waterAddG"].forEach(function(k){
+    var n=parseFloat(w[k]); if(isFinite(n)&&n>=0){ out[k]=n; ok=true; } });
+  out.kind=(typeof w.kind==="string")?w.kind.slice(0,24):"";
+  return ok?out:null;
+}
 export function coerceField(key,v){
   for(var i=0;i<RECIPE_FIELDS.length;i++){
     if(RECIPE_FIELDS[i].k===key) return RECIPE_FIELDS[i].coerce(v);
