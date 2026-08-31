@@ -6,9 +6,9 @@
    The cycle rule for this layer: modules here may import each other, because the calls
    happen when someone taps something. Nothing here may be called while a module is
    still evaluating. */
-import { INS_RANGE, IOD_RANGE, LAURIC_OILS, QUALITIES, SALT_MAX_PER100, brineOf, lyeConcOf, qFn, qualitiesOf } from "../core/chem.js";
+import { INS_RANGE, IOD_RANGE, LAURIC_OILS, QUALITIES, SALT_MAX_PER100, brineOf, lyeConcOf, qFn, qualitiesOf, waterReplacersOf } from "../core/chem.js";
 import { $, el, escapeHtml, numInput, setActive, uid } from "../core/dom.js";
-import { USES } from "../core/schema.js";
+import { RECIPE_FIELDS, USES } from "../core/schema.js";
 import { blendFA, cleansingCap, computeLye, curRV, curedBatchG, currentBatchG, currentId, oilInfo, save, saveSoon, scaleUnit, sortedLibrary, state, totalOilsG, weightUnit } from "../core/state.js";
 import { UNITS, UORDER, clamp, fmt, fromG, sumG } from "../core/units.js";
 import { todayISO } from "../core/util.js";
@@ -892,10 +892,20 @@ export function checkSteps(){
       fmt(fromG(L.reserveG,wu),1)+" "+UNITS[wu].label+(L.reserveName?" of "+L.reserveName:" of oil")+
       ", plus fragrance, additives and colour — all after the cook.";
   }
+  var B=brineOf(curRV());        // needed by both rewrites below, so declared before either
+  /* Milk (or aloe, beer…) standing in for the water changes how the lye goes in:
+     poured into room-temperature milk it scorches the sugars — orange, ammonia smell
+     — and can volcano. Rewritten in place like the brine step below; when both brine
+     and a replacer are set, the brine text wins, since dissolving the salt is the
+     step that can fail outright. */
+  var repl=waterReplacersOf(curRV());
+  if(repl.g>0 && !(B.salt>0 && state.saltMode==="brine")){
+    var mkIdx=stepIndex(steps,/lye TO the water/i);
+    if(mkIdx>=0) steps[mkIdx]="Your "+repl.names.join(" & ").toLowerCase()+" stands in for the water: freeze it to a slush first, then add the lye a spoonful at a time, stirring between additions — poured into room-temperature milk, lye scorches the sugars (orange colour, ammonia smell) and can overheat. Still lye TO the liquid, never the reverse.";
+  }
   // Brine changes the order of operations, so the checklist has to say so.
   // Rewritten in place rather than inserted: state.checklist is keyed by index,
   // so adding a step would shift what someone's already ticked.
-  var B=brineOf(curRV());
   if(B.salt>0 && state.saltMode==="brine"){
     var brIdx=stepIndex(steps,/lye TO the water/i);
     if(brIdx>=0) steps[brIdx]="Dissolve "+fmt(fromG(B.salt,wu),1)+" "+UNITS[wu].label+
@@ -951,6 +961,37 @@ export function renderHistory(){
     head.innerHTML="<b>"+escapeHtml(when)+"</b><span>"+escapeHtml((b.lot?"Lot "+b.lot:"")+ready)+"</span>";
     row.appendChild(head);
     if(b.notes) row.appendChild(el("div","bh-notes",escapeHtml(b.notes)));
+    if(b.weighed && b.weighed.lyeG>=0){
+      var wu=weightUnit(), wl=UNITS[wu].label;
+      var wtxt="As made: "+fmt(fromG(b.weighed.lyeG,wu),UNITS[wu].dp)+" "+wl+" "+(b.weighed.kind||"lye");
+      if(b.weighed.waterAddG>=0) wtxt+=" · "+fmt(fromG(b.weighed.waterAddG,wu),UNITS[wu].dp)+" "+wl+" water";
+      row.appendChild(el("div","bh-weighed",escapeHtml(wtxt)));
+    }
+    if(b.formula){
+      var det=document.createElement("details"); det.className="bh-formula";
+      var sum=document.createElement("summary");
+      var nOils=(b.formula.oils||[]).length;
+      sum.textContent="Formula as made ("+nOils+" oil"+(nOils===1?"":"s")+", "+Math.round(sumG(b.formula.oils||[]))+" g)";
+      det.appendChild(sum);
+      var lines=[];
+      [["oils","Oils"],["additives","Additives"],["aromas","Scents"]].forEach(function(sec){
+        (b.formula[sec[0]]||[]).forEach(function(it){ if(it.g>0) lines.push(escapeHtml(it.name)+" — "+fmt(it.g,1)+" g"); });
+      });
+      lines.push("Superfat "+b.formula.superfat+"% · "+(b.formula.lyeType==="koh"?"KOH":b.formula.lyeType==="dual"?"dual lye":"NaOH"));
+      det.appendChild(el("div","bh-flist",lines.join("<br>")));
+      var useB=el("button","cs-apply","Use this formula"); useB.type="button";
+      useB.addEventListener("click",function(){
+        if(!confirm("Replace this recipe's current ingredients and settings with the formula from this batch? Notes and history stay.")) return;
+        pushUndo();
+        RECIPE_FIELDS.forEach(function(fld){
+          if(fld.personal || !(fld.k in b.formula)) return;
+          state[fld.k]=fld.list ? b.formula[fld.k].map(function(it){ var o={name:it.name,key:it.key,g:it.g}; if(it.sap>0) o.sap=it.sap; return o; }) : b.formula[fld.k];
+        });
+        save(); render(); showToast("Formula restored from the batch record");
+      });
+      det.appendChild(useB);
+      row.appendChild(det);
+    }
     row.appendChild(checkLog(b,made));
     var del=el("button","bh-del","&times;"); del.type="button"; del.setAttribute("aria-label","Delete this batch record");
     del.addEventListener("click",function(){
