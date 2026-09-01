@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v62 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 1970 test assertions, run on every pull request.
+**Today:** v63 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 2155 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -89,13 +89,16 @@ quietly drift — they had, which is why the check exists.</sub>
 
 ### Library & output
 - Saved recipes with **search, sort and favourites**; compare any two.
-- **Recipe card**, **INCI ingredient label**, **printable bar wrapper**.
+- **Recipe card**, **INCI ingredient label**, **printable bar wrapper** — the wrapper
+  carries a **QR code of the recipe itself**, sized so its modules stay scannable on
+  paper, and omitted honestly when the recipe is too long to print one that would.
 - **Share by link** (the recipe rides inside the URL), **CSV import/export**,
   **photo OCR**, and **paste a recipe** from another calculator.
 
 ### The app itself
 - **Installable PWA**, fully offline, auto-updating, with a version footer.
-- **Backup / restore** everything as JSON.
+- **Backup / restore** everything as JSON, with a quiet **nudge** once there's a logged
+  batch or a few saved recipes and no recent backup — dismissible for a month.
 - Collapsible cards, sticky lye/batch summary, theme toggle, **multi-level undo**.
 - **Searchable menu** — the ☰ sheet is 26 actions deep, so it takes a query, matched
   against synonyms as well as labels (`csv` finds Import, `print` finds all four
@@ -708,6 +711,53 @@ missing `RECIPE_FIELDS` import, both caught before a browser ever loaded them �
 first placement of the milk rewrite landed inside the brine branch where it could never
 run, caught by reading the assembled function back. All three mutations (no snapshot,
 shallow snapshot, no milk rewrite) fail exactly the tests built for them.
+**28. The data can leave the device, and the bar can carry its own recipe** — ✅ **shipped in v63**
+Two small things, both about a recipe outliving the browser it was typed into.
+
+**A backup nudge.** Everything lives in one browser's localStorage. v55 stopped the app
+destroying data it couldn't read, but nothing ever suggested getting a copy *off* the
+device — and a batch log is genuinely irreplaceable once it holds real makes. One quiet
+line now appears above the recipe once there's something worth losing: a logged batch,
+or three saved recipes. It offers **Back up now**, and **Not now** hushes it for a
+month; taking a backup silences it for a month too, and says "the last backup was over a
+month ago" rather than pretending you've never backed up. Never a modal — it must not
+stand between anyone and the soap they're making, and it doesn't print.
+
+**A QR code on the bar wrapper.** The share link already carries a whole recipe inside a
+URL and the wrapper already prints, so the bar can now carry its own recipe to whoever
+you give it to. Whether it scans is decided by the printed size of one module, not by
+the code looking plausible: phone cameras want roughly 0.4 mm at close range, so the
+code is sized from its module count — a three-oil recipe lands around version 16 and
+prints happily at 36 mm, an eight-oil one with additives and scents reaches version 25
+and needs the full 52 mm. Past that the modules fall under 0.38 mm and **nothing is
+printed at all**, with a line saying why, because an unscannable code on a gift is worse
+than an honest blank.
+
+The encoder is ~250 lines written from the spec — Reed-Solomon over GF(256), all forty
+versions, four error-correction levels, eight masks scored by the spec's penalty rules.
+It is the only part of this app that has to satisfy a standard rather than a soap-maker,
+and it fails *silently*: a symbol with the format field transposed still looks exactly
+like a QR code and simply never scans. So it was verified against an independent decoder
+rather than by eye — 33 symbols rendered at print size and read back — which found three
+bugs no amount of looking would have: the format bits written along row 8 instead of
+column 8, alignment patterns wrongly skipped wherever they cross the timing pattern
+(costing every version from 7 up), and a suspected Reed-Solomon fault that turned out to
+be a reversed generator polynomial in my *reference* implementation, not in the app.
+
+Two lessons worth keeping. Bit-for-bit agreement with another encoder is the **wrong**
+acceptance test — a second encoder pads differently and both symbols are valid; decoding
+is the right one. And where the app now disagrees with another library on mask choice,
+that is not a bug: the spec is ambiguous about one penalty rule, every mask decodes
+regardless, and an independently written implementation of the four rules picked this
+app's mask every time.
+
+The suite gained a QR block that checks the symbol's structure directly — finders,
+separators, timing, alignment, both copies of the format and version fields including
+their own BCH check digits — plus **twelve finished symbols pinned to fingerprints**,
+each one rendered and read back by a decoder before being written down. Neither the
+reference encoder nor the decoder is a dependency; what ships is the record they left.
+Mutation-checked: restoring either historical bug fails 12 and 23 assertions
+respectively, and printing an unscannably fine code fails the two that forbid it.
 ---
 
 ## Part 3 — What's next

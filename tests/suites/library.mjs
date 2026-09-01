@@ -457,7 +457,7 @@ export default async function librarySuite(t) {
 
   // save shape unchanged (backup/restore compatibility)
   const keys = Object.keys(await LS(p)).sort().join(",");
-  eq("Save shape keys", keys, "collapsed,currency,currentId,keepAwake,lastWeightUnit,librarySort,moldShape,prices,recent,recipes,sapOverrides,scaleMode,scaleUnit,stock,tab,theme,unit");
+  eq("Save shape keys", keys, "backupHushed,collapsed,currency,currentId,keepAwake,lastBackup,lastWeightUnit,librarySort,moldShape,prices,recent,recipes,sapOverrides,scaleMode,scaleUnit,stock,tab,theme,unit");
   await p.close();
 }
 
@@ -715,6 +715,98 @@ export default async function librarySuite(t) {
   ok("A storage write that fails is reported, not swallowed",
     await p.evaluate(() => !document.getElementById("saveWarn").classList.contains("hide")));
   has("…and says what to do about it", await txt(p, "#saveWarn"), "Back up all");
+  await p.close();
+}
+
+/* =======================================================================
+   THE BACKUP NUDGE
+   Everything lives in one browser's storage, and a logged batch is the one thing
+   in here that cannot be reconstructed. The line has to appear when there is
+   something worth losing, stay quiet otherwise, and never stand in the way.
+======================================================================= */
+{
+  const p = await newPage();
+  const DAY = 24 * 3600 * 1000;
+  const nudge = () => p.evaluate(() => {
+    const b = document.getElementById("backupNudge");
+    return { shown: !b.classList.contains("hide"), text: b.textContent,
+             buttons: Array.from(b.querySelectorAll("button")).map((x) => x.textContent) };
+  });
+  const batch = (n) => Array.from({ length: n }, (_, i) => ({ id: "b" + i, madeOn: "2026-01-0" + (i + 1) }));
+  const many = (n) => Array.from({ length: n }, (_, i) =>
+    Object.assign(recipe({ id: "r" + i, name: "Soap " + i }), { oils: [OIL("olive", 500)] }));
+
+  // --- quiet until there is something worth losing ---
+  await open(p, Object.assign(store({ oils: [OIL("olive", 500)] }), { recipes: many(1) }));
+  eq("One recipe and no batches raises nothing", (await nudge()).shown, false);
+  await open(p, Object.assign(store({}), { recipes: many(2), currentId: "r0" }));
+  eq("Two recipes still raise nothing", (await nudge()).shown, false);
+
+  // --- three recipes is a library worth keeping ---
+  await open(p, Object.assign(store({}), { recipes: many(3), currentId: "r0" }));
+  let n = await nudge();
+  eq("Three recipes bring up the nudge", n.shown, true);
+  has("…and it says where the recipes actually live", n.text, "live only in this browser");
+  has("…and that nothing has been saved off the device yet", n.text, "nothing has been backed up yet");
+  eq("…offering a backup and a way out", n.buttons.join("/"), "Back up now/Not now");
+
+  // --- one logged batch outweighs any number of recipes ---
+  const one = many(1); one[0].batches = batch(1);
+  await open(p, Object.assign(store({}), { recipes: one, currentId: "r0" }));
+  n = await nudge();
+  eq("A single logged batch is enough on its own", n.shown, true);
+  has("…counted in the singular", n.text, "1 logged batch and 1 recipe");
+  const two = many(2); two[0].batches = batch(3);
+  await open(p, Object.assign(store({}), { recipes: two, currentId: "r0" }));
+  has("…and in the plural", (await nudge()).text, "3 logged batches and 2 recipes");
+
+  // --- "Not now" hushes it for a month, and the hush survives a reload ---
+  await open(p, Object.assign(store({}), { recipes: many(3), currentId: "r0" }));
+  await p.click("#backupNudge .bn-hush");
+  await p.waitForTimeout(150);
+  eq("“Not now” puts the line away", (await nudge()).shown, false);
+  ok("…and records when, so it stays away", (await LS(p)).backupHushed > 0, "");
+  await p.reload(); await p.waitForTimeout(150);
+  eq("…across a reload", (await nudge()).shown, false);
+
+  // --- but only for a month ---
+  await open(p, Object.assign(store({}), { recipes: many(3), currentId: "r0",
+    backupHushed: Date.now() - 40 * DAY }));
+  eq("A hush older than a month lapses", (await nudge()).shown, true);
+  await open(p, Object.assign(store({}), { recipes: many(3), currentId: "r0",
+    backupHushed: Date.now() - 20 * DAY }));
+  eq("…but a recent one still holds", (await nudge()).shown, false);
+
+  // --- a recent backup silences it; an old one changes what it says ---
+  await open(p, Object.assign(store({}), { recipes: many(3), currentId: "r0",
+    lastBackup: Date.now() - 5 * DAY }));
+  eq("A backup taken this month silences the nudge", (await nudge()).shown, false);
+  await open(p, Object.assign(store({}), { recipes: many(3), currentId: "r0",
+    lastBackup: Date.now() - 40 * DAY }));
+  n = await nudge();
+  eq("A backup older than a month brings it back", n.shown, true);
+  has("…saying so, rather than claiming you have never backed up", n.text, "last backup was over a month ago");
+
+  // --- taking the backup resets it, and the timestamp lands in the file itself ---
+  await open(p, Object.assign(store({}), { recipes: many(3), currentId: "r0" }));
+  const dl = p.waitForEvent("download").catch(() => null);
+  await p.click("#backupNudge .bn-do");
+  await p.waitForTimeout(250);
+  eq("Backing up puts the nudge away", (await nudge()).shown, false);
+  ok("…and records when it happened", (await LS(p)).lastBackup > 0, "");
+  const file = await dl;
+  ok("…as a file you can actually keep", !!file && /^soapcalc-backup-\d{4}-\d{2}-\d{2}\.json$/.test(file.suggestedFilename()),
+     file ? file.suggestedFilename() : "no download");
+
+  // --- it is a line, not a barrier ---
+  await open(p, Object.assign(store({}), { recipes: many(3), currentId: "r0" }));
+  eq("The nudge is never a modal", await p.evaluate(() => !!document.querySelector(".modal-back")), false);
+  eq("…and the recipe underneath is still usable",
+     await p.evaluate(() => !document.getElementById("baseSelect").disabled), true);
+  await p.emulateMedia({ media: "print" });
+  eq("…and it does not print on a recipe card",
+     await p.evaluate(() => getComputedStyle(document.getElementById("backupNudge")).display), "none");
+  await p.emulateMedia({ media: null });
   await p.close();
 }
 

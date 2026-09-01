@@ -6,7 +6,7 @@ import { UNITS, clamp } from "./units.js";
 import { ADDITIVES, AROMAS } from "../data/ingredients.js";
 import { OILS } from "../data/oils.js";
 export const STORE_KEY = "soapcalc.v4";
-export const APP_VERSION = "v62", BUILD_DATE = "2026-08-18";   // bump both (and sw.js CACHE) each release
+export const APP_VERSION = "v63", BUILD_DATE = "2026-09-01";   // bump both (and sw.js CACHE) each release
 export const USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 function validUse(u){ for(var i=0;i<USES.length;i++) if(USES[i][0]===u) return true; return false; }
 
@@ -105,7 +105,13 @@ export const VIEW_FIELDS=[
   {k:"librarySort",    coerce:function(v){return ["name","recent","added"].indexOf(v)>=0?v:"name";}},
   // keep the screen on while you're actually making soap. Lives here rather than on the
   // recipe because it describes the device you're standing at, not what you're making.
-  {k:"keepAwake",      coerce:function(v){return v!==false;}}
+  {k:"keepAwake",      coerce:function(v){return v!==false;}},
+  /* Everything lives in one browser's storage. v55 stopped the app destroying data it
+     couldn't read, but nothing ever suggested getting a copy off the device — and a
+     batch log is genuinely irreplaceable once it holds real makes. These two drive that
+     nudge: when a backup was last taken, and when the reminder was last dismissed. */
+  {k:"lastBackup",     coerce:function(v){return (typeof v==="number"&&isFinite(v)&&v>0)?v:0;}},
+  {k:"backupHushed",   coerce:function(v){return (typeof v==="number"&&isFinite(v)&&v>0)?v:0;}}
 ];
 
 
