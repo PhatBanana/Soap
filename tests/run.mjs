@@ -21,11 +21,12 @@ import recipe from "./suites/recipe.mjs";
 import library from "./suites/library.mjs";
 import io from "./suites/io.mjs";
 import guides from "./suites/guides.mjs";
+import qr from "./suites/qr.mjs";
 import release from "./suites/release.mjs";
 
 const t = await createHarness();
 // order matters only for release, which reports the totals the docs are checked against
-for (const suite of [chem, safety, recipe, library, io, guides, release]) await suite(t);
+for (const suite of [chem, safety, recipe, library, io, guides, qr, release]) await suite(t);
 
 /* ---------- report ---------- */
 t.ok("No console/page errors during tests", t.pageErrors.length === 0, t.pageErrors.join(" | "));

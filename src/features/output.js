@@ -8,6 +8,7 @@ import { UNITS, fmt, fromG } from "../core/units.js";
 import { b64urlEnc } from "../core/util.js";
 import { ADDITIVE_INCI, AROMAS } from "../data/ingredients.js";
 import { OIL_INCI } from "../data/oils.js";
+import { encodeQR, qrSVG } from "../core/qr.js";
 import { barCount, barG } from "../ui/render.js";
 /* What a share link leaves out: your record of making it, not the soap itself.
    Derived from the schema's `personal` flags — the batch snapshot uses the same flags,
@@ -151,6 +152,8 @@ export function openWrapper(){
   if(state.lot) h+="<div class='wrap-lot'>Lot "+escapeHtml(state.lot)+"</div>";
   h+="<div class='wrap-warn'>For external use only. Keep out of reach of children. Discontinue use if irritation occurs.</div>";
   card.innerHTML=h; md.m.appendChild(card);
+  var qrNote=addWrapperQR(card, r);
+  if(qrNote) md.m.appendChild(el("div","inci-warn no-print",escapeHtml(qrNote)));
   if(lab.missing.length) md.m.appendChild(el("div","inci-warn no-print","⚠ No stored INCI name for: "+escapeHtml(lab.missing.join(", "))+" — fill these in before printing for sale."));
   md.m.appendChild(el("p","sub no-print","Net weight is an estimate of the cured bar — weigh a real one before printing a label for sale. Add your name/contact and check your local labelling rules."));
   var foot=el("div","mfoot no-print");
@@ -158,6 +161,31 @@ export function openWrapper(){
   var cp=el("button","ghost","📋 Copy"); cp.addEventListener("click",function(){ copyText(wrapperText(r,lab,netOz,netG,d),cp); });
   var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); });
   foot.appendChild(pr); foot.appendChild(cp); foot.appendChild(cl); md.m.appendChild(foot);
+}
+/* The share link already carries the whole recipe inside a URL, and the wrapper is
+   already printable — so the bar can carry its own recipe to whoever you give it to.
+
+   Whether it scans is decided by the printed size of one module. Phone cameras want
+   roughly 0.4 mm at close range, so the code is sized from its module count rather than
+   fixed: a three-oil recipe lands around v16 and prints happily at 36 mm, while an
+   eight-oil one with additives and scents reaches v25 and needs the full 52 mm. Past
+   that the modules fall under 0.38 mm and no phone will read it off paper, so nothing is
+   printed at all — an unscannable code on a gift is worse than an honest blank, and the
+   share link still works. Error correction is L deliberately: fewer modules for the same
+   recipe, and freshly printed paper needs no damage tolerance. */
+var QR_MIN_MODULE_MM = 0.38, QR_MAX_MM = 52, QR_TARGET_MM_PER_MODULE = 0.45;
+export function addWrapperQR(card, r){
+  var url=recipeShareURL(r), qr=null;
+  try{ qr=encodeQR(url,"L"); }catch(e){ qr=null; }
+  if(!qr) return "This recipe is too long to fit a QR code — share it by link instead.";
+  var mm=Math.min(QR_MAX_MM, Math.max(30, qr.size*QR_TARGET_MM_PER_MODULE));
+  if(mm/qr.size < QR_MIN_MODULE_MM)
+    return "This recipe needs so many oils that its QR code would be too fine to scan off paper — the ☰ Share link still carries it.";
+  var box=el("div","wrap-qr");
+  box.innerHTML=qrSVG(qr,160)+"<span class='wrap-qr-cap'>Scan for the recipe</span>";
+  box.style.setProperty("--qr-mm", mm+"mm");
+  card.appendChild(box);
+  return null;
 }
 export function wrapperText(r,lab,netOz,netG,d){
   var L=[r.name, "Handmade Soap", "Net wt. "+netOz+" oz ("+netG+" g)", "",

@@ -9,7 +9,7 @@ import { CONV, IMPORT_UNITS, fmt } from "../core/units.js";
 import { todayISO } from "../core/util.js";
 import { ADDITIVES, AROMAS } from "../data/ingredients.js";
 import { OILS } from "../data/oils.js";
-import { render } from "../ui/render.js";
+import { render, updateBackupNudge } from "../ui/render.js";
 export var NAME_STOP={oil:1,oils:1,fat:1,fats:1,butter:0,pure:1,refined:1,unrefined:1,organic:1,
                virgin:1,extra:1,deg:1,degree:1,degrees:1,"76":1,"92":1,eo:1,fo:1,essential:1,fragrance:0};
 export var LYE_WORDS=/^(sodium hydroxide|naoh|lye|potassium hydroxide|koh)\b/i;
@@ -416,8 +416,11 @@ export function normUnit(u){ u=u.toLowerCase().replace(/s$/,""); if(u==="gram")u
 // Ask the browser to keep our storage (recipes) from being auto-evicted.
 if(navigator.storage && navigator.storage.persist){ navigator.storage.persist().catch(function(){}); }
 export function backupAll(){
-  syncCurrent(); save(); flushSave();
+  syncCurrent();
+  state.lastBackup=Date.now();          // recorded before the write, so it lands in the file too
+  save(); flushSave();
   downloadFile("soapcalc-backup-"+todayISO()+".json", localStorage.getItem(STORE_KEY)||"{}");
+  updateBackupNudge();
 }
 export function restoreFrom(file){
   var r=new FileReader();

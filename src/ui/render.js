@@ -9,13 +9,14 @@
 import { INS_RANGE, IOD_RANGE, LAURIC_OILS, QUALITIES, SALT_MAX_PER100, brineOf, lyeConcOf, qFn, qualitiesOf, waterReplacersOf } from "../core/chem.js";
 import { $, el, escapeHtml, numInput, setActive, uid } from "../core/dom.js";
 import { RECIPE_FIELDS, USES } from "../core/schema.js";
-import { blendFA, cleansingCap, computeLye, curRV, curedBatchG, currentBatchG, currentId, oilInfo, save, saveSoon, scaleUnit, sortedLibrary, state, totalOilsG, weightUnit } from "../core/state.js";
+import { blendFA, cleansingCap, computeLye, curRV, curedBatchG, currentBatchG, currentId, library, oilInfo, save, saveSoon, scaleUnit, sortedLibrary, state, totalOilsG, weightUnit } from "../core/state.js";
 import { UNITS, UORDER, clamp, fmt, fromG, sumG } from "../core/units.js";
 import { todayISO } from "../core/util.js";
 import { BLEND_TIPS } from "../data/guides.js";
 import { ADDITIVES, AROMAS } from "../data/ingredients.js";
 import { OILS } from "../data/oils.js";
 import { openExamples } from "../features/examples.js";
+import { backupAll } from "../features/io.js";
 import { pushUndo, showToast } from "./toast.js";
 export function rememberPick(sel){
   if(!Array.isArray(state.recent)) state.recent=[];
@@ -86,6 +87,7 @@ export function render(){
   // the scents/make renderers don't run refreshDerived, so they need this; on the base
   // tab refreshDerived has already called it and a second run is pure duplicate work
   if(state.tab!=="base") updateMiniSummary();
+  updateBackupNudge();
   syncWakeLock();        // leaving the Make tab has to drop the lock
 }
 export function renderBase(){
@@ -169,6 +171,32 @@ export function pickLabel(sel){
   if(sel.indexOf("oil:")===0){ var o=OILS[sel.slice(4)]; return o?o.name:null; }
   if(sel.indexOf("add:")===0){ var a=ADDITIVES[sel.slice(4)]; return a?a.name:null; }
   return null;
+}
+/* One quiet line, and only once there is something worth losing: a logged batch (a
+   record you cannot reconstruct) or several saved recipes. Dismissing hushes it for a
+   month; taking a backup resets it entirely. Never a modal — it must not stand between
+   anyone and the soap they are making. */
+export function updateBackupNudge(){
+  var box=$("backupNudge"); if(!box) return;
+  var batches=0; library.forEach(function(r){ batches+=(r.batches||[]).length; });
+  var worth = batches>0 || library.length>=3;
+  var MONTH=30*24*3600*1000;
+  var hushed = state.backupHushed>0 && (Date.now()-state.backupHushed)<MONTH;
+  var backedUp = state.lastBackup>0 && (Date.now()-state.lastBackup)<MONTH;
+  if(!worth || hushed || backedUp){ box.classList.add("hide"); box.innerHTML=""; return; }
+  box.classList.remove("hide"); box.innerHTML="";
+  var what = batches>0
+    ? batches+" logged batch"+(batches===1?"":"es")+" and "+library.length+" recipe"+(library.length===1?"":"s")
+    : library.length+" recipes";
+  var msg = state.lastBackup>0
+    ? "Your "+what+" live only in this browser, and the last backup was over a month ago."
+    : "Your "+what+" live only in this browser — nothing has been backed up yet.";
+  box.appendChild(el("span",null,escapeHtml(msg)));
+  var go=el("button","bn-do","Back up now"); go.type="button";
+  go.addEventListener("click",function(){ backupAll(); });
+  var no=el("button","bn-hush","Not now"); no.type="button";
+  no.addEventListener("click",function(){ state.backupHushed=Date.now(); save(); updateBackupNudge(); });
+  box.appendChild(go); box.appendChild(no);
 }
 export function renderQuickAdd(){
   var wrap=$("quickAdd"); if(!wrap) return;
