@@ -366,18 +366,81 @@ export default async function guidesSuite(t) {
   steps = await stepTexts();
   ok("Aloe recipe names aloe in the step", steps.some((t) => /aloe vera juice.*slush/i.test(t)), steps.join(" | "));
 
-  // brine + milk together: dissolving the salt is the step that can fail outright, so it wins
+  /* brine + milk together. This used to let the brine text win outright, which dropped
+     the slush-and-a-spoonful instructions — the ones that stop milk scorching — and told
+     you to dissolve the salt into "the water" in a recipe that might have none. Both
+     jobs now share the one step. */
   await open(p, store({ oils, saltMode:"brine",
-    additives:[{ name:"Salt (table/sea)", key:"salt", g:60 }, { name:"Goat milk", key:"goatmilk", g:300 }] }, { tab:"make" }));
+    additives:[{ name:"Salt (table/sea)", key:"salt", g:60 }, { name:"Goat milk", key:"goatmilk", g:380 }] }, { tab:"make" }));
   steps = await stepTexts();
-  ok("Brine text wins when both apply", steps.some((t) => /Dissolve .* of salt into the water/i.test(t)), steps.join(" | "));
-  ok("…and the milk rewrite stands down", !steps.some((t) => /slush/i.test(t)));
+  const both = steps.find((t) => /salt/i.test(t) && /lye/i.test(t)) || "";
+  ok("Brine + milk: the salt goes into the milk", /Stir 60 g of salt into it/i.test(both) && /goat milk/i.test(both), steps.join(" | "));
+  ok("…and the milk still gets slushed first", /slush/i.test(both));
+  ok("…still a spoonful of lye at a time", /spoonful at a time/i.test(both));
+  ok("…and nothing talks about water the recipe hasn't got", !/into the water/i.test(both), both);
+  ok("…salt in, then chill, then lye — in that order",
+    both.search(/salt into it/i) < both.search(/slush/i) && both.search(/slush/i) < both.search(/spoonful/i), both);
 
   // the milk rewrite reaches every method's checklist
   for (const method of ["hp", "cpop"]) {
     await open(p, store({ oils, method, additives:[{ name:"Goat milk", key:"goatmilk", g:300 }] }, { tab:"make" }));
     steps = await stepTexts();
     ok(`${method} checklist gets the milk step too`, steps.some((t) => /slush/i.test(t)), steps.join(" | "));
+  }
+  await p.close();
+}
+
+/* =======================================================================
+   THE LYE STEP FOR BEER, WINE AND COFFEE — and what to mix it in
+
+   The ingredient notes always said to boil beer flat and cook wine's alcohol off,
+   but the checklist step — the one you read with lye in your hand — gave every
+   replacer the milk advice and nothing else. And nothing anywhere said what to mix
+   lye in, though lye eats aluminium and gives off hydrogen doing it.
+======================================================================= */
+{
+  const p = await newPage();
+  const stepTexts = () => p.$$eval("#checklist .txt", (ts) => ts.map((t) => t.textContent));
+  const oils = [OIL("olive",600), OIL("coconut",400)];
+  const A = (name, key, g) => ({ name, key, g });
+  const lyeStep = async (additives, rec) => {
+    await open(p, store(Object.assign({ oils, additives }, rec || {}), { tab:"make" }));
+    return (await stepTexts()).find((t) => /lye TO the (liquid|water)|Add the lye/i.test(t)) || "";
+  };
+
+  let st = await lyeStep([A("Beer","beer",380)]);
+  has("Beer: boil it flat first", st, "boil the beer until it is completely flat");
+  has("…because the fizz foams over", st, "foams over when the lye goes in");
+  ok("…before it's chilled and the lye goes in", st.search(/flat/) < st.search(/slush/) && st.search(/slush/) < st.search(/spoonful/), st);
+
+  st = await lyeStep([A("Wine","wine",380)]);
+  has("Wine: cook the alcohol off first", st, "simmer the wine to cook off its alcohol");
+
+  st = await lyeStep([A("Brewed coffee","coffee",380)]);
+  has("Coffee: still slushed and added slowly", st, "spoonful at a time");
+  ok("…without milk's scorched-sugar warning it doesn't need", !/scorches the sugars/.test(st), st);
+  ok("…and no beer or wine instructions either", !/flat|alcohol/.test(st), st);
+
+  st = await lyeStep([A("Goat milk","goatmilk",380)]);
+  has("Milk keeps its scorching warning", st, "scorches the sugars");
+
+  st = await lyeStep([A("Wine","wine",200), A("Goat milk","goatmilk",180)]);
+  has("Two replacers read as a plural", st, "wine & goat milk stand in for the water");
+  has("…and each keeps its own preparation", st, "cook off its alcohol");
+
+  st = await lyeStep([A("Goat milk","goatmilk",150)]);
+  has("Part-milk: says the milk is only some of the liquid", st, "stands in for some of the water — combine the two");
+
+  st = await lyeStep([A("Beer","beer",380), A("Salt (table/sea)","salt",60)], { saltMode:"brine" });
+  ok("Beer brine: flat, then salt, then slush, then lye",
+    st.search(/flat/) < st.search(/salt into it/) && st.search(/salt into it/) < st.search(/slush/) && st.search(/slush/) < st.search(/spoonful/), st);
+
+  // what to mix it in, on every method's weighing step
+  for (const method of ["cp", "hp", "cpop"]) {
+    await open(p, store({ oils, method }, { tab:"make" }));
+    const steps = await stepTexts();
+    ok(`${method}: the weighing step says never aluminium`, steps.some((t) => /never aluminium/i.test(t)), steps.join(" | "));
+    ok(`${method}: …and what to use instead`, steps.some((t) => /stainless steel or sturdy #5 \(PP\) plastic/i.test(t)));
   }
   await p.close();
 }

@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v63 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 2155 test assertions, run on every pull request.
+**Today:** v64 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 2260 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -46,7 +46,10 @@ quietly drift — they had, which is why the check exists.</sub>
   computed entirely on-device: missing lye cushion, unverifiable custom oils, superfat
   extremes, lye too strong or too dilute, scents over their typical max, DOS-prone
   blends, plus beginner traps (100% coconut, salt bars, fast-tracing recipes,
-  irritant essential oils) and batch-scale sanity checks.
+  irritant essential oils) and batch-scale sanity checks. A supplier SAP figure more than
+  15% off its oil's own reference — the KOH number in the NaOH box, typically — is a stop.
+- The **printed card** gives NaOH and KOH as separate weights, the water you actually pour,
+  and the superfat the bar really gets — and says "Not safe to make as-is" when it isn't.
 - An **optional AI explainer** where the browser has an on-device model — it rephrases
   the findings, it never decides. The rule-based verdict always wins.
 
@@ -665,7 +668,7 @@ Python from first principles, and comparing against what the app displays.
 **All clean, to the last digit.** A deliberately nasty recipe — dual lye at 40% KOH and
 92% purity, 7% superfat, concentration-mode water, citric acid, goat milk replacing
 water — recomputed by hand gives lye 161.28 g split 79.98 ⁄ 81.30, water-to-add 86.72,
-batch 1363; the panel and the printed card show exactly those figures. Also verified
+batch 1363; the panel and the printed card show exactly those figures. *(Corrected in v64: the card matched the total, not the split or the water to add — see item 29.)* Also verified
 independently: the mould geometry (the cylinder uses the radius, and 0.4 oz/in³ equals
 the metric 0.6917 g/cm³ to 0.04% — and both agree with batter density ÷ the
 batch-to-oils ratio), every unit conversion (oz and lb are the exact legal definitions;
@@ -758,6 +761,79 @@ each one rendered and read back by a decoder before being written down. Neither 
 reference encoder nor the decoder is a dependency; what ships is the record they left.
 Mutation-checked: restoring either historical bug fails 12 and 23 assertions
 respectively, and printing an unscannably fine code fails the two that forbid it.
+---
+
+**29. Safety round three: what leaves the app, and what comes into it** — ✅ **shipped in v64**
+v60 verified the lye maths and the SAP data; v61 recomputed every other number. This
+round looked at the paths a recipe takes *out* of the app — the printed card, the
+checklist, share links — and *into* it — imports and supplier SAP figures — because
+that's where a number stops being checked. It found the most serious problems yet.
+
+**The printed recipe card could not be followed safely.** The card is what goes to the
+kitchen, and it had drifted from the panel in three ways the panel never did:
+
+- **A dual-lye recipe printed one combined weight** — "NaOH + KOH — 176.2 g". Nobody can
+  weigh that out, and the obvious misreading, all of it as NaOH, is **22% more lye** than
+  the recipe needs: a caustic bar at any normal superfat. The card now gives NaOH and KOH
+  as separate lines, with the KOH purity it assumes, and never a combined figure.
+- **A milk soap printed "Water — 380 g" directly under "Goat milk — 380 g"**, while the
+  panel said 0 g. Following the card doubled the liquid. It now prints the water you
+  actually pour, and says the milk is the rest of the liquid.
+- **A hot-process reserve too small for the superfat printed the superfat asked for** —
+  6% on a bar that really gets 1%. The Safety Check already said so on screen; the card
+  now says it too, along with how much to hold back and when it goes in.
+
+**This corrects the v61 entry above**, which said the card showed "exactly" the panel's
+figures for a dual-lye milk recipe. It showed the same *total*; it did not show the split
+or the water to add, and the check behind that sentence didn't look at those lines. The
+card and its copied text now read from one shared list, so they can't drift apart again.
+
+A card for a recipe that fails the Safety Check now says **"Not safe to make as-is"**, with
+the reason, in print and in the copied text — the check doesn't travel with the paper.
+
+**A supplier SAP could be 40% wrong and still called "balanced".** The 0.04–0.30 band from
+v60 asks whether a figure could be a fat at all. It can't see a figure that is a fat,
+just not *this* one — and the commonest slip, an oil's KOH figure typed into the NaOH box,
+lands in the band at exactly 1.40× the real value. Olive at 0.188 sized a castile bar to
+178.6 g of lye against 127.3, while the check read "Safe to make" and "Lye is balanced".
+A given oil only varies between suppliers by a few percent — about ±6% for coconut and
+shea, and the widest published range here, lanolin's, about ±12% — so a figure more than
+**15% above** the oil's own reference is now a hard stop (with "divide by 1.403" when it's
+the KOH figure), and more than 15% below is a warning, since that direction only
+under-lyes. "Lye is balanced" no longer sits underneath either SAP stop.
+
+The same bar now guards the two ways other people's figures get in. **A share link** could
+install any value under 1 into the recipient's app-wide table — reaching every recipe
+they already had — and the QR on a gifted bar sends those links to people who never
+asked. It now only fills gaps with figures that fit the oil. **An imported file** whose SAP
+disagrees with the oil its name matched is a case where one of the two is wrong and
+nothing can tell which, so the importer takes whichever can't burn: a lower figure comes
+in as a custom oil on the file's number, a higher one keeps our oil and our figure.
+
+**The importer swapped unknown oils for known ones.** A name that shared a single generic
+word with an entry became that entry: "Peach Kernel Oil" was palm kernel, ~28% more lye on
+its share, and any unknown butter became shea. "Cupuacu Butter" missed our "Cupuaçu"
+entirely, because stripping the ç broke the word. Generic words (kernel, butter, seed,
+nut, wax, high-oleic…) no longer match on their own, accents are folded, and the review
+screen — which only ever showed the name you typed — now says what each row will become,
+including "not an oil we know: custom, and left out of the lye maths". Checked against 87
+names as other calculators print them: every previous correct match still holds.
+
+**The kitchen checklist gave beer and wine the milk advice and nothing else.** The
+ingredient notes said to boil beer flat and cook wine's alcohol off; the lye step — the one
+read with lye in hand — didn't. It now does, and drops milk's scorching warning for coffee
+and aloe, which don't need it. **Brine plus milk lost the milk instructions altogether**: the
+brine text won outright, dropping "freeze to a slush, a spoonful at a time" and telling you
+to dissolve the salt into "the water" in a recipe that might have none. Both now share the
+one step, in the right order. And the checklist now says what to mix lye in — stainless
+steel or sturdy #5 plastic, never aluminium, which lye eats while giving off hydrogen.
+Until now only the spill guide mentioned it.
+
+Checked and left alone: **Use this formula** restores a batch's recipe but deliberately not
+the SAP figures of the day, so the lye is right for the oils you have now. The paste
+importer never trusts another calculator's lye line — it recomputes from the oils.
+
+Every fix was mutation-checked: each one reverted fails exactly the tests built for it.
 ---
 
 ## Part 3 — What's next

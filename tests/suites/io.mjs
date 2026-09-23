@@ -456,6 +456,201 @@ Water:Lye Ratio 2.5`, { commit: true });
   });
   r = await receive(junk);
   eq("A bad SAP figure in a link is dropped", Object.keys(r.ov).length, 0);
+
+  /* A link's SAP figures fill gaps in the recipient's app-wide table, so they reach every
+     recipe the recipient already has — and a QR on a gifted bar now makes those links
+     travel to people who never asked for them. So they meet the Safety Check's own bar
+     at the door: a figure that isn't a fat, or isn't this oil, stays out. */
+  const mixed = await p.evaluate(() => {
+    const enc = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+    return location.origin + location.pathname + "#r=" + enc({ name:"Mixed", additives:[], aromas:[],
+      oils:[{name:"Olive oil",key:"olive",g:400},{name:"Coconut oil",key:"coconut",g:300},{name:"Castor oil",key:"castor",g:100},{name:"Shea butter",key:"shea",g:200}],
+      sapOv:{ olive:0.188, coconut:0.180, castor:0.5, shea:0.105 } });
+  });
+  r = await receive(mixed);
+  eq("A link can't install the KOH slip (40% high) into your table", r.ov.olive, undefined);
+  eq("…nor a figure that isn't a fat", r.ov.castor, undefined);
+  eq("…nor one far below the oil", r.ov.shea, undefined);
+  eq("…but an ordinary supplier figure still comes across", r.ov.coconut, 0.18);
+  ok("…and the toast counts only what was kept", /kept 1 supplier SAP value(?!s)/.test(r.toast), r.toast);
+  await p.close();
+}
+
+/* =======================================================================
+   THE PRINTED CARD — the sheet someone weighs lye from
+
+   The card leaves the app, and it had drifted from the panel in three ways:
+   a dual-lye recipe printed one combined weight you can't weigh out (all of it
+   as NaOH is ~22% too much lye), a milk soap printed the total liquid as "Water"
+   beside the milk that replaces it, and a hot-process reserve too small for the
+   superfat printed the superfat asked for rather than the one the bar gets.
+======================================================================= */
+{
+  const p = await newPage();
+  const card = async (rec, view) => {
+    await open(p, store(rec, view));
+    await menu(p, "card"); await p.waitForTimeout(200);
+    const out = await p.evaluate(async () => {
+      const st = await import("/src/core/state.js"), o = await import("/src/features/output.js");
+      const r = st.libById(st.currentId), s = st.statsFor(r);
+      s.unsafe = []; const L = st.computeLye();
+      return { card: document.querySelector(".print-card").innerText,
+               text: o.cardText(r, s, "g", "g"), naoh: L.naohG, koh: L.kohG, lye: L.lyeG,
+               waterAdd: L.waterAddG, waterTot: L.waterG };
+    });
+    await p.evaluate(() => document.querySelectorAll(".modal-back").forEach((m) => m.remove()));
+    return out;
+  };
+  const f2 = (n) => n.toFixed(2);
+
+  // --- dual lye: two weighable lines, and nowhere a combined figure ---
+  let c = await card({ oils:[OIL("olive",600), OIL("coconut",400)], lyeType:"dual", dualKoh:40, kohPurity:90 });
+  has("Dual lye: the card gives the NaOH on its own", c.card, "NaOH — " + f2(c.naoh) + " g");
+  has("…and the KOH on its own", c.card, "KOH — " + f2(c.koh) + " g");
+  has("…sized for the purity set", c.card, "sized for 90% pure KOH");
+  ok("…and never a combined weight nobody can weigh out", !/NaOH \+ KOH/.test(c.card) && !c.card.includes(f2(c.lye)), c.card);
+  has("The copied text splits it too", c.text, "NaOH: " + f2(c.naoh) + " g");
+  has("…both of them", c.text, "KOH: " + f2(c.koh) + " g");
+  near("…and the two add up to the lye the panel sizes", c.naoh + c.koh, c.lye, 0.005);
+
+  // --- all-KOH: one line, with the purity it assumes ---
+  c = await card({ oils:[OIL("olive",600), OIL("coconut",400)], lyeType:"koh", kohPurity:90 });
+  has("Liquid soap: the KOH line says what purity it assumes", c.card, "KOH (lye) — " + f2(c.koh) + " g");
+  has("…in so many words", c.card, "sized for 90% pure KOH");
+
+  // --- a plain bar is unchanged in substance ---
+  c = await card({ oils:[OIL("olive",700), OIL("coconut",300)] });
+  has("Plain bar: NaOH line as before", c.card, "NaOH (lye) — " + f2(c.naoh) + " g");
+  has("…and its water is simply the water", c.card, "Water — 380 g");
+  ok("…with no liquid note it doesn't need", !/rest of the liquid/.test(c.card), c.card);
+
+  // --- milk soap: the water you pour, not the liquid the milk already is ---
+  c = await card({ oils:[OIL("olive",700), OIL("coconut",300)], additives:[{ name:"Goat milk", key:"goatmilk", g:380 }] });
+  eq("Milk soap: nothing to pour from the tap", c.waterAdd, 0);
+  has("…so the card says 0 g of water", c.card, "Water — 0 g");
+  has("…and that the milk is the liquid", c.card, "the goat milk above is the rest of the liquid — 380 g in all");
+  ok("…not 380 g of water on top of 380 g of milk", !/Water — 380 g/.test(c.card), c.card);
+  c = await card({ oils:[OIL("olive",700), OIL("coconut",300)], additives:[{ name:"Goat milk", key:"goatmilk", g:150 }] });
+  has("Part-milk soap: pour only the balance", c.card, "Water — 230 g");
+  has("…with the total spelled out", c.card, "380 g in all");
+
+  // --- hot process, reserve capped by how much of the oil there is ---
+  c = await card({ oils:[OIL("olive",950), OIL("shea",10), OIL("coconut",40)], method:"hp", sfMode:"after", sfOil:"shea", superfat:6 });
+  has("HP capped reserve: the card gives the superfat the bar really gets", c.card, "Superfat — 1%");
+  has("…and says why it isn't the one asked for", c.card, "not the 6% asked for");
+  has("…and says what to hold back", c.card, "Hold back — 10 g");
+  has("…and when it goes in", c.card, "stir it in after the cook");
+  c = await card({ oils:[OIL("olive",700), OIL("coconut",300)], method:"hp", sfMode:"after", sfOil:"olive", superfat:5 });
+  has("HP with enough to hold back: the superfat asked for", c.card, "Superfat — 5%");
+  ok("…with no apology", !/asked for/.test(c.card), c.card);
+
+  // --- a recipe the Safety Check fails says so on the card ---
+  await open(p, store({ oils:[OIL("olive",1000)] }, { sapOverrides:{ olive:0.188 } }));
+  await menu(p, "card"); await p.waitForTimeout(200);
+  let banner = await p.evaluate(() => (document.querySelector(".print-card .pc-unsafe") || {}).textContent || "");
+  has("An unsafe recipe's card is marked unsafe", banner, "Not safe to make as-is");
+  has("…naming what fails", banner, "A supplier SAP is too high for its oil");
+  eq("…and the mark survives printing", await p.evaluate(() => {
+    const b = document.querySelector(".print-card .pc-unsafe"); return !!b && !b.closest(".no-print"); }), true);
+  const copied = await p.evaluate(async () => {
+    const st = await import("/src/core/state.js"), o = await import("/src/features/output.js"), rn = await import("/src/ui/render.js");
+    const r = st.libById(st.currentId), s = st.statsFor(r);
+    s.unsafe = rn.safetyChecks().items.filter((i) => i.level === "fail").map((i) => i.title);
+    return o.cardText(r, s, "g", "g");
+  });
+  has("…and so does the copied text", copied, "NOT SAFE TO MAKE AS-IS");
+  await p.evaluate(() => document.querySelectorAll(".modal-back").forEach((m) => m.remove()));
+  await open(p, store({ oils:[OIL("olive",700), OIL("coconut",300)] }));
+  await menu(p, "card"); await p.waitForTimeout(200);
+  eq("A safe recipe's card carries no such mark", await p.evaluate(() => !!document.querySelector(".print-card .pc-unsafe")), false);
+  await p.close();
+}
+
+/* =======================================================================
+   IMPORT MATCHING — an oil's name decides its lye
+
+   A pasted or imported name that shared one generic word with an oil became that
+   oil: "Peach Kernel Oil" was palm kernel, ~28% more lye on its share. And the
+   review screen only ever showed the name you typed, so the swap was invisible
+   until it was in the recipe.
+======================================================================= */
+{
+  const p = await newPage();
+  await open(p, store({ oils:[OIL("olive",500)] }));
+  const m = await p.evaluate(async () => {
+    const io = await import("/src/features/io.js"); const { OILS } = await import("/src/data/oils.js");
+    const k = (n) => io.bestIn(OILS, n).key;
+    return { peach:k("Peach Kernel Oil"), plum:k("Plum Kernel Oil"), ucuuba:k("Ucuuba Butter"),
+      cupuacu:k("Cupuacu Butter"), cupuacuAcc:k("Cupuaçu Butter"), apricot:k("Apricot Kernel Oil"),
+      pk:k("Palm Kernel Flakes"), palm:k("Palm Oil"), mango:k("Mango Seed Butter"), shea:k("Shea Butter"),
+      canolaHO:k("Canola Oil, high oleic"), saffHO:k("Safflower Oil, high oleic"), deer:k("Deer Tallow"),
+      coco:k("Coconut Oil, 76 deg"), mct:k("Coconut Oil, fractionated"), soywax:k("Soy wax") };
+  });
+  eq("An unknown kernel oil is not palm kernel", m.peach, null);
+  eq("…nor any other kernel oil", m.plum, null);
+  eq("An unknown butter is not shea", m.ucuuba, null);
+  eq("An accent-free spelling still finds cupuaçu", m.cupuacu, "cupuacu");
+  eq("…as does the accented one", m.cupuacuAcc, "cupuacu");
+  // what must still match, so the tightening didn't cost the common names
+  eq("Apricot kernel still matches", m.apricot, "apricot");
+  eq("Palm kernel flakes still match", m.pk, "palmkernel");
+  eq("Palm oil is still palm", m.palm, "palm");
+  eq("Mango seed butter is still mango", m.mango, "mango");
+  eq("Shea butter is still shea", m.shea, "shea");
+  eq("High-oleic canola is canola, not high-oleic sunflower", m.canolaHO, "canola");
+  eq("High-oleic safflower still finds its own entry", m.saffHO, "safflowerho");
+  eq("Deer tallow still reads as tallow", m.deer, "tallow");
+  eq("Coconut 76 is coconut", m.coco, "coconut");
+  eq("Fractionated coconut is MCT", m.mct, "mct");
+  eq("Soy wax still matches", m.soywax, "soywax");
+
+  // --- the review screen says what each row becomes ---
+  await p.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.items.add(new File(["name,amount,unit\nPeach Kernel Oil,200,g\nShea Butter,300,g\nCitric acid,10,g"], "r.csv", { type: "text/csv" }));
+    const inp = document.getElementById("csvInput"); inp.files = dt.files;
+    inp.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await p.waitForTimeout(250);
+  const notes = await p.$$eval(".modal .prow .imp-match", (ns) => ns.map((n) => n.textContent));
+  has("The review names an unknown oil as custom, out of the lye maths", notes[0], "custom, and left out of the lye maths");
+  eq("…names the oil a known one becomes", notes[1], "→ Shea butter");
+  eq("…and the additive, too", notes[2], "→ Citric acid");
+  // retyping the name re-matches on the spot
+  await p.fill(".modal .prow input >> nth=0", "Apricot Kernel Oil");
+  eq("Retyping a name updates what it becomes", await p.$eval(".modal .prow .imp-match", (n) => n.textContent), "→ Apricot kernel oil");
+  await p.evaluate(() => document.querySelectorAll(".modal-back").forEach((m) => m.remove()));
+
+  /* --- a file SAP far from the matched oil: take whichever figure can't burn ---
+     Lower than ours: the name probably led to the wrong oil, so the file's figure
+     comes in as a custom oil. Higher than ours: probably the KOH slip, so ours stays
+     and nothing is installed into the app-wide table. */
+  const imp = async (csv) => {
+    await open(p, store({ oils:[] }));
+    await p.evaluate((t) => {
+      const dt = new DataTransfer(); dt.items.add(new File([t], "r.csv", { type: "text/csv" }));
+      const inp = document.getElementById("csvInput"); inp.files = dt.files;
+      inp.dispatchEvent(new Event("change", { bubbles: true }));
+    }, csv);
+    await p.waitForTimeout(250);
+    const note = await p.$$eval(".modal .prow", (rs) => rs.map((r) => r.innerText).join(" | "));
+    await p.click(".modal .mfoot .primary"); await p.waitForTimeout(200);
+    const saved = await LS(p);
+    return { note, oils: saved.recipes.find((r) => r.id === saved.currentId).oils, ov: saved.sapOverrides || {} };
+  };
+  let r = await imp("name,amount,unit,sap\nPalm Kernel Oil,300,g,0.137");
+  eq("File SAP far BELOW the matched oil: it comes in as a custom oil", r.oils[0].key, null);
+  eq("…on the file's own, lower figure", r.oils[0].sap, 0.137);
+  has("…and the review says so before you commit", r.note, "comes in as a custom oil on the lower figure");
+  r = await imp("name,amount,unit,sap\nOlive Oil,500,g,0.188");
+  eq("File SAP far ABOVE the matched oil (the KOH slip): our oil is kept", r.oils[0].key, "olive");
+  eq("…and the high figure is not installed app-wide", r.ov.olive, undefined);
+  has("…and the review says ours is used", r.note, "ours (0.134) is used, the lower of the two");
+  r = await imp("name,amount,unit,sap\nOlive Oil,500,g,0.138");
+  eq("A normal supplier difference still carries over, as it always did", r.ov.olive, 0.138);
+  r = await imp("name,amount,unit,key,sap\nOlive oil,500,g,olive,0.110");
+  eq("Our own export's key is trusted even when its figure isn't", r.oils[0].key, "olive");
+  eq("…and the figure isn't installed", r.ov.olive, undefined);
   await p.close();
 }
 

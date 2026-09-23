@@ -55,6 +55,20 @@ export const LAURIC_OILS = Object.keys(OILS).filter(function(k){
   return (f.la||0)+(f.my||0)+(f.cy||0)+(f.cp||0) >= 50;
 });
 export const IOD_RANGE=[41,70], INS_RANGE=[136,165], KOH_FACTOR=1.40274;
+/* Two checks on any SAP figure that didn't come from our own table.
+   SAP_PLAUSIBLE: real fats saponify between ~0.05 (wax esters) and ~0.24 (MCT) g NaOH
+   per gram, so outside 0.04–0.30 it isn't a fat at all — a decimal or units slip.
+   SAP_DRIFT: a *given* oil only varies between suppliers by a few percent — about ±6%
+   for coconut and shea, and the widest published range here, lanolin's, spans about
+   ±12%. So a figure more than 15% from that oil's own reference is a slip that the
+   first band can't see — the classic one being the KOH figure typed into the NaOH box,
+   which lands exactly 40% high and sizes the lye to burn. */
+export const SAP_PLAUSIBLE=[0.04,0.30], SAP_DRIFT=0.15;
+export function sapPlausible(v){ return v>=SAP_PLAUSIBLE[0] && v<=SAP_PLAUSIBLE[1]; }
+// fractional distance from the oil's reference: +0.40 means 40% more lye on its share
+export function sapDrift(key,v){ var ref=OILS[key]&&OILS[key].sap; return (ref>0&&v>0) ? v/ref-1 : 0; }
+// a supplier figure we'd accept for this oil at all
+export function sapFitsOil(key,v){ return sapPlausible(v) && Math.abs(sapDrift(key,v))<=SAP_DRIFT; }
 
 export function oilsGof(rv){ return sumG(rv.oils); }
 export function blendFA(rv){
