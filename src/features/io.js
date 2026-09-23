@@ -1,7 +1,7 @@
 /* Getting a recipe in and out: CSV both ways, a pasted table from another calculator,
    a photo, and the whole-library backup. Everything that arrives from outside lands on
    the same review screen before it touches the recipe — openConfirm below. */
-import { sapOf } from "../core/chem.js";
+import { SAP_DRIFT, sapDrift, sapFitsOil, sapOf, sapPlausible } from "../core/chem.js";
 import { $, closeModal, downloadFile, el, makeModal, modalFoot, numInput } from "../core/dom.js";
 import { STORE_KEY, coerceField } from "../core/schema.js";
 import { cancelWrite, flushSave, save, state, syncCurrent } from "../core/state.js";
@@ -90,9 +90,18 @@ export function guessSection(name){
    "Palm Kernel Flakes", "Lard, Pig Tallow (Manteca)". Score each database
    entry by how many of its distinctive words the input covers, so the most
    specific entry wins instead of whichever happens to come first. */
-export function cleanName(s){ return String(s||"").toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim(); }
+/* Accents are folded first: our own entry is "Cupuaçu butter", and stripping the ç as
+   punctuation split it into "cupua u", so a file saying "Cupuacu Butter" missed it
+   entirely and fell through to the next butter on the list — shea. */
+export function cleanName(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim(); }
 // words that say nothing about *which* ingredient this is
 export function nameWords(s){ return cleanName(s).split(" ").filter(function(w){ return w && !NAME_STOP[w]; }); }
+/* Words that say what *kind* of thing an ingredient is, not which one. A name that
+   shares only these with an entry is a different ingredient: "Peach Kernel Oil" shares
+   nothing with palm kernel but "kernel", and matching it put ~28% more lye on its share.
+   An unmatched oil comes in as custom and is flagged as outside the lye maths, which
+   is the safe way to be wrong. */
+export var NAME_WEAK={butter:1,kernel:1,seed:1,nut:1,wax:1,high:1,oleic:1,liquid:1,hydrogenated:1,flakes:1};
 export function bestIn(db,name){
   var n=cleanName(name); if(!n) return {key:null,score:0};
   var a=nameWords(n), best=null, bestScore=0;
@@ -100,8 +109,8 @@ export function bestIn(db,name){
     var dn=cleanName(db[k].name);
     if(dn===n) return {key:k,score:99};        // exact wins outright
     var b=nameWords(dn); if(!a.length||!b.length) continue;
-    var hit=0; b.forEach(function(w){ if(a.indexOf(w)>=0) hit++; });
-    if(!hit) continue;
+    var hit=0, strong=0; b.forEach(function(w){ if(a.indexOf(w)>=0){ hit++; if(!NAME_WEAK[w]) strong++; } });
+    if(!strong) continue;
     // reward covered words, mildly penalise the ones we missed, so
     // "palm kernel" beats "palm" without "salt" losing to "salt (table/sea)"
     var score=hit*3-(b.length-hit);
@@ -292,19 +301,22 @@ export function openConfirm(rows,title,sub,previewURL){
       var nameI=document.createElement("input"); nameI.value=r.name; nameI.placeholder="name";
       // Retyping the name of a matched oil means you want a different oil, so drop
       // the key and let the matcher look again. A custom row (key "") stays custom.
-      nameI.addEventListener("input",function(){ r.name=nameI.value; if(r.key) r.key=null; });
+      var mt=el("div","sub imp-match"); mt.style.gridColumn="1/-1"; mt.style.marginTop="-4px";
+      function showMatch(){ mt.textContent=matchNote(r); }
+      nameI.addEventListener("input",function(){ r.name=nameI.value; if(r.key) r.key=null; showMatch(); });
       var amtI=document.createElement("input"); amtI.type="number"; amtI.step="any"; amtI.value=r.amount||""; amtI.placeholder="amt";
       amtI.addEventListener("input",function(){ r.amount=parseFloat(amtI.value)||0; });
       var unitS=document.createElement("select"); IMPORT_UNITS.forEach(function(u){ var o=document.createElement("option"); o.value=u; o.textContent=u; if(u===r.unit)o.selected=true; unitS.appendChild(o); });
       unitS.addEventListener("change",function(){ r.unit=unitS.value; });
       var secS=document.createElement("select"); [["oil","Oil"],["additive","Additive"],["scent","Scent"]].forEach(function(s){ var o=document.createElement("option"); o.value=s[0]; o.textContent=s[1]; if(s[0]===r.section)o.selected=true; secS.appendChild(o); });
-      secS.addEventListener("change",function(){ r.section=secS.value; });
+      secS.addEventListener("change",function(){ r.section=secS.value; showMatch(); });
       var rm=el("button","rm","&times;"); rm.type="button"; rm.addEventListener("click",function(){ rowsState.splice(idx,1); drawRows(); });
       // name on its own line — imported names are long, and a name you can't
       // read makes this review screen pointless
       nameI.style.gridColumn="1/-1";
       pr.style.gridTemplateColumns="1fr 72px 84px auto";
       pr.appendChild(nameI); pr.appendChild(amtI); pr.appendChild(unitS); pr.appendChild(secS); pr.appendChild(rm);
+      showMatch(); pr.appendChild(mt);
       // a SAP that isn't our reference figure changes how much lye this oil needs, so say so
       if(sapNote(r)){ var hint=el("div","sub",sapNote(r));
         hint.style.gridColumn="1/-1"; hint.style.marginTop="-4px"; pr.appendChild(hint); }
@@ -326,9 +338,9 @@ export function commitRows(rows){
     if(r.section==="scent"){ var ak=rowKey(AROMAS,r); state.aromas.push({name:ak?AROMAS[ak].name:r.name,key:ak,g:grams}); wantScents=true; }
     else if(r.section==="additive"){ var dk=rowKey(ADDITIVES,r); state.additives.push({name:dk?ADDITIVES[dk].name:r.name,key:dk,g:grams}); }
     else {
-      var ok=rowKey(OILS,r), it={name:ok?OILS[ok].name:r.name,key:ok,g:grams};
+      var ok=importedOilKey(r), it={name:ok?OILS[ok].name:r.name,key:ok,g:grams};
       if(!ok){ if(r.sap>0) it.sap=r.sap; }        // custom oil keeps the SAP off its bottle
-      else if(r.sap>0 && Math.abs(r.sap-OILS[ok].sap)>0.0005 && !(state.sapOverrides&&state.sapOverrides[ok]>0)){
+      else if(r.sap>0 && sapFitsOil(ok,r.sap) && Math.abs(r.sap-OILS[ok].sap)>0.0005 && !(state.sapOverrides&&state.sapOverrides[ok]>0)){
         // the file disagrees with our reference figure: that is the exporter's
         // supplier value, so carry it over instead of silently reverting to ours
         if(!state.sapOverrides) state.sapOverrides={};
@@ -342,11 +354,41 @@ export function commitRows(rows){
 }
 /* Worth saying out loud on the review screen only when the file's SAP is not the
    number we would have used anyway — otherwise every row grows a line of noise. */
+/* Which of our oils a row will become, when the file's SAP disagrees with the oil its
+   name matched by more than suppliers ever vary. One of the two is wrong — the name led
+   to the wrong oil, or the figure is a slip (typically the KOH number, 40% high) — and
+   nothing here can tell which. So take whichever can't burn:
+     file figure LOWER than ours: use the file's, as a custom oil. If the match was wrong
+       (peach kernel read as palm kernel) that's the right lye; if the figure was the
+       slip, the bar is merely under-lyed.
+     file figure HIGHER than ours: keep our oil and our figure. If the file was right the
+       bar is merely soft; if it was the KOH slip, ours is the correct lye.
+   Our own export's key is certain, so there only the figure can be wrong: ours is used. */
+export function importedOilKey(r){
+  var k=rowKey(OILS,r);
+  if(k && !(r.key&&OILS[r.key]) && r.sap>0 && sapPlausible(r.sap) && sapDrift(k,r.sap) < -SAP_DRIFT) return null;
+  return k;
+}
 export function sapNote(r){
   if(!(r.sap>0) || r.section!=="oil") return "";
-  var k=rowKey(OILS,r);
+  var k=importedOilKey(r), matched=rowKey(OILS,r);
   if(k && Math.abs(r.sap-OILS[k].sap)<=0.0005) return "";
+  if(!k && matched) return "SAP "+fmt(r.sap,4)+" from the file is far below "+OILS[matched].name+
+    "'s "+fmt(OILS[matched].sap,4)+" — too far to be the same oil, so it comes in as a custom oil on the lower figure";
+  if(k && !sapFitsOil(k,r.sap)) return "SAP "+fmt(r.sap,4)+" from the file doesn't fit "+OILS[k].name+
+    " — ours ("+fmt(OILS[k].sap,4)+") is used, the lower of the two";
   return "SAP "+fmt(r.sap,4)+" from the file"+(k?" (ours is "+fmt(OILS[k].sap,4)+")":"");
+}
+/* The review screen showed only the imported name, so a substitution — "Peach Kernel
+   Oil" becoming palm kernel — was invisible until after it was in the recipe. Say what
+   each row becomes, and say plainly when it becomes nothing we know. */
+export function matchNote(r){
+  if(!r.name || !r.name.trim()) return "";
+  if(r.section==="scent"){ var ak=rowKey(AROMAS,r); return ak ? "→ "+AROMAS[ak].name : "→ custom scent (no usage data)"; }
+  if(r.section==="additive"){ var dk=rowKey(ADDITIVES,r); return dk ? "→ "+ADDITIVES[dk].name : "→ custom additive (no data)"; }
+  var ok=importedOilKey(r);
+  if(ok) return "→ "+OILS[ok].name;
+  return r.sap>0 ? "→ custom oil, on the file's SAP" : "→ not an oil we know: custom, and left out of the lye maths";
 }
 /* An explicit key beats name matching, because it is the only thing that tells a
    custom oil apart from a reference one. A key we don't recognise — a file from a

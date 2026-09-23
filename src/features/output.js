@@ -9,7 +9,7 @@ import { b64urlEnc } from "../core/util.js";
 import { ADDITIVE_INCI, AROMAS } from "../data/ingredients.js";
 import { OIL_INCI } from "../data/oils.js";
 import { encodeQR, qrSVG } from "../core/qr.js";
-import { barCount, barG } from "../ui/render.js";
+import { barCount, barG, safetyChecks } from "../ui/render.js";
 /* What a share link leaves out: your record of making it, not the soap itself.
    Derived from the schema's `personal` flags — the batch snapshot uses the same flags,
    so the two ideas of "the formula" cannot drift apart. */
@@ -68,6 +68,9 @@ export function renderCompare(out, A, B){
 /* ---------- recipe card (print / share) ---------- */
 export function openCard(){
   syncCurrent(); var r=libById(currentId), s=statsFor(r), wunit=weightUnit(), ul=UNITS[wunit].label;
+  // a card leaves the app, and the Safety Check doesn't go with it — so a recipe that
+  // fails it says so on the card itself, where the person weighing lye will see it
+  s.unsafe=safetyChecks().items.filter(function(i){ return i.level==="fail"; }).map(function(i){ return i.title; });
   var md=makeModal();
   var card=el("div","print-card"); card.innerHTML=cardHTML(r,s,wunit,ul); md.m.appendChild(card);
   var foot=el("div","mfoot no-print");
@@ -236,6 +239,34 @@ export function openShare(){
 /* Guides cross-link: a `see` value is a guide key, optionally with a search term
    ("colors:titanium"), so a link lands on the relevant entry rather than the top. */
 export function nz(list){ return list.filter(function(it){ return it.g>0; }); }
+/* The lines of a card that someone weighs lye and pours water from. Built once and read
+   by both the printed card and the copied text, because the card is what gets followed
+   in the kitchen and it had drifted from the panel in three ways the panel never did:
+   a dual-lye recipe printed one combined weight that can't be weighed out (all of it as
+   NaOH is ~20% too much lye), a milk soap printed the total liquid as "Water" beside the
+   milk it replaces, and a hot-process reserve too small to cover the superfat printed
+   the superfat that was asked for rather than the one the bar gets. */
+export function lyeWaterLines(s,wunit){
+  var out=[], dp=UNITS[wunit].dp, ul=UNITS[wunit].label;
+  function g(v,d){ return fmt(fromG(v,wunit),d)+" "+ul; }
+  var pure="sized for "+s.kohPurity+"% pure KOH — check your tub";
+  if(s.kohShare===0) out.push({ label:"NaOH (lye)", value:g(s.naohG,2) });
+  else if(s.kohShare===1) out.push({ label:"KOH (lye)", value:g(s.kohG,2), note:pure });
+  else {
+    out.push({ label:"NaOH", value:g(s.naohG,2), note:"weigh the two lyes separately" });
+    out.push({ label:"KOH", value:g(s.kohG,2), note:pure });
+  }
+  out.push({ label:"Water", value:g(s.waterAddG,1),
+    note: s.replG>0 ? "the "+s.replNames.join(" & ").toLowerCase()+" above is the rest of the liquid — "+
+      g(s.waterAddG+s.replG,1)+" in all" : "" });
+  var esf=s.effectiveSf, esfTxt=fmt(esf,esf===Math.round(esf)?0:1)+"%";
+  out.push({ label:"Superfat", value:esfTxt,
+    note: esf < s.sf-0.05 ? "not the "+s.sf+"% asked for — there isn't enough "+
+      (s.reserveName||"oil")+" to hold back that much" : "" });
+  if(s.reserveG>0) out.push({ label:"Hold back", value:g(s.reserveG,dp>1?dp:1),
+    note:(s.reserveName ? "of the "+s.reserveName+", " : "of the oils, evenly, ")+"and stir it in after the cook" });
+  return out;
+}
 export function cardHTML(r,s,wunit,ul){
   var d=new Date().toLocaleDateString();
   var oils=nz(r.oils), adds=nz(r.additives), scents=nz(r.aromas);
@@ -243,14 +274,14 @@ export function cardHTML(r,s,wunit,ul){
     return "<li>"+escapeHtml(it.name)+" — <b>"+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul+"</b>"+
       (s.oilsG>0?" <span class='mut'>("+fmt(it.g/s.oilsG*100,1)+"%)</span>":"")+"</li>"; }).join(""); }
   var h="<h2>"+escapeHtml(r.name)+"</h2><div class='mut'>Soap Calc · "+d+"</div>";
+  if(s.unsafe&&s.unsafe.length) h+="<div class='pc-unsafe'>⛔ Not safe to make as-is: "+
+    escapeHtml(s.unsafe.join("; "))+". Fix this in Soap Calc before weighing anything.</div>";
   h+="<div class='pc-yield'>Makes ≈ "+fmt(fromG(s.batchG,wunit),1)+" "+ul+"  ·  ~"+barCount(s.batchG)+" bars</div>";
   h+="<h3>Oils</h3><ul>"+items(oils)+"</ul>";
   if(adds.length){ h+="<h3>Additives</h3><ul>"+adds.map(function(it){
     return "<li>"+escapeHtml(it.name)+" — <b>"+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul+"</b></li>"; }).join("")+"</ul>"; }
-  h+="<h3>Lye &amp; water</h3><ul>";
-  h+="<li>"+s.kind+" — <b>"+fmt(fromG(s.lyeG,wunit),2)+" "+ul+"</b></li>";
-  h+="<li>Water — <b>"+fmt(fromG(s.waterG,wunit),1)+" "+ul+"</b></li>";
-  h+="<li>Superfat — <b>"+s.sf+"%</b></li></ul>";
+  h+="<h3>Lye &amp; water</h3><ul>"+lyeWaterLines(s,wunit).map(function(l){
+    return "<li>"+l.label+" — <b>"+l.value+"</b>"+(l.note?" <span class='mut'>("+escapeHtml(l.note)+")</span>":"")+"</li>"; }).join("")+"</ul>";
   if(scents.length){ h+="<h3>Scent"+(s.scentPct?" ("+fmt(s.scentPct,1)+"% of oils)":"")+"</h3><ul>"+scents.map(function(it){
     return "<li>"+escapeHtml(it.name)+" — <b>"+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul+"</b></li>"; }).join("")+"</ul>"; }
   var q=s.q;
@@ -262,13 +293,13 @@ export function cardHTML(r,s,wunit,ul){
 export function cardText(r,s,wunit,ul){
   function line(name,g){ return name+": "+fmt(fromG(g,wunit),UNITS[wunit].dp)+" "+ul+(s.oilsG>0&&g?" ("+fmt(g/s.oilsG*100,1)+"%)":""); }
   var oils=nz(r.oils), adds=nz(r.additives), scents=nz(r.aromas);
-  var L=[]; L.push(r.name); L.push("Makes ~"+fmt(fromG(s.batchG,wunit),1)+" "+ul+" (~"+barCount(s.batchG)+" bars)"); L.push("");
+  var L=[]; L.push(r.name);
+  if(s.unsafe&&s.unsafe.length) L.push("NOT SAFE TO MAKE AS-IS: "+s.unsafe.join("; ")+". Fix this in Soap Calc before weighing anything.");
+  L.push("Makes ~"+fmt(fromG(s.batchG,wunit),1)+" "+ul+" (~"+barCount(s.batchG)+" bars)"); L.push("");
   L.push("OILS"); oils.forEach(function(it){ L.push("  "+line(it.name,it.g)); });
   if(adds.length){ L.push("ADDITIVES"); adds.forEach(function(it){ L.push("  "+it.name+": "+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul); }); }
   L.push("LYE & WATER");
-  L.push("  "+s.kind+": "+fmt(fromG(s.lyeG,wunit),2)+" "+ul);
-  L.push("  Water: "+fmt(fromG(s.waterG,wunit),1)+" "+ul);
-  L.push("  Superfat: "+s.sf+"%");
+  lyeWaterLines(s,wunit).forEach(function(l){ L.push("  "+l.label+": "+l.value+(l.note?" ("+l.note+")":"")); });
   if(scents.length){ L.push("SCENT"+(s.scentPct?" ("+fmt(s.scentPct,1)+"% of oils)":"")); scents.forEach(function(it){ L.push("  "+it.name+": "+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul); }); }
   var q=s.q;
   L.push("PROFILE: Hardness "+Math.round(q.hardness)+", Cleansing "+Math.round(q.cleansing)+", Conditioning "+Math.round(q.conditioning)+", Bubbly "+Math.round(q.bubbly)+", Creamy "+Math.round(q.creamy));

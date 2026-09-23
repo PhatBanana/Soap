@@ -6,7 +6,7 @@
    The cycle rule for this layer: modules here may import each other, because the calls
    happen when someone taps something. Nothing here may be called while a module is
    still evaluating. */
-import { INS_RANGE, IOD_RANGE, LAURIC_OILS, QUALITIES, SALT_MAX_PER100, brineOf, lyeConcOf, qFn, qualitiesOf, waterReplacersOf } from "../core/chem.js";
+import { INS_RANGE, IOD_RANGE, KOH_FACTOR, LAURIC_OILS, QUALITIES, SALT_MAX_PER100, SAP_DRIFT, brineOf, lyeConcOf, qFn, qualitiesOf, sapDrift, sapPlausible, waterReplacersOf } from "../core/chem.js";
 import { $, el, escapeHtml, numInput, setActive, uid } from "../core/dom.js";
 import { RECIPE_FIELDS, USES } from "../core/schema.js";
 import { blendFA, cleansingCap, computeLye, curRV, curedBatchG, currentBatchG, currentId, library, oilInfo, save, saveSoon, scaleUnit, sortedLibrary, state, totalOilsG, weightUnit } from "../core/state.js";
@@ -37,7 +37,7 @@ export var wakeSentinel=null, wakeReq=false;
 export var CP_STEPS=[
   "Suit up: gloves + eye protection, apron, good ventilation.",
   "Weigh your oils; melt the hard oils/butters and combine with the liquid oils.",
-  "Weigh the water (or milk) and the lye separately.",
+  "Weigh the water (or milk) and the lye separately, in stainless steel or sturdy #5 (PP) plastic — never aluminium, which lye eats, giving off hydrogen.",
   "Add the lye TO the water (never the reverse), stir until clear, and let it cool.",
   "Cool the oils and the lye water to about 95–105°F (35–40°C).",
   "Pour lye water into the oils and blend to a light trace.",
@@ -49,7 +49,7 @@ export var CP_STEPS=[
 export var HP_STEPS=[
   "Suit up: gloves + eye protection, apron, good ventilation.",
   "Weigh your oils and melt them together in the slow cooker on low.",
-  "Weigh the water and the lye separately.",
+  "Weigh the water and the lye separately, in stainless steel or sturdy #5 (PP) plastic — never aluminium, which lye eats, giving off hydrogen.",
   "Add the lye TO the water (never the reverse), stir until clear.",
   "Pour the lye water into the warm oils and blend to a light trace.",
   "Cover and cook on low ~45–60 min, stirring now and then, until it folds over like thick mashed potato / vaseline.",
@@ -65,7 +65,7 @@ export var CPOP_STEPS=[
   "Suit up: gloves + eye protection, apron, good ventilation.",
   "Heat the oven to its lowest setting (~170°F / 75°C) so it's ready when the batter is.",
   "Weigh your oils; melt the hard oils/butters and combine with the liquid oils.",
-  "Weigh the water (or milk) and the lye separately.",
+  "Weigh the water (or milk) and the lye separately, in stainless steel or sturdy #5 (PP) plastic — never aluminium, which lye eats, giving off hydrogen.",
   "Add the lye TO the water (never the reverse), stir until clear, and let it cool.",
   "Cool the oils and the lye water to about 95–105°F (35–40°C).",
   "Pour lye water into the oils and blend to a light trace.",
@@ -554,11 +554,28 @@ export function safetyChecks(){
     state.oils.forEach(function(it){
       if(!(it.g>0)) return;
       var v = it.key ? (state.sapOverrides||{})[it.key] : it.sap;
-      if(v>0 && (v<0.04 || v>0.30)){
+      if(v>0 && !sapPlausible(v)){
         var nm = it.key ? OILS[it.key].name : it.name;
         if(oddSap.indexOf(nm)<0) oddSap.push(nm);
       }
     });
+    /* In the band but wrong for *this* oil. Above the reference is the direction that
+       burns, so it's a hard stop; below it only under-lyes, so it's a warning. */
+    var driftHi=[], driftLo=[], kohSlip=false;
+    state.oils.forEach(function(it){
+      if(!(it.g>0) || !it.key) return;
+      var v=(state.sapOverrides||{})[it.key]; if(!(v>0) || !sapPlausible(v)) return;
+      var dr=sapDrift(it.key,v), nm=OILS[it.key].name;
+      var txt=nm+" ("+fmt(v,4)+" against our "+fmt(OILS[it.key].sap,4)+")";
+      if(dr>SAP_DRIFT){ if(driftHi.indexOf(txt)<0) driftHi.push(txt); if(Math.abs(v/OILS[it.key].sap-KOH_FACTOR)<0.06) kohSlip=true; }
+      else if(dr<-SAP_DRIFT){ if(driftLo.indexOf(txt)<0) driftLo.push(txt); }
+    });
+    if(driftHi.length) add("fail","A supplier SAP is too high for its oil",
+      "The SAP in use for "+driftHi.join(", ")+" is more than "+Math.round(SAP_DRIFT*100)+"% above the reference. The same oil only varies between suppliers by a few percent, so this is almost certainly a slip — and it puts that much extra lye on the oil's share, enough to leave a caustic bar. "+
+      (kohSlip?"It's almost exactly the KOH figure: for NaOH, divide it by 1.403. ":"")+
+      "Check it against the spec sheet in SAP values, or clear it to use ours.");
+    if(driftLo.length) add("warn","A supplier SAP is well below its oil",
+      "The SAP in use for "+driftLo.join(", ")+" is more than "+Math.round(SAP_DRIFT*100)+"% under the reference. That under-lyes the bar — soft and greasy rather than dangerous — but the same oil rarely varies that much, so check it's the right figure for the right oil.");
     if(oddSap.length) add("fail","A SAP value doesn't look like a fat",
       "The SAP entered for "+oddSap.join(", ")+" is outside 0.04–0.30 g NaOH per gram — no real fat saponifies at that figure, so the lye amount is wrong. It's usually a decimal slip or an mg KOH/g number entered as NaOH; fix it in SAP values before making this.");
     if(L.overrides.length) add("warn","Supplier SAP values in use",
@@ -573,7 +590,9 @@ export function safetyChecks(){
       else add("ok","0% superfat is intended here","For dish/laundry soap, 0% superfat is correct so no oil is left behind.");
     } else if(esf>12 && !saltBar){
       add("warn","Very high superfat","Superfat is "+esfTxt+" — that's a lot of unsaponified oil, so the bar stays soft and can go rancid sooner. 5–8% is typical for skin.");
-    } else {
+    } else if(!(oddSap.length || driftHi.length)){
+      // not while a SAP figure is suspect: "no free lye" would be exactly the wrong
+      // reassurance sitting under the item that says the lye is mis-sized
       add("ok","Lye is balanced","Superfat "+esfTxt+" leaves a little extra oil so no free lye is left over — this is the safe zone"+(saltBar?" (a high superfat is right for a salt bar)":"")+".");
     }
     // milk/aloe/coffee standing in for more liquid than the recipe has room for
@@ -920,23 +939,39 @@ export function checkSteps(){
       fmt(fromG(L.reserveG,wu),1)+" "+UNITS[wu].label+(L.reserveName?" of "+L.reserveName:" of oil")+
       ", plus fragrance, additives and colour — all after the cook.";
   }
-  var B=brineOf(curRV());        // needed by both rewrites below, so declared before either
-  /* Milk (or aloe, beer…) standing in for the water changes how the lye goes in:
-     poured into room-temperature milk it scorches the sugars — orange, ammonia smell
-     — and can volcano. Rewritten in place like the brine step below; when both brine
-     and a replacer are set, the brine text wins, since dissolving the salt is the
-     step that can fail outright. */
+  var B=brineOf(curRV()), brine=B.salt>0 && state.saltMode==="brine";
+  var liqIdx=stepIndex(steps,/lye TO the water/i);
+  /* Milk, beer, wine, coffee or aloe standing in for the water changes how the lye goes
+     in, and each brings its own hazard. Poured into warm milk, lye scorches the sugars —
+     orange colour, ammonia smell — and can overheat. Beer still holding its CO2 foams
+     over the moment the lye hits it. Wine still holding its alcohol shouldn't meet hot
+     lye at all. The ingredient notes always said so, but this step is the one you are
+     reading with lye in your hand.
+
+     With brine as well, both jobs belong in the one step. This used to let the brine
+     text win outright, which dropped the milk instructions and then told you to
+     dissolve the salt into "the water" — in a recipe that might have none. */
   var repl=waterReplacersOf(curRV());
-  if(repl.g>0 && !(B.salt>0 && state.saltMode==="brine")){
-    var mkIdx=stepIndex(steps,/lye TO the water/i);
-    if(mkIdx>=0) steps[mkIdx]="Your "+repl.names.join(" & ").toLowerCase()+" stands in for the water: freeze it to a slush first, then add the lye a spoonful at a time, stirring between additions — poured into room-temperature milk, lye scorches the sugars (orange colour, ammonia smell) and can overheat. Still lye TO the liquid, never the reverse.";
-  }
-  // Brine changes the order of operations, so the checklist has to say so.
-  // Rewritten in place rather than inserted: state.checklist is keyed by index,
-  // so adding a step would shift what someone's already ticked.
-  if(B.salt>0 && state.saltMode==="brine"){
-    var brIdx=stepIndex(steps,/lye TO the water/i);
-    if(brIdx>=0) steps[brIdx]="Dissolve "+fmt(fromG(B.salt,wu),1)+" "+UNITS[wu].label+
+  if(liqIdx>=0 && repl.g>0){
+    var keys={}; state.additives.forEach(function(it){
+      var d=it.key?ADDITIVES[it.key]:null; if(d&&d.replacesWater&&it.g>0) keys[it.key]=d; });
+    var prep=[], hot=false;
+    if(keys.beer) prep.push("boil the beer until it is completely flat (any fizz left foams over when the lye goes in)");
+    if(keys.wine) prep.push("simmer the wine to cook off its alcohol");
+    Object.keys(keys).forEach(function(k){ if(keys[k].hot) hot=true; });
+    var what=repl.names.join(" & ").toLowerCase(), part=L.waterAddG>0.5;
+    var step="Your "+what+(repl.names.length>1?" stand":" stands")+" in for "+(part?"some of the water — combine the two":"the water")+". ";
+    if(prep.length) step+="First "+prep.join(", and ")+", then let it cool. ";
+    if(brine) step+="Stir "+fmt(fromG(B.salt,wu),1)+" "+UNITS[wu].label+" of salt into it until it has dissolved. ";
+    step+="Chill it to a slush, then add the lye a spoonful at a time, stirring between additions"+
+      (hot?" — lye poured into warm "+what+" scorches the sugars (orange colour, ammonia smell) and can overheat":"")+
+      ". Still lye TO the liquid, never the reverse.";
+    steps[liqIdx]=step;
+  } else if(liqIdx>=0 && brine){
+    // Brine changes the order of operations, so the checklist has to say so.
+    // Rewritten in place rather than inserted: state.checklist is keyed by index,
+    // so adding a step would shift what someone's already ticked.
+    steps[liqIdx]="Dissolve "+fmt(fromG(B.salt,wu),1)+" "+UNITS[wu].label+
       " of salt into the water and stir until clear, THEN add the lye to it "+
       "(never the reverse) and stir until clear again.";
   }

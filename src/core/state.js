@@ -11,7 +11,7 @@
    have always done `save(); render();` and that stays true, which is what keeps this
    module free of a cycle back into the UI. */
 import * as Chem from "./chem.js";
-import { oilsGof, qualitiesOf, useSapOverrides } from "./chem.js";
+import { oilsGof, qualitiesOf, sapFitsOil, useSapOverrides } from "./chem.js";
 import { $, downloadFile, uid } from "./dom.js";
 import { RECIPE_FIELDS, STORE_KEY, VIEW_FIELDS, defOf } from "./schema.js";
 import { UNITS, sumG } from "./units.js";
@@ -22,7 +22,13 @@ import { OILS } from "../data/oils.js";
 export function statsFor(r){
   var B=blendFA(r), L=computeLye(r), tot=oilsGof(r);
   var scentG=sumG(r.aromas);
+  /* waterG is the total liquid the recipe wants, which is the figure to *compare*
+     recipes on. What you actually pour is waterAddG, and the printed card uses that —
+     the two differ whenever milk, beer or coffee stands in for some of the water. */
   return { oilsG:tot, batchG:currentBatchG(r), lyeG:L.lyeG, waterG:L.waterG, kind:L.kind,
+    naohG:L.naohG, kohG:L.kohG, kohShare:L.kohShare, kohPurity:r.kohPurity,
+    waterAddG:L.waterAddG, replG:L.replG, replNames:L.replNames,
+    effectiveSf:L.effectiveSf, reserveG:L.reserveG, reserveName:L.reserveName,
     sf:r.superfat, waterPct:r.waterPct, q:qualitiesOf(B.fa), iod:B.iod, ins:B.ins,
     oilPcts:r.oils.map(function(it){ return {name:it.name,key:it.key,pct:tot>0?it.g/tot*100:0}; }),
     scentPct: tot>0?scentG/tot*100:0 };
@@ -133,7 +139,10 @@ export function importSharedFromHash(){
 export function cleanOverrides(o){
   if(!o||typeof o!=="object") return null;
   var out=null;
-  Object.keys(o).forEach(function(k){ if(OILS[k] && o[k]>0 && o[k]<1){ if(!out) out={}; out[k]=o[k]; } });
+  /* These land in your app-wide table and reach every recipe you already have, so
+     they meet the Safety Check's own bar at the door rather than failing it later
+     on recipes that never came from the link. */
+  Object.keys(o).forEach(function(k){ if(OILS[k] && sapFitsOil(k,o[k])){ if(!out) out={}; out[k]=o[k]; } });
   return out;
 }
 

@@ -250,4 +250,64 @@ export default async function safetySuite(t) {
   await p.close();
 }
 
+/* =======================================================================
+   SUPPLIER SAP FAR FROM ITS OIL
+
+   The 0.04–0.30 band says whether a figure could be a fat at all. It can't see a
+   figure that is a fat, just not *this* one — and the commonest slip, olive's KOH
+   number typed into the NaOH box, lands at 0.188: in the band, 40% high, and it sized
+   a castile bar to 178.6 g of lye against 127.3 while the check said "Lye is balanced".
+======================================================================= */
+{
+  const p = await newPage();
+  const check = async (oils, ov) => {
+    await open(p, store({ oils }, { sapOverrides: ov }));
+    return { v: await txt(p, "#safetyVerdict"), it: await items(p),
+             detail: await p.$$eval("#safetyList .safety-item", (xs) => xs.map((x) => x.textContent).join(" | ")) };
+  };
+  const olive = [OIL("olive",1000)];
+
+  let c = await check(olive, { olive:0.188 });
+  ok("Olive's KOH figure in the NaOH slot is a hard stop", c.v.includes("Not safe"), c.v);
+  ok("…named for what it is", c.it.includes("A supplier SAP is too high for its oil"), c.it.join(" | "));
+  has("…with the fix spelled out", c.detail, "divide it by 1.403");
+  ok("…and no \"Lye is balanced\" underneath it", !c.it.includes("Lye is balanced"), c.it.join(" | "));
+
+  // the boundary: olive's reference is 0.134, so +15% is 0.1541
+  c = await check(olive, { olive:0.1535 });
+  ok("Just inside +15%: ordinary supplier variation, no stop", !c.it.includes("A supplier SAP is too high for its oil"), c.it.join(" | "));
+  ok("…just the usual note that a supplier figure is in use", c.it.includes("Supplier SAP values in use"), c.it.join(" | "));
+  ok("…and the lye still reads as balanced", c.it.includes("Lye is balanced"), c.it.join(" | "));
+  c = await check(olive, { olive:0.1560 });
+  ok("Just past +15%: stopped", c.it.includes("A supplier SAP is too high for its oil"), c.it.join(" | "));
+  ok("…but without the KOH hint when it isn't the KOH figure", !c.detail.includes("1.403"), c.detail);
+
+  // under the reference only under-lyes: worth a word, not a stop
+  c = await check(olive, { olive:0.110 });
+  ok("Far below the reference: a warning", c.it.includes("A supplier SAP is well below its oil"), c.it.join(" | "));
+  ok("…not a stop", !c.v.includes("Not safe"), c.v);
+
+  // real supplier figures at the edges of their published ranges pass clean
+  c = await check([OIL("olive",700), OIL("beeswax",50), OIL("coconut",250)], { beeswax:0.075 });
+  ok("Beeswax at the top of its published range passes", !c.it.some((x) => /supplier SAP is/.test(x)), c.it.join(" | "));
+  c = await check([OIL("olive",800), OIL("lanolin",200)], { lanolin:0.085 });
+  ok("Lanolin at the top of its wide published range passes", !c.it.some((x) => /supplier SAP is/.test(x)), c.it.join(" | "));
+  c = await check([OIL("olive",600), OIL("coconut",400)], { coconut:0.188 });
+  ok("Coconut at its published maximum passes", !c.it.some((x) => /supplier SAP is/.test(x)), c.it.join(" | "));
+
+  // the older band check keeps its own stop, and loses the false reassurance too
+  c = await check(olive, { olive:0.5 });
+  ok("A figure that isn't a fat is still stopped", c.it.includes("A SAP value doesn't look like a fat"), c.it.join(" | "));
+  ok("…and \"Lye is balanced\" doesn't sit under that either", !c.it.includes("Lye is balanced"), c.it.join(" | "));
+
+  // the band constants are one pair, shared by the check, the import and the share link
+  const k = await p.evaluate(async () => { const c = await import("/src/core/chem.js");
+    return { band: c.SAP_PLAUSIBLE.join("–"), drift: c.SAP_DRIFT, fits: c.sapFitsOil("olive", 0.188), fitsOk: c.sapFitsOil("olive", 0.138) }; });
+  eq("The plausible-fat band is 0.04–0.30", k.band, "0.04–0.3");
+  eq("The drift allowance is 15%", k.drift, 0.15);
+  eq("sapFitsOil refuses the KOH slip", k.fits, false);
+  eq("…and accepts an ordinary supplier figure", k.fitsOk, true);
+  await p.close();
+}
+
 }
