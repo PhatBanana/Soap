@@ -13,6 +13,7 @@ import { openExamples } from "./features/examples.js";
 import { openColors, openFirstAid, openRebatch, openTrouble } from "./features/guides.js";
 import { backupAll, exportCSV, openPaste, restoreFrom } from "./features/io.js";
 import { openCard, openCompare, openLabel, openShare, openWrapper } from "./features/output.js";
+import { openWeigh } from "./features/weigh.js";
 import { openCosts, openLibrary, openSAP, openShopping, openStock } from "./features/planning.js";
 import { clearRecipe, deleteRecipe, duplicateRecipe, logBatch, newRecipe, renameRecipe, switchRecipe } from "./features/recipes.js";
 import { applyMold, applyWeightScale, detectAI, nudge, rebuildRecipeSelect, refreshDerived, render, renderMake, roundAmounts, runAIExplain, setScaleDirty, unitsEl, updateCureSuggest, updateDilutePanel, updateMoldHint, updateReady, updateScaleCard, updateScaleHint } from "./ui/render.js";
@@ -82,6 +83,7 @@ bindRange($("purity"),"purVal","kohPurity");
 bindSeg("waterMode","w","waterMode");
 $("recalcBtn").addEventListener("click",function(){ save(); render(); showToast("Recalculated ✓",true); });
 $("aiExplain").addEventListener("click",runAIExplain);
+$("weighBtn").addEventListener("click",openWeigh);
 /* Every segmented control in the app is the same three lines: click a child, store its
    data attribute in state, save, redraw. Seven of them were written out in full. */
 function bindSeg(id,attr,key,redraw){
@@ -210,6 +212,7 @@ var ACTIONS={
   sap:openSAP,
   shopping:openShopping,
   theme:cycleTheme,
+  weigh:openWeigh,
   card:openCard,
   label:openLabel,
   wrapper:openWrapper,

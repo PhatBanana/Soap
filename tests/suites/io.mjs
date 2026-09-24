@@ -654,4 +654,65 @@ Water:Lye Ratio 2.5`, { commit: true });
   await p.close();
 }
 
+/* =======================================================================
+   ALLERGIES — for the person you give the bar to
+
+   The wrapper, label and card name the recognised allergen groups a recipe contains,
+   in the vocabulary's order. They never claim "allergen-free", and a custom ingredient
+   is named as unchecked rather than silently passed.
+======================================================================= */
+{
+  const { ALLERGENS, ADDITIVES } = await import("../../src/data/ingredients.js");
+  const known = new Set(ALLERGENS.map((a) => a[0]));
+  const flagged = (db) => Object.keys(db).filter((k) => db[k].allergen).sort().join(",");
+  eq("The oils flagged are exactly the intended ones", flagged(t.OILS),
+     "almond,argan,lanolin,macadamia,mustard,peanut,sesame,soybean,soywax,vegoil,walnut,wheatgerm");
+  eq("…and the additives", flagged(ADDITIVES), "beer,goatmilk,goatmilkpwd,oatmeal");
+  ok("Every flag is a group the vocabulary knows",
+     [...Object.values(t.OILS), ...Object.values(ADDITIVES)].every((d) => !d.allergen || known.has(d.allergen)));
+  ok("Coconut and shea are deliberately not flagged", !t.OILS.coconut.allergen && !t.OILS.shea.allergen);
+
+  const p = await newPage();
+  const A = (name, key, g) => ({ name, key, g });
+  const rec = { name:"Almond Milk Bar",
+    oils:[OIL("olive",500), OIL("almond",150), OIL("coconut",250), OIL("peanut",0), { name:"Mystery butter", key:null, g:100 }],
+    additives:[A("Goat milk","goatmilk",200), A("Colloidal oatmeal","oatmeal",15)],
+    aromas:[A("Cinnamon leaf EO","cinnamon",5), A("Lavender EO","lavender",10)] };
+  await open(p, store(rec));
+  await menu(p, "wrapper"); await p.waitForTimeout(200);
+  const w = await p.evaluate(() => ({
+    lines: [...document.querySelectorAll(".wrapper-card .wrap-allergy")].map((e) => e.textContent),
+    printable: [...document.querySelectorAll(".wrap-allergy")].every((e) => !e.closest(".no-print")),
+    unchecked: [...document.querySelectorAll(".inci-warn")].map((e) => ({ t:e.textContent, np:e.classList.contains("no-print") })).find((x) => /Not checked/.test(x.t)) }));
+  eq("Wrapper: the allergens, in order, with what carries them", w.lines[0],
+     "Contains: tree nuts (sweet almond oil); gluten grains (colloidal oatmeal); milk (goat milk).");
+  eq("…and the scents that can irritate, on their own line", w.lines[1], "May irritate sensitive skin: Cinnamon leaf EO.");
+  ok("…not peanuts: there's 0 g of it", !w.lines[0].includes("peanut"), w.lines[0]);
+  eq("…and both lines print", w.printable, true);
+  has("A custom ingredient is named as unchecked", w.unchecked && w.unchecked.t, "Not checked for allergens: Mystery butter");
+  eq("…on screen only, not on the gift", w.unchecked && w.unchecked.np, true);
+  const wt = await p.evaluate(async () => { const o = await import("/src/features/output.js"), s = await import("/src/core/state.js");
+    const r = s.libById(s.currentId); return o.wrapperText(r, o.inciLabel(), "1", "1", null); });
+  has("The copied wrapper text carries it", wt, "Contains: tree nuts (sweet almond oil)");
+  has("…and the sensitive-skin line", wt, "May irritate sensitive skin: Cinnamon leaf EO.");
+  await p.evaluate(() => document.querySelectorAll(".modal-back").forEach((m) => m.remove()));
+
+  await menu(p, "label"); await p.waitForTimeout(200);
+  has("Label: the same line, in the label box", await p.$eval(".inci-box", (b) => b.textContent), "Contains: tree nuts (sweet almond oil)");
+  await p.evaluate(() => document.querySelectorAll(".modal-back").forEach((m) => m.remove()));
+
+  await menu(p, "card"); await p.waitForTimeout(200);
+  has("Card: the maker sees it too", await p.$eval(".print-card", (b) => b.textContent), "Contains: tree nuts (sweet almond oil)");
+  await p.evaluate(() => document.querySelectorAll(".modal-back").forEach((m) => m.remove()));
+
+  // a bar with nothing flagged says nothing — least of all "allergen-free"
+  await open(p, store({ oils:[OIL("olive",700), OIL("coconut",300)] }));
+  await menu(p, "wrapper"); await p.waitForTimeout(200);
+  const plain = await p.evaluate(() => document.querySelector(".modal").innerText);
+  ok("A plain bar gets no Contains line", !/Contains:/.test(plain), plain);
+  ok("…and the app never claims allergen-free", !/allergen[- ]free/i.test(plain), plain);
+  ok("…nor warns about unchecked ingredients it doesn't have", !/Not checked/.test(plain));
+  await p.close();
+}
+
 }

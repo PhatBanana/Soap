@@ -445,4 +445,134 @@ export default async function guidesSuite(t) {
   await p.close();
 }
 
+/* =======================================================================
+   WEIGH IT OUT — one amount to a screen
+
+   The amounts must be the panel's own (they come from the same computeLye), in the
+   order and containers a real make uses, with the running total a scale actually shows
+   when you don't re-zero. A recipe the Safety Check fails never gets a first step.
+======================================================================= */
+{
+  const p = await newPage();
+  const A = (name, key, g) => ({ name, key, g });
+  const body = () => p.evaluate(() => (document.querySelector(".weigh-modal .wg-body, .weigh-modal") || {}).innerText || "");
+  // an empty step rather than null when the sheet is shut, so a sheet that closed when it
+  // shouldn't have fails the assertion that expected it, instead of crashing the run
+  const step = () => p.evaluate(() => {
+    const m = document.querySelector(".weigh-modal");
+    if (!m) return { group:"", count:"(sheet closed)", name:"", amt:"", reading:"", container:"", note:"" };
+    const q = (c) => (m.querySelector(c) || {}).textContent || "";
+    return { group:q(".wg-group"), count:q(".wg-count"), name:q(".wg-name"), amt:q(".wg-amt"),
+             reading:q(".wg-reading"), container:q(".wg-container"), note:q(".wg-note") };
+  });
+  const next = async () => { await p.click(".weigh-modal .wg-foot .primary"); await p.waitForTimeout(40); };
+  const walk = async () => { const out = []; for (let i = 0; i < 40; i++) { const s = await step();
+    if (!s.name) break; out.push(s); await next(); } return out; };
+  const close = () => p.evaluate(() => { const m = document.querySelector(".weigh-modal"); if (m) m.parentNode.click(); });
+
+  const busy = { oils:[OIL("olive",500), OIL("coconut",300), OIL("shea",200)],
+    method:"hp", sfMode:"after", sfOil:"shea", superfat:6, lyeType:"dual", dualKoh:20,
+    additives:[A("Goat milk","goatmilk",150), A("Citric acid","citric",10), A("Sodium lactate","sodiumlactate",20)],
+    aromas:[A("Lavender EO","lavender",20), A("Cedarwood EO","cedarwood",10)] };
+  await open(p, store(busy, { tab:"make" }));
+  const L = await p.evaluate(async () => { const s = await import("/src/core/state.js"); return s.computeLye(); });
+  await p.click("#weighBtn"); await p.waitForTimeout(150);
+  ok("The Make tab's button opens the weighing sheet", (await step()).count !== "(sheet closed)");
+  eq("It starts at the first step", (await step()).count, "Step 1 of 12");
+  const st = await walk();
+  eq("Every amount gets its own step", st.length, 12);
+  eq("…in make order: oils, held back, liquid, lye, additives, scents",
+     [...new Set(st.map((x) => x.group))].join(","), "Oils,Held back,Liquid,Lye,Additives,Scents");
+  const by = (n) => st.find((x) => x.name === n) || {};
+  eq("NaOH is the panel's own figure, to two decimals", by("Sodium hydroxide (NaOH)").amt, L.naohG.toFixed(2) + " g");
+  eq("…and so is the KOH", by("Potassium hydroxide (KOH)").amt, L.kohG.toFixed(2) + " g");
+  has("…with the purity it assumes", by("Potassium hydroxide (KOH)").note, "90% pure KOH");
+  has("The lye step starts a new, dry container", by("Sodium hydroxide (NaOH)").container, "DRY cup");
+  has("…with gloves and goggles", by("Sodium hydroxide (NaOH)").container, "Gloves and eye protection");
+  has("…and each lye zeroed on its own", by("Sodium hydroxide (NaOH)").container, "Zero the scale for each lye");
+  eq("Water is what you pour, net of the milk", by("Water").amt, "230 g");
+  has("The milk goes in the lye jug, slushed", by("Goat milk").note, "slush");
+  eq("Citric acid is weighed into the liquid, before the lye", by("Citric acid").group, "Liquid");
+  eq("Sodium lactate isn't — it goes in later", by("Sodium lactate").group, "Additives");
+  has("The jug is lye-safe, never aluminium", by("Water").container, "never aluminium");
+  eq("The held-back shea stays out of the pot", st.find((x) => x.group === "Oils" && x.name === "Shea butter").amt, "140 g");
+  eq("…and is weighed into its own cup", st.find((x) => x.group === "Held back").amt, "60 g");
+  eq("…by its proper name", st.find((x) => x.group === "Held back").name, "Shea butter");
+  has("The oils give the running scale reading", by("Coconut oil (76°)").reading, "800 g");
+  has("…all the way to the last oil", st.find((x) => x.group === "Oils" && x.name === "Shea butter").reading, "940 g");
+  has("The liquid jug keeps its own running total", by("Citric acid").reading, "390 g");
+  has("The scent cup too", by("Cedarwood EO").reading, "30 g");
+  eq("The first item in a container has no reading to check", by("Olive oil").reading, "");
+  eq("Nor does the lye — each is zeroed", by("Potassium hydroxide (KOH)").reading, "");
+  has("The end says so, and says lye TO the liquid", await body(), "lye TO the liquid, never the reverse");
+  await p.click(".weigh-modal .wg-foot .ghost, .weigh-modal .mfoot .ghost"); await p.waitForTimeout(40);
+  eq("Start again goes back to step 1", (await step()).count, "Step 1 of 12");
+  await close();
+
+  // --- progress survives a stray tap; a changed recipe starts over ---
+  await p.click("#weighBtn"); await p.waitForTimeout(80);
+  await next(); await next(); await next();
+  await close(); await p.waitForTimeout(40);
+  eq("A tap outside closes the sheet", await p.evaluate(() => !!document.querySelector(".weigh-modal")), false);
+  await p.click("#weighBtn"); await p.waitForTimeout(80);
+  eq("…and reopening resumes on the same step", (await step()).count, "Step 4 of 12");
+  await p.click(".weigh-modal .wg-foot .ghost"); await p.waitForTimeout(40);
+  eq("Back goes back a step", (await step()).count, "Step 3 of 12");
+  await close();
+  await p.evaluate(async () => { const s = await import("/src/core/state.js"); s.state.oils[0].g = 520; });
+  await p.click("#weighBtn"); await p.waitForTimeout(80);
+  eq("Change an amount and it starts again", (await step()).count, "Step 1 of 12");
+  eq("…with the new amount", (await step()).amt, "520 g");
+  eq("The screen is held on while weighing", await p.evaluate(async () => (await import("/src/ui/render.js")).makeInProgress()), true);
+  await close();
+  await p.evaluate(async () => { const s = await import("/src/core/state.js"); s.state.tab = "base"; s.state.checklist = {}; });
+  eq("…and let go once the sheet is closed", await p.evaluate(async () => (await import("/src/ui/render.js")).makeInProgress()), false);
+
+  // --- the menu reaches it too, and a first step's back button closes ---
+  await open(p, store({ oils:[OIL("olive",700), OIL("coconut",300)] }));
+  await menu(p, "weigh"); await p.waitForTimeout(80);
+  eq("The ☰ menu opens it as well", (await step()).count, "Step 1 of 4");
+  eq("On step 1 the back button reads Close", await p.$eval(".weigh-modal .wg-foot .ghost", (b) => b.textContent), "Close");
+  eq("A plain bar has no held-back step", (await walk()).some((x) => x.group === "Held back"), false);
+  await close();
+
+  // --- units: oz throughout, lye still to two decimals ---
+  await open(p, store({ oils:[OIL("olive",700), OIL("coconut",300)] }, { unit:"oz" }));
+  const Loz = await p.evaluate(async () => (await import("/src/core/state.js")).computeLye().naohG / 28.349523125);
+  await menu(p, "weigh"); await p.waitForTimeout(80);
+  const oz = await walk();
+  eq("In ounces the oils are ounces", oz[0].amt, "24.69 oz");
+  eq("…and the lye is still to two decimals", oz.find((x) => /NaOH/.test(x.name)).amt, Loz.toFixed(2) + " oz");
+  await close();
+
+  // --- where salt goes depends on the method ---
+  await open(p, store({ oils:[OIL("olive",700), OIL("coconut",300)], saltMode:"brine", additives:[A("Salt (table/sea)","salt",40)] }));
+  await menu(p, "weigh"); await p.waitForTimeout(80);
+  eq("Brine salt is weighed into the liquid", (await walk()).find((x) => /Salt/.test(x.name)).group, "Liquid");
+  await close();
+  await open(p, store({ oils:[OIL("olive",700), OIL("coconut",300)], saltMode:"trace", additives:[A("Salt (table/sea)","salt",40)] }));
+  await menu(p, "weigh"); await p.waitForTimeout(80);
+  eq("Salt for trace is an additive", (await walk()).find((x) => /Salt/.test(x.name)).group, "Additives");
+  await close();
+
+  // --- a reserve spread across all the oils: weigh the blend out after melting ---
+  await open(p, store({ oils:[OIL("olive",700), OIL("coconut",300)], method:"hp", sfMode:"after", sfOil:"", superfat:5 }));
+  await menu(p, "weigh"); await p.waitForTimeout(80);
+  const spread = (await walk()).find((x) => x.group === "Held back");
+  eq("A spread reserve is weighed from the melted blend", spread.name, "Melted oil blend");
+  eq("…at the superfat's share of the oils", spread.amt, "50 g");
+  await close();
+
+  // --- no first step for a recipe the Safety Check fails, or for nothing ---
+  await open(p, store({ oils:[OIL("olive",1000)] }, { sapOverrides:{ olive:0.188 } }));
+  await menu(p, "weigh"); await p.waitForTimeout(80);
+  has("An unsafe recipe gets a stop, not a first step", await body(), "Not safe to make as-is");
+  eq("…with nothing to tick", await p.evaluate(() => !!document.querySelector(".weigh-modal .wg-amt")), false);
+  await close();
+  await open(p, store({ oils:[] }));
+  await menu(p, "weigh"); await p.waitForTimeout(80);
+  has("An empty recipe says there's nothing to weigh", await body(), "Add some oils first");
+  await p.close();
+}
+
 }

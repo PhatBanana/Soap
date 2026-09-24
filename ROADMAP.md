@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v64 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 2260 test assertions, run on every pull request.
+**Today:** v65 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 2325 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -68,6 +68,8 @@ quietly drift — they had, which is why the check exists.</sub>
 ### Making it
 - **Cold process, CP + oven (CPOP), or hot process** — the method drives the checklist, the temperature
   guidance and the cure estimate.
+- **Weigh it out** — one weighing to a screen, in make order and by container, with the
+  running scale reading; a recipe that fails the Safety Check gets no first step.
 - **Cure schedule** with a suggested cure time derived from the oil blend.
 - **Soaping temperatures**, with a tip that adapts to your recipe.
 - **Step-by-step checklist**, **batch notes**, and an optional **lot number**.
@@ -92,6 +94,7 @@ quietly drift — they had, which is why the check exists.</sub>
 
 ### Library & output
 - Saved recipes with **search, sort and favourites**; compare any two.
+- **Allergy lines** on the wrapper, label and card for the person you give a bar to.
 - **Recipe card**, **INCI ingredient label**, **printable bar wrapper** — the wrapper
   carries a **QR code of the recipe itself**, sized so its modules stay scannable on
   paper, and omitted honestly when the recipe is too long to print one that would.
@@ -103,7 +106,7 @@ quietly drift — they had, which is why the check exists.</sub>
 - **Backup / restore** everything as JSON, with a quiet **nudge** once there's a logged
   batch or a few saved recipes and no recent backup — dismissible for a month.
 - Collapsible cards, sticky lye/batch summary, theme toggle, **multi-level undo**.
-- **Searchable menu** — the ☰ sheet is 28 actions deep, so it takes a query, matched
+- **Searchable menu** — the ☰ sheet is 29 actions deep, so it takes a query, matched
   against synonyms as well as labels (`csv` finds Import, `print` finds all four
   printable outputs).
 - **The screen stays on while you're making soap** — held from the first ticked
@@ -834,6 +837,48 @@ the SAP figures of the day, so the lye is right for the oils you have now. The p
 importer never trusts another calculator's lye line — it recomputes from the oils.
 
 Every fix was mutation-checked: each one reverted fails exactly the tests built for it.
+---
+
+**30. Weigh it out, one at a time — and allergy lines for gifts** — ✅ **shipped in v65**
+
+**Weigh it out.** The amounts lived on the Base tab and the steps on the Make tab, so
+making soap meant flipping between them in gloves with the lye out — which is where a
+number gets misread. **⚖️ Weigh it out** (on the Make tab, and in the ☰ menu) turns the
+recipe into single weighings, one to a screen, in large type: tick it, next.
+
+- **In make order, by container.** Oils into the pot; any hot-process reserve into its
+  own cup so it can't end up in the pot; the lye-safe jug for water, milk or beer and
+  anything that must dissolve *before* the lye (citric acid, brine salt); lye in its own
+  dry cup, each lye zeroed separately; additives a cup each; scents blended in one cup.
+  Each new container says what it is — including "never aluminium" for the jug and cup.
+- **The reading a scale actually shows.** Where things share a container, each step
+  also gives the running total — pour all the oils into one pot without re-zeroing and
+  the scale should read 500, then 800, then 940. A misread shows up at the next step
+  instead of in the finished bar.
+- **The panel's own numbers.** The amounts come from the same computeLye as the panel and
+  the printed card — NaOH and KOH separately, to two decimals in any unit, with the KOH
+  purity they assume.
+- **A recipe the Safety Check fails gets no first step** — just the reason. An empty one
+  says there's nothing to weigh yet, rather than calling it unsafe.
+- **A stray tap loses nothing.** Close it and reopen: same step. Change an amount and it
+  starts again, because the steps it remembered are no longer the recipe. The screen
+  stays on while it's open.
+
+**Allergy lines for gifts.** Two oils mentioned "possible nut allergen" in their help
+text, and nothing reached the bar. The wrapper, ingredient label and recipe card now say
+what a friend with an allergy needs to know — *"Contains: tree nuts (sweet almond oil);
+milk (goat milk)"* — plus a separate line for scents that can irritate sensitive skin,
+from the irritant flags the Safety Check already uses. The groups are the recognised
+major allergens found in soap — tree nuts, peanuts, sesame, mustard, soy, gluten grains,
+milk — plus lanolin, a well-known contact allergen; sixteen entries carry a flag.
+Coconut and shea deliberately don't: they aren't among the nuts allergy lists name, and
+coconut is in nearly every bar — a warning on everything is a warning on nothing.
+
+The app never prints "allergen-free": it only knows its own data, and supplier
+cross-contact is outside it. A custom ingredient carries no data, so it's named on
+screen as *not checked* — before you give the bar away, not on the gift itself.
+
+Every guard was mutation-checked: each one reverted fails exactly the tests built for it.
 ---
 
 ## Part 3 — What's next

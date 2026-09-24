@@ -11,8 +11,18 @@
    can scorch or volcano. The cold-process and oven-gelled temperature advice both read
    this flag; they used to keep separate lists and had already drifted apart, so a beer
    soap was warned under one method and told "no special heat concerns" under the other. */
+/* Allergens worth telling the person you give a bar to — the recognised major allergen
+   groups, plus lanolin, a well-known contact allergen. An entry carries `allergen:` with
+   one of these keys; the wrapper, label and card list them in this order.
+   Deliberately NOT flagged: coconut, shea and the other exotic butters. They aren't among
+   the nuts that allergy lists name, and coconut is in almost every bar — a warning on
+   everything is a warning on nothing. Scents are covered separately, by `irritant`. */
+export const ALLERGENS = [
+  ["treenut","tree nuts"], ["peanut","peanuts"], ["sesame","sesame"], ["mustard","mustard"],
+  ["soy","soy"], ["gluten","gluten grains"], ["milk","milk"], ["wool","lanolin (wool)"]
+];
 export const ADDITIVES = {
-  goatmilk:      { hot:true, name:"Goat milk",        kind:"liquid", replacesWater:true,
+  goatmilk:      { hot:true, name:"Goat milk", allergen:"milk",        kind:"liquid", replacesWater:true,
                    note:"Replaces some or all of your water. Creamy lather & skin-loving fats. Freeze it and add lye slowly to avoid scorching (or use powder)." },
   coconutmilk:   { hot:true, name:"Coconut milk",     kind:"liquid", replacesWater:true,
                    note:"Replaces part of the water. Adds creamy, conditioning lather. Keep cool to avoid scorching." },
@@ -34,7 +44,7 @@ export const ADDITIVES = {
   // was nothing to add, so it couldn't be costed, labelled, stocked or shopped for.
   preservative:  { name:"Preservative (liquid soap)", kind:"liquid",
                    note:"Per the supplier, usually ~0.5–1% of the finished liquid. Diluted liquid soap is mostly water and WILL grow mould in a few weeks without one. Bar soap doesn't need it — the pH and low water do the job. Add once diluted and cooled." },
-  oatmeal:       { name:"Colloidal oatmeal",kind:"dry",
+  oatmeal:       { name:"Colloidal oatmeal", allergen:"gluten",kind:"dry",
                    note:"1–2 Tbsp per lb of oils. Soothing with gentle exfoliation. Add at trace." },
   kaolin:        { name:"Kaolin clay",      kind:"dry",
                    note:"~1 tsp per lb of oils. Silky slip, anchors fragrance, great for shaving soap. Disperse in a little water first." },
@@ -58,13 +68,13 @@ export const ADDITIVES = {
                    note:"A small pinch dissolved into the hot lye water gives a silky, luxurious skin feel." },
   // --- more water replacers. Beer and wine stand in for water like milk does, so they
   //     carry replacesWater and get subtracted from what you pour.
-  beer:          { hot:true, name:"Beer",               kind:"liquid", replacesWater:true,
+  beer:          { hot:true, name:"Beer", allergen:"gluten",               kind:"liquid", replacesWater:true,
                    note:"Swap for part of your water. The sugars boost lather beautifully. Boil it first and let it go flat and cold, or the CO₂ will foam over when the lye goes in." },
   wine:          { hot:true, name:"Wine",               kind:"liquid", replacesWater:true,
                    note:"Swap for part of your water. Cook off the alcohol and chill it first — alcohol and hot lye is a bad combination. Expect the colour to darken to tan." },
   // --- powdered milks: same idea as the liquids, but stirred into the oils instead, so
   //     they do NOT replace water
-  goatmilkpwd:   { hot:true, name:"Goat milk powder",   kind:"dry",
+  goatmilkpwd:   { hot:true, name:"Goat milk powder", allergen:"milk",   kind:"dry",
                    note:"1–2 Tbsp per lb of oils. All the creaminess of fresh milk with none of the scorching risk — whisk it into the oils, not the lye water." },
   coconutmilkpwd:{ hot:true, name:"Coconut milk powder",kind:"dry",
                    note:"1–2 Tbsp per lb of oils. Creamy, conditioning lather and much easier to handle than the tinned kind. Blend into the oils before the lye." },

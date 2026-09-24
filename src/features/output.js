@@ -6,8 +6,8 @@ import { RECIPE_FIELDS, USES } from "../core/schema.js";
 import { computeLye, curedBatchG, currentBatchG, currentId, libById, library, state, statsFor, syncCurrent, totalOilsG, usedOverrides, weightUnit } from "../core/state.js";
 import { UNITS, fmt, fromG } from "../core/units.js";
 import { b64urlEnc } from "../core/util.js";
-import { ADDITIVE_INCI, AROMAS } from "../data/ingredients.js";
-import { OIL_INCI } from "../data/oils.js";
+import { ADDITIVES, ADDITIVE_INCI, ALLERGENS, AROMAS } from "../data/ingredients.js";
+import { OILS, OIL_INCI } from "../data/oils.js";
 import { encodeQR, qrSVG } from "../core/qr.js";
 import { barCount, barG, safetyChecks } from "../ui/render.js";
 /* What a share link leaves out: your record of making it, not the soap itself.
@@ -125,13 +125,46 @@ export function openLabel(){
   if(!lab.count){
     md.m.appendChild(el("p","sub","Add oils to build a label."));
   } else {
-    md.m.appendChild(el("div","inci-box",escapeHtml(lab.text)));
+    syncCurrent(); var alg=allergensOf(libById(currentId)||state);
+    var extra=[alg.contains,alg.sensitive].filter(Boolean);
+    md.m.appendChild(el("div","inci-box",escapeHtml(lab.text)+extra.map(function(x){ return "<div class='inci-allergy'>"+escapeHtml(x)+"</div>"; }).join("")));
+    if(alg.unchecked) md.m.appendChild(el("div","inci-warn","⚠ "+escapeHtml(alg.unchecked)));
     if(lab.missing.length) md.m.appendChild(el("div","inci-warn","⚠ No stored INCI name for: "+escapeHtml(lab.missing.join(", "))+" — look these up before using the label."));
     md.m.appendChild(el("p","sub","INCI names and labelling rules vary by supplier and region — verify before you sell. Naturally-occurring glycerin is included; water is listed as made (most evaporates during cure)."));
-    var cp=el("button","ghost","📋 Copy"); cp.addEventListener("click",function(){ copyText(lab.text,cp); }); foot.appendChild(cp);
+    var cp=el("button","ghost","📋 Copy"); cp.addEventListener("click",function(){ copyText([lab.text].concat(extra).join("\n"),cp); }); foot.appendChild(cp);
   }
   var cl=el("button","primary","Close"); cl.addEventListener("click",function(){ closeModal(md.back); });
   foot.appendChild(cl); md.m.appendChild(foot);
+}
+/* What to tell someone you give a bar to. Built from the recipe rather than the label
+   text, so a custom ingredient — which carries no data — is named as unchecked instead of
+   being silently taken as allergen-free. Nothing here prints "allergen-free": the app
+   only knows what it knows, and supplier cross-contact is outside it. */
+export function allergensOf(r){
+  var found={}, unknown=[], irritants=[];
+  function note(key,name){ if(!found[key]) found[key]=[]; if(found[key].indexOf(name)<0) found[key].push(name); }
+  (r.oils||[]).forEach(function(it){ if(!(it.g>0)) return;
+    var d=it.key?OILS[it.key]:null;
+    if(!d){ if(unknown.indexOf(it.name)<0) unknown.push(it.name); return; }
+    if(d.allergen) note(d.allergen, d.name);
+  });
+  (r.additives||[]).forEach(function(it){ if(!(it.g>0)) return;
+    var d=it.key?ADDITIVES[it.key]:null;
+    if(!d){ if(unknown.indexOf(it.name)<0) unknown.push(it.name); return; }
+    if(d.allergen) note(d.allergen, d.name);
+  });
+  (r.aromas||[]).forEach(function(it){ if(!(it.g>0)) return;
+    var d=it.key?AROMAS[it.key]:null;
+    if(d&&d.irritant&&irritants.indexOf(d.name)<0) irritants.push(d.name);
+  });
+  var groups=[];
+  ALLERGENS.forEach(function(a){ if(found[a[0]]) groups.push({ key:a[0], label:a[1], names:found[a[0]] }); });
+  return { groups:groups, unknown:unknown, irritants:irritants,
+    contains: groups.length ? "Contains: "+groups.map(function(g){
+      return g.label+" ("+g.names.map(function(n){ return n.toLowerCase(); }).join(", ")+")"; }).join("; ")+"." : "",
+    sensitive: irritants.length ? "May irritate sensitive skin: "+irritants.join(", ")+"." : "",
+    unchecked: unknown.length ? "Not checked for allergens: "+unknown.join(", ")+
+      " — custom ingredients carry no data, so check these yourself before giving this bar away." : "" };
 }
 // A printable bar wrapper: name, net weight, INCI ingredients, dates, cautions.
 export function wrapperDates(){
@@ -151,11 +184,15 @@ export function openWrapper(){
   var h="<h2>"+escapeHtml(r.name)+"</h2><div class='wrap-tag'>Handmade Soap</div>";
   h+="<div class='wrap-net'>Net wt. "+netOz+" oz ("+netG+" g)</div>";
   h+="<h3>Ingredients</h3><p class='wrap-inci'>"+(lab.count?escapeHtml(lab.text):"—")+"</p>";
+  var alg=allergensOf(r);
+  if(alg.contains) h+="<div class='wrap-allergy'>"+escapeHtml(alg.contains)+"</div>";
+  if(alg.sensitive) h+="<div class='wrap-allergy'>"+escapeHtml(alg.sensitive)+"</div>";
   if(d) h+="<div class='wrap-dates'>Made "+d.made+" · Best after "+d.ready+"</div>";
   if(state.lot) h+="<div class='wrap-lot'>Lot "+escapeHtml(state.lot)+"</div>";
   h+="<div class='wrap-warn'>For external use only. Keep out of reach of children. Discontinue use if irritation occurs.</div>";
   card.innerHTML=h; md.m.appendChild(card);
   var qrNote=addWrapperQR(card, r);
+  if(alg.unchecked) md.m.appendChild(el("div","inci-warn no-print","⚠ "+escapeHtml(alg.unchecked)));
   if(qrNote) md.m.appendChild(el("div","inci-warn no-print",escapeHtml(qrNote)));
   if(lab.missing.length) md.m.appendChild(el("div","inci-warn no-print","⚠ No stored INCI name for: "+escapeHtml(lab.missing.join(", "))+" — fill these in before printing for sale."));
   md.m.appendChild(el("p","sub no-print","Net weight is an estimate of the cured bar — weigh a real one before printing a label for sale. Add your name/contact and check your local labelling rules."));
@@ -193,6 +230,9 @@ export function addWrapperQR(card, r){
 export function wrapperText(r,lab,netOz,netG,d){
   var L=[r.name, "Handmade Soap", "Net wt. "+netOz+" oz ("+netG+" g)", "",
     "Ingredients: "+(lab.count?lab.text:"—")];
+  var alg=allergensOf(r);
+  if(alg.contains) L.push(alg.contains);
+  if(alg.sensitive) L.push(alg.sensitive);
   if(d) L.push("", "Made "+d.made+" · Best after "+d.ready);
   if(state.lot) L.push("Lot "+state.lot);
   L.push("", "For external use only. Keep out of reach of children. Discontinue use if irritation occurs.");
@@ -276,7 +316,9 @@ export function cardHTML(r,s,wunit,ul){
   var h="<h2>"+escapeHtml(r.name)+"</h2><div class='mut'>Soap Calc · "+d+"</div>";
   if(s.unsafe&&s.unsafe.length) h+="<div class='pc-unsafe'>⛔ Not safe to make as-is: "+
     escapeHtml(s.unsafe.join("; "))+". Fix this in Soap Calc before weighing anything.</div>";
+  var alg=allergensOf(r);
   h+="<div class='pc-yield'>Makes ≈ "+fmt(fromG(s.batchG,wunit),1)+" "+ul+"  ·  ~"+barCount(s.batchG)+" bars</div>";
+  if(alg.contains) h+="<div class='mut pc-allergy'>"+escapeHtml(alg.contains)+"</div>";
   h+="<h3>Oils</h3><ul>"+items(oils)+"</ul>";
   if(adds.length){ h+="<h3>Additives</h3><ul>"+adds.map(function(it){
     return "<li>"+escapeHtml(it.name)+" — <b>"+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul+"</b></li>"; }).join("")+"</ul>"; }
@@ -295,6 +337,7 @@ export function cardText(r,s,wunit,ul){
   var oils=nz(r.oils), adds=nz(r.additives), scents=nz(r.aromas);
   var L=[]; L.push(r.name);
   if(s.unsafe&&s.unsafe.length) L.push("NOT SAFE TO MAKE AS-IS: "+s.unsafe.join("; ")+". Fix this in Soap Calc before weighing anything.");
+  var alg=allergensOf(r); if(alg.contains) L.push(alg.contains);
   L.push("Makes ~"+fmt(fromG(s.batchG,wunit),1)+" "+ul+" (~"+barCount(s.batchG)+" bars)"); L.push("");
   L.push("OILS"); oils.forEach(function(it){ L.push("  "+line(it.name,it.g)); });
   if(adds.length){ L.push("ADDITIVES"); adds.forEach(function(it){ L.push("  "+it.name+": "+fmt(fromG(it.g,wunit),UNITS[wunit].dp)+" "+ul); }); }
