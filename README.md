@@ -196,6 +196,12 @@ phone in the kitchen or on a desktop.
   into the mould), the temperature guide switches to cook temperatures, and the cure
   suggestion compresses to about **1–2 weeks** because saponification already finished
   in the pot.
+- **Weigh it out, one at a time** — the recipe as single weighings, one to a screen in
+  large type, in make order and by container: oils into the pot, the lye-safe jug for
+  water and milk, lye in its own dry cup, additives, then scents. Where things share a
+  container it also shows the **running scale reading**, so a misread shows up at the
+  next step. A recipe the Safety Check fails gets no first step. On the Make tab and in
+  the ☰ menu.
 - A **Make** tab with a **step-by-step checklist** (suit up → measure → mix lye →
   combine at temp → add scent → pour → unmold → cure), with your progress
   saved per recipe.
@@ -294,6 +300,10 @@ phone in the kitchen or on a desktop.
   glycerin, additives and fragrance, in descending order by weight — copyable, with
   custom oils flagged. (INCI names and labelling rules vary by supplier/region —
   verify before sale.)
+- **Allergy lines for gifts** — the wrapper, ingredient label and recipe card say what
+  a friend with an allergy needs to know (*"Contains: tree nuts (sweet almond oil);
+  milk (goat milk)"*), plus scents that can irritate sensitive skin. Never
+  "allergen-free"; custom ingredients are flagged on screen as not checked.
 - **Bar wrapper** — a **printable / copyable** label to wrap around a finished bar:
   soap name, net weight (the **cured** estimate, not the wet weight — weigh a real bar
   before printing for sale), the INCI ingredient list, the made & ready dates, an
@@ -355,7 +365,7 @@ phone in the kitchen or on a desktop.
   the numbers move as you tweak.
 - **Theme** — follows your device by default; tap **Theme** in the ☰ menu to cycle
   auto → light → dark and force one.
-- **Searchable menu** — the ☰ menu holds 28 actions, so it has a search box. It matches
+- **Searchable menu** — the ☰ menu holds 29 actions, so it has a search box. It matches
   synonyms as well as labels, because the word you'd type usually isn't the word on the
   button: **csv** finds Import and Export, **print** finds all four printable outputs,
   **inci** finds the ingredient label. On a keyboard, type and press Enter when one
@@ -435,7 +445,7 @@ obvious one: don't commit anything you wouldn't publish.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **2260 assertions.**
+the real app and asserts on the computed numbers and saved state. **2325 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)

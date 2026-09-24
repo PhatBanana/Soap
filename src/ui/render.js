@@ -1312,7 +1312,13 @@ export function checkLog(b,made){
 }
 // A make, not merely the tab being open: you visit Make to read the temperature guidance
 // without soaping. Ticking the first step is the moment a batch actually starts.
+/* Weighing counts as making: the sheet is open with lye out, which is exactly when the
+   screen mustn't dim. Checked against the sheet itself as well as the flag, so a sheet
+   closed any other way can't leave the lock held. */
+export var weighing=false;
+export function setWeighing(v){ weighing=!!v; syncWakeLock(); }
 export function makeInProgress(){
+  if(weighing && document.querySelector(".weigh-modal")) return true;
   return state.tab==="make" && Object.keys(state.checklist).length>0;
 }
 

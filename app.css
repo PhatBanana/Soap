@@ -549,3 +549,23 @@ input[type=range]{touch-action:pan-y}
 .lw-btns button{flex:1 1 auto;margin-top:0;width:auto;padding:10px 14px;font-size:.88rem}
 /* a recipe that fails the Safety Check says so on the card, in print as on screen */
 .print-card .pc-unsafe{margin:10px 0 2px;padding:8px 10px;border:2px solid var(--coral);border-radius:10px;background:var(--coral-soft);color:var(--coral-d);font-weight:800;font-size:.9rem}
+/* allergy lines: on the wrapper and label they're for the person you give the bar to,
+   so they print, and in ink rather than muted grey */
+.wrap-allergy{text-align:left;margin-top:6px;font-size:.8rem;font-weight:800;line-height:1.45;color:var(--ink)}
+.inci-allergy{margin-top:8px;font-weight:800}
+.print-card .pc-allergy{margin-top:4px;font-weight:700}
+/* weigh it out: one amount to a screen, big enough to read at arm's length in gloves */
+.weigh-btn{width:100%;margin:2px 0 12px}
+.weigh-modal .wg-head{display:flex;justify-content:space-between;align-items:baseline;font-weight:800}
+.weigh-modal .wg-group{font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.weigh-modal .wg-count{font-size:.85rem;color:var(--muted)}
+.weigh-modal .wg-bar{height:6px;border-radius:3px;background:var(--bg-2);margin:8px 0 14px;overflow:hidden}
+.weigh-modal .wg-fill{height:100%;background:var(--coral)}
+.weigh-modal .wg-container{padding:10px 12px;border-radius:12px;background:var(--bg-2);font-size:.9rem;line-height:1.45;margin-bottom:14px}
+.weigh-modal .wg-name{font-size:1.35rem;font-weight:800;text-align:center;margin-top:6px}
+.weigh-modal .wg-amt{font-size:3rem;font-weight:800;text-align:center;font-variant-numeric:tabular-nums;line-height:1.15;margin:4px 0 8px;color:var(--ink)}
+.weigh-modal .wg-amt.wg-lye,.weigh-modal .wg-name.wg-lye{color:var(--coral-d)}
+.weigh-modal .wg-reading{text-align:center;font-size:.95rem;color:var(--muted);margin-bottom:8px}
+.weigh-modal .wg-note{font-size:.88rem;line-height:1.45;color:var(--muted);text-align:center;margin-bottom:6px}
+.weigh-modal .wg-stop{margin:10px 0;padding:10px 12px;border:2px solid var(--coral);border-radius:12px;background:var(--coral-soft);color:var(--coral-d);font-weight:800;line-height:1.45}
+.weigh-modal .wg-foot button{flex:1;min-height:52px;font-size:1.05rem}
