@@ -270,15 +270,16 @@ phone in the kitchen or on a desktop.
   nothing and the shopping list behaves exactly as it always has.
 
 ### Recipes
-- **15 built-in example recipes** — one-tap starters across **bars** (Classic Gentle
+- **17 built-in example recipes** — one-tap starters across **bars** (Classic Gentle
   Bar, Pure Castile, Bastille, Luxury Butter Bar, Palm-Free Bar, Old-Fashioned Tallow
-  Bar, Coconut Salt Spa Bar, Shaving Bar), **liquid soap** (Liquid Hand Soap, Liquid
+  Bar, Coconut Salt Spa Bar, Shaving Bar), **dual-lye** (Soft Shaving Soap, Whipped
+  Cream Soap), **liquid soap** (Liquid Hand Soap, Liquid
   Castile, Liquid Shampoo), **dish** (Liquid Dish Soap, Solid Dish Block) and
   **laundry** (Laundry Bar, Palm-Free Laundry Bar). Loading one adds it as a saved
   recipe you can tweak.
 - **Saved, named recipes** — keep a library (New / Duplicate / Rename / Delete) and
   switch between them; each is stored separately in your browser.
-- **Library browser** — **All recipes** in the ⋯ menu opens a searchable list: filter
+- **Library browser** — **All recipes** in the ☰ menu opens a searchable list: filter
   by name, sort **A–Z / Recent / Added**, and **star** the ones you keep coming back
   to. Favourites pin to the top of both the list and the recipe picker (marked ★), and
   each row shows a quick read — how many oils, whether it's liquid or hot process, what
@@ -352,9 +353,9 @@ phone in the kitchen or on a desktop.
 - **Always-visible lye & batch** — a compact readout pinned under the tabs shows your
   lye, water and batch weight while you scroll a long ingredient list, so you can see
   the numbers move as you tweak.
-- **Theme** — follows your device by default; tap **Theme** in the ⋯ menu to cycle
+- **Theme** — follows your device by default; tap **Theme** in the ☰ menu to cycle
   auto → light → dark and force one.
-- **Searchable menu** — the ☰ menu holds 26 actions, so it has a search box. It matches
+- **Searchable menu** — the ☰ menu holds 28 actions, so it has a search box. It matches
   synonyms as well as labels, because the word you'd type usually isn't the word on the
   button: **csv** finds Import and Export, **print** finds all four printable outputs,
   **inci** finds the ingredient label. On a keyboard, type and press Enter when one
@@ -373,15 +374,17 @@ phone in the kitchen or on a desktop.
 - Everything is saved **locally in your browser** (localStorage). There's no
   server and no account — nothing is transmitted, and one person's recipes never
   reach another's browser.
-- **Updates are automatic** — the service worker is network-first, so when you're
-  online you always get the latest version (no need to clear the cache), and the
-  cache is only an offline fallback. Cache updates never touch your saved recipes.
+- **Updates are automatic** — the app opens from its saved copy straight away and
+  quietly fetches a fresh one in the background, so it starts at the speed of your
+  phone rather than your wifi. When a new version is out it installs itself and the
+  page reloads once, on its own — the launch that spots it may show the previous
+  version for a moment first. Cache updates never touch your saved recipes.
   A small **version + build date** at the very bottom of the page tells you which
   release you're looking at; **tap it** to drop the offline cache and reload the
   freshest copy if you ever suspect a stale one.
 - **Your data is protected** — the app requests *persistent storage* so recipes
   aren't auto-evicted, and **Back up all data / Restore from backup** (in the
-  recipe **⋯** menu) export/import everything as a JSON file — a safety net before
+  **☰** menu) export/import everything as a JSON file — a safety net before
   clearing site data, and a way to move recipes between devices or browsers.
 
 ## Install on your phone

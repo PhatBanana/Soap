@@ -103,7 +103,7 @@ quietly drift — they had, which is why the check exists.</sub>
 - **Backup / restore** everything as JSON, with a quiet **nudge** once there's a logged
   batch or a few saved recipes and no recent backup — dismissible for a month.
 - Collapsible cards, sticky lye/batch summary, theme toggle, **multi-level undo**.
-- **Searchable menu** — the ☰ sheet is 26 actions deep, so it takes a query, matched
+- **Searchable menu** — the ☰ sheet is 28 actions deep, so it takes a query, matched
   against synonyms as well as labels (`csv` finds Import, `print` finds all four
   printable outputs).
 - **The screen stays on while you're making soap** — held from the first ticked
