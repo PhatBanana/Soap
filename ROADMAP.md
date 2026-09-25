@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v66 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 2385 test assertions, run on every pull request.
+**Today:** v67 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 2393 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -913,6 +913,16 @@ backed up with everything else, never carried in a share link, and cleaned on lo
 the rest of it.
 
 Every guard was mutation-checked: each one reverted fails exactly the tests built for it.
+---
+
+**32. The AI explainer's button appears while its model downloads** — ✅ **shipped in v67**
+Chrome's built-in model reports one of four states, and the app offered the explain
+button for two of them. The third, *downloading*, hid it for the whole visit that started
+the download, although the model is as usable then as when it's merely downloadable:
+creating a session waits for it, and the explainer already shows the progress. The
+detection had never been tested at all; it now is, for all four states and the older
+form of the API, with the browser's interface stood in for since no headless browser
+ships the model. Desktop Chrome only — phones don't have it, which is by design.
 ---
 
 ## Part 3 — What's next

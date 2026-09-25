@@ -1385,8 +1385,11 @@ export function makeInProgress(){
 export function detectAI(){
   try{
     if(typeof LanguageModel!=="undefined" && LanguageModel.availability){
+      /* "downloading" means Chrome is already fetching the model. Leaving it out hid the
+         button for the whole visit that started the download; create() simply waits for
+         it, and aiRun's monitor shows the progress, so it's as usable as "downloadable". */
       LanguageModel.availability().then(function(s){
-        if(s==="available"||s==="downloadable"){ aiAvail=true; aiApi="new"; maybeShowAI(); }
+        if(s==="available"||s==="downloadable"||s==="downloading"){ aiAvail=true; aiApi="new"; maybeShowAI(); }
       }).catch(function(){});
     } else if(window.ai && window.ai.languageModel && window.ai.languageModel.capabilities){
       window.ai.languageModel.capabilities().then(function(c){

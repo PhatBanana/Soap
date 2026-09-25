@@ -17,7 +17,7 @@
 
    This never touches localStorage, so your saved recipes are unaffected by any cache
    update or clear. */
-var CACHE = "soapcalc-v66";
+var CACHE = "soapcalc-v67";
 var SHELL = [
   "./",
   "./index.html",
