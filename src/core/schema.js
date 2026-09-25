@@ -6,7 +6,7 @@ import { UNITS, clamp } from "./units.js";
 import { ADDITIVES, AROMAS } from "../data/ingredients.js";
 import { OILS } from "../data/oils.js";
 export const STORE_KEY = "soapcalc.v4";
-export const APP_VERSION = "v65", BUILD_DATE = "2026-09-24";   // bump both (and sw.js CACHE) each release
+export const APP_VERSION = "v66", BUILD_DATE = "2026-09-25";   // bump both (and sw.js CACHE) each release
 export const USES=[["body","Body / bath"],["face","Facial"],["hair","Shampoo"],["shave","Shaving"],["dish","Dish soap"],["laundry","Laundry"]];
 function validUse(u){ for(var i=0;i<USES.length;i++) if(USES[i][0]===u) return true; return false; }
 
@@ -69,6 +69,16 @@ export const RECIPE_FIELDS=[
            and can change after the fact. Older batches predate this and stay null. */
         formula:coerceFormula(b.formula),
         weighed:coerceWeighed(b.weighed),
+        // who was given bars from this batch — so a reaction can be traced back to a lot
+        given:(Array.isArray(b.given)?b.given:[]).filter(function(g){
+            return g&&typeof g==="object"&&typeof g.to==="string"&&g.to.trim(); })
+          .slice(-100).map(function(g){
+            var n=Math.round(parseFloat(g.bars));
+            return { id:(typeof g.id==="string"&&g.id)?g.id:uid(),
+              to:g.to.trim().slice(0,60),
+              bars:(isFinite(n)&&n>0)?Math.min(n,999):0,
+              on:(typeof g.on==="string")?g.on.slice(0,10):"" };
+          }),
         // zap tests & pH readings taken while the bar cures
         checks:(Array.isArray(b.checks)?b.checks:[]).filter(function(k){ return k&&typeof k==="object"; })
           .slice(-20).map(function(k){

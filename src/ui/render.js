@@ -14,6 +14,7 @@ import { UNITS, UORDER, clamp, fmt, fromG, sumG } from "../core/units.js";
 import { todayISO } from "../core/util.js";
 import { BLEND_TIPS } from "../data/guides.js";
 import { ADDITIVES, AROMAS } from "../data/ingredients.js";
+import { knownGiftNames, readyEntryForCurrent } from "../features/batches.js";
 import { OILS } from "../data/oils.js";
 import { openExamples } from "../features/examples.js";
 import { backupAll } from "../features/io.js";
@@ -1056,6 +1057,7 @@ export function renderHistory(){
       row.appendChild(det);
     }
     row.appendChild(checkLog(b,made));
+    row.appendChild(giftLog(b));
     var del=el("button","bh-del","&times;"); del.type="button"; del.setAttribute("aria-label","Delete this batch record");
     del.addEventListener("click",function(){
       state.batches=state.batches.filter(function(x){ return x.id!==b.id; });
@@ -1183,6 +1185,8 @@ export function updateReady(){
   if(isNaN(base.getTime())) base=new Date();
   var ready=new Date(base.getTime()); ready.setDate(ready.getDate()+state.cureWeeks*7);
   $("readyOn").textContent = ready.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"});
+  // only a real make date can go in a calendar, and only while there's still a wait
+  var rc=$("readyCal"); if(rc){ var re=state.madeOn?readyEntryForCurrent():null; rc.classList.toggle("hide", !(re && re.days>0)); }
   var days=Math.ceil((ready-new Date())/86400000);
   $("cureNote").textContent = state.madeOn
     ? (days>0 ? "About "+days+" day"+(days===1?"":"s")+" left to cure — the bar keeps hardening and getting milder as it dries."
@@ -1306,6 +1310,61 @@ export function checkLog(b,made){
       note:form.querySelector(".bcf-note").value.slice(0,300) });
     if(rec.checks.length>20) rec.checks.shift();
     save(); render(); showToast("Check saved",true);
+  });
+  wrap.appendChild(add); wrap.appendChild(form);
+  return wrap;
+}
+/* Who got bars from this batch. Built like the cure checks beside it: a short list and an
+   inline form. The name field suggests everyone you've given soap to before, so "Aunt Sue"
+   doesn't become three people in the gift log. */
+export function giftLog(b){
+  var wrap=el("div","bh-gifts");
+  var list=(b.given||[]).slice().sort(function(x,y){ return (x.on||"").localeCompare(y.on||""); });
+  if(list.length){
+    var bars=list.reduce(function(n,g){ return n+(g.bars||0); },0);
+    wrap.appendChild(el("div","bh-clabel","Given to"+(bars?" · "+bars+" bar"+(bars===1?"":"s"):"")));
+  }
+  list.forEach(function(g){
+    var r=el("div","bh-gift"), d=g.on?new Date(g.on+"T00:00:00"):null;
+    var when=(d&&!isNaN(d.getTime())) ? d.toLocaleDateString(undefined,{month:"short",day:"numeric"}) : "";
+    r.innerHTML="<b class='bg-to'>"+escapeHtml(g.to)+"</b>"+
+      (g.bars?"<span class='bg-bars'>"+g.bars+" bar"+(g.bars===1?"":"s")+"</span>":"")+
+      (when?"<span class='bc-when'>"+escapeHtml(when)+"</span>":"");
+    var x=el("button","bc-del","&times;"); x.type="button"; x.setAttribute("aria-label","Remove this gift");
+    x.addEventListener("click",function(){
+      var rec=null; (state.batches||[]).forEach(function(y){ if(y.id===b.id) rec=y; });
+      if(!rec) return;
+      rec.given=(rec.given||[]).filter(function(y){ return y.id!==g.id; });
+      save(); render(); showToast("Gift removed",true);
+    });
+    r.appendChild(x); wrap.appendChild(r);
+  });
+  var add=el("button","bh-addgift","+ gift"); add.type="button";
+  var form=el("form","bh-gform"); form.hidden=true;
+  var dl="gn-"+b.id;
+  form.innerHTML=
+    "<label class='bcf-f bgf-to'><span>Given to</span><input type='text' class='bgf-name' maxlength='60' list='"+escapeHtml(dl)+"' placeholder='Name' required></label>"+
+    "<label class='bcf-f bgf-n'><span>Bars</span><input type='number' class='bgf-bars' min='1' max='999' step='1' inputmode='numeric' value='1'></label>"+
+    "<label class='bcf-f'><span>Date</span><input type='date' class='bgf-on' value='"+escapeHtml(todayISO())+"'></label>"+
+    "<datalist id='"+escapeHtml(dl)+"'>"+knownGiftNames().map(function(n){ return "<option value='"+escapeHtml(n)+"'>"; }).join("")+"</datalist>"+
+    "<div class='bcf-btns'><button type='button' class='ghost bcf-cancel'>Cancel</button>"+
+    "<button type='submit' class='primary'>Save gift</button></div>";
+  add.addEventListener("click",function(){
+    form.hidden=!form.hidden;
+    if(!form.hidden){ var f=form.querySelector(".bgf-name"); if(f) f.focus(); }
+  });
+  form.querySelector(".bcf-cancel").addEventListener("click",function(){ form.hidden=true; });
+  form.addEventListener("submit",function(e){
+    e.preventDefault();
+    var to=form.querySelector(".bgf-name").value.trim(); if(!to) return;
+    var rec=null; (state.batches||[]).forEach(function(y){ if(y.id===b.id) rec=y; });
+    if(!rec) return;
+    var n=Math.round(parseFloat(form.querySelector(".bgf-bars").value));
+    if(!Array.isArray(rec.given)) rec.given=[];
+    rec.given.push({ id:uid(), to:to.slice(0,60), bars:(isFinite(n)&&n>0)?Math.min(n,999):0,
+      on:form.querySelector(".bgf-on").value||todayISO() });
+    if(rec.given.length>100) rec.given.shift();
+    save(); render(); showToast("Gift noted",true);
   });
   wrap.appendChild(add); wrap.appendChild(form);
   return wrap;
