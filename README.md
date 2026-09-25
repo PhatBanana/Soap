@@ -454,7 +454,7 @@ obvious one: don't commit anything you wouldn't publish.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **2385 assertions.**
+the real app and asserts on the computed numbers and saved state. **2393 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)

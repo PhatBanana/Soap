@@ -310,4 +310,49 @@ export default async function safetySuite(t) {
   await p.close();
 }
 
+/* =======================================================================
+   THE OPTIONAL AI EXPLAINER — when its button appears
+
+   Chrome's built-in model reports one of four states. The button belongs everywhere
+   the model is usable or about to be — including "downloading", which used to hide it
+   for the whole visit that started the download. The browser's API is stood in for
+   here, since no headless browser ships the model.
+======================================================================= */
+{
+  const shown = async (setup) => {
+    const p = await newPage();
+    await p.addInitScript(setup);
+    await open(p, store({ oils:[OIL("olive",700), OIL("coconut",300)] }));
+    await p.waitForTimeout(150);
+    const vis = await p.evaluate(() => !document.getElementById("aiExplain").classList.contains("hide"));
+    return { p, vis };
+  };
+  const api = (state) => `window.LanguageModel = { availability: () => Promise.resolve(${JSON.stringify(state)}),
+    create: (o) => { if (o && o.monitor) { const m = new EventTarget(); o.monitor(m);
+      const e = new Event("downloadprogress"); e.loaded = 0.5; m.dispatchEvent(e); }
+      return new Promise((r) => setTimeout(() => r({ prompt: () => Promise.resolve("Stub explanation."), destroy(){} }), 50)); } };`;
+  for (const [st, want] of [["available", true], ["downloadable", true], ["downloading", true], ["unavailable", false]]) {
+    const { p, vis } = await shown(api(st));
+    eq(`Model "${st}": explain button ${want ? "offered" : "hidden"}`, vis, want);
+    await p.close();
+  }
+  // mid-download, the button works: it waits for the model and shows its progress first
+  const { p, vis } = await shown(api("downloading"));
+  if (vis) {
+    await p.click("#aiExplain");
+    const seen = [];
+    for (let i = 0; i < 20; i++) { seen.push(await txt(p, "#aiOut")); if (/Stub explanation/.test(seen[seen.length - 1])) break; await p.waitForTimeout(25); }
+    ok("…and while it's downloading, the explainer shows the progress", seen.some((x) => /Downloading the on-device model… 50%/.test(x)), seen.join(" | "));
+    eq("…then the explanation", seen[seen.length - 1], "Stub explanation.");
+  }
+  await p.close();
+  // the older shape of the API still works as it did
+  const old = await shown(`window.ai = { languageModel: { capabilities: () => Promise.resolve({ available: "after-download" }) } };`);
+  eq("Older API, model downloadable: offered", old.vis, true);
+  await old.p.close();
+  const none = await shown(`delete window.LanguageModel;`);
+  eq("No model API at all: hidden", none.vis, false);
+  await none.p.close();
+}
+
 }
