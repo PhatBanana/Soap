@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v65 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 2325 test assertions, run on every pull request.
+**Today:** v66 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 2385 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -74,6 +74,8 @@ quietly drift — they had, which is why the check exists.</sub>
 - **Soaping temperatures**, with a tip that adapts to your recipe.
 - **Step-by-step checklist**, **batch notes**, and an optional **lot number**.
 - **Cure checks** — zap tests and pH readings filed onto the batch that made the bar.
+- **Curing now** across every recipe, with ready dates saved to the phone's calendar.
+- **Gift log** — who got bars from which batch, searchable by name, recipe or lot.
 - **Brine or dry salt** — soleseife or a salt bar, with the solubility checked.
 - **Can make now** — the library badged against your cupboard, and filterable.
 - **Dual lye** — NaOH and KOH in one batch, with both weights quoted separately.
@@ -106,7 +108,7 @@ quietly drift — they had, which is why the check exists.</sub>
 - **Backup / restore** everything as JSON, with a quiet **nudge** once there's a logged
   batch or a few saved recipes and no recent backup — dismissible for a month.
 - Collapsible cards, sticky lye/batch summary, theme toggle, **multi-level undo**.
-- **Searchable menu** — the ☰ sheet is 29 actions deep, so it takes a query, matched
+- **Searchable menu** — the ☰ sheet is 31 actions deep, so it takes a query, matched
   against synonyms as well as labels (`csv` finds Import, `print` finds all four
   printable outputs).
 - **The screen stays on while you're making soap** — held from the first ticked
@@ -877,6 +879,38 @@ coconut is in nearly every bar — a warning on everything is a warning on nothi
 The app never prints "allergen-free": it only knows its own data, and supplier
 cross-contact is outside it. A custom ingredient carries no data, so it's named on
 screen as *not checked* — before you give the bar away, not on the gift itself.
+
+Every guard was mutation-checked: each one reverted fails exactly the tests built for it.
+---
+
+**31. Curing now, calendar reminders, and a gift log** — ✅ **shipped in v66**
+
+**Curing now.** Every logged batch already knew when it was made and how long it
+cures, but you only saw that by opening its recipe. **⏳ Curing now** (☰ menu) lists every
+batch across every recipe by ready date — "ready in 18 days", "ready for 3 days" — and
+keeps anything that came ready in the last month, so a batch that finished while you
+weren't looking still shows. A make with a date that hasn't been logged yet is listed
+too, marked *not logged yet*, since forgetting to log is how one goes missing. Tap a
+batch to open its recipe on the Make tab.
+
+**Calendar reminders.** 📅 on any curing batch — or **Add the ready date to my calendar**
+under *Ready to use* on the Make tab — saves a standard .ics file that iPhone and Android
+both open straight into their own calendar: an all-day event on the ready date with a
+reminder at 9 that morning and a note to zap-test a bar first. No account, no server,
+works offline. The file follows RFC 5545 to the letter — escaped text, 75-byte folded
+lines (a name with an é in it is two bytes), CRLF endings, a stable id per batch so adding
+it twice updates rather than duplicates — and was read back by an independent iCalendar
+parser before the tests pinned it. Cure dates are date arithmetic in UTC, so a clock
+change can't shift one by a day.
+
+**Gift log.** Each logged batch now has **+ gift**, beside its cure checks: who got bars,
+how many, and when — the name field suggests everyone you've given soap to before, so
+one aunt doesn't become three. **💝 Gift log** (☰ menu) searches every gift across every
+recipe by name, recipe or lot. It exists for one question: *someone who had my soap has
+a rash — which batch did they get, and who else got it?* The lot then leads to the
+formula as made (item 27). Gifts are part of the batch record, so they're personal:
+backed up with everything else, never carried in a share link, and cleaned on load like
+the rest of it.
 
 Every guard was mutation-checked: each one reverted fails exactly the tests built for it.
 ---

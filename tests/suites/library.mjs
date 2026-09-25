@@ -201,7 +201,7 @@ export default async function librarySuite(t) {
   eq("A batch with no checks gets an empty list", JSON.stringify(bs[1].checks), "[]");
   eq("A non-array checks value becomes an empty list", JSON.stringify(bs[2].checks), "[]");
   // batch-record shape (backup/restore compatibility)
-  eq("Batch record keys", Object.keys(bs[0]).sort().join(","), "checks,cureWeeks,formula,id,lot,madeOn,notes,weighed");
+  eq("Batch record keys", Object.keys(bs[0]).sort().join(","), "checks,cureWeeks,formula,given,id,lot,madeOn,notes,weighed");
 
   /* The snapshot is the point of the batch log: what bar #1 was actually made from,
      immune to every later edit of the recipe. */
@@ -807,6 +807,170 @@ export default async function librarySuite(t) {
   eq("…and it does not print on a recipe card",
      await p.evaluate(() => getComputedStyle(document.getElementById("backupNudge")).display), "none");
   await p.emulateMedia({ media: null });
+  await p.close();
+}
+
+/* =======================================================================
+   CURING NOW, AND THE CALENDAR
+
+   Every batch across every recipe, by ready date, and each ready date handed to the
+   phone's calendar as a standard .ics file. The file is checked field by field here;
+   it was also read back by an independent iCalendar parser when this was written.
+======================================================================= */
+{
+  const p = await newPage();
+  const iso = (d) => { const x = new Date(); x.setDate(x.getDate() + d);
+    return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0"); };
+  const B = (id, made, weeks, lot, given) => ({ id, madeOn:made, lot, cureWeeks:weeks, notes:"", checks:[], given:given || [] });
+  const R = (id, name, extra) => Object.assign(recipe({ id, name }), { oils:[OIL("olive",500)] }, extra);
+  const lib = [
+    R("r1", "Lavender, é; v2", { madeOn:iso(-10), cureWeeks:4,
+      batches:[ B("b1", iso(-10), 4, "A1"), B("b0", iso(-40), 4, "A0") ] }),
+    R("r2", "Castile", { madeOn:iso(-3), cureWeeks:8, batches:[] }),
+    R("r3", "Old Tallow", { batches:[ B("b9", iso(-200), 4, "Z9") ] })
+  ];
+  // opened on the Base tab, so tapping a batch has a tab to move to
+  await open(p, Object.assign(store({}), { recipes:lib, currentId:"r1", tab:"base" }));
+  const ents = await p.evaluate(async () => (await import("/src/features/batches.js")).curingEntries()
+    .map((e) => ({ n:e.name, lot:e.lot, days:e.days, ready:e.ready, logged:e.logged })));
+  eq("Curing now lists every batch still curing or recently ready, soonest first",
+     ents.map((e) => e.lot || e.n).join(","), "A0,A1,Castile");
+  eq("…a batch made 10 days ago on a 4-week cure is 18 days off", ents[1].days, 18);
+  eq("…and its ready date is made + 4 weeks", ents[1].ready, iso(18));
+  eq("…one that came ready 12 days ago still shows", ents[0].days, -12);
+  ok("…but not one that was ready months ago", !ents.some((e) => e.lot === "Z9"));
+  eq("A make with a date but no log is listed", ents[2].logged, false);
+  eq("…and a logged make isn't listed twice", ents.filter((e) => e.n.startsWith("Lavender")).length, 2);
+  const dst = await p.evaluate(async () => (await import("/src/features/batches.js")).readyISO("2026-03-01", 4));
+  eq("Cure dates are date arithmetic — a clock change can't shift them", dst, "2026-03-29");
+
+  await menu(p, "curing"); await p.waitForTimeout(150);
+  const rows = await p.$$eval(".cure-row", (rs) => rs.map((r) => ({ t:r.innerText, cal:!!r.querySelector(".cure-cal") })));
+  eq("The sheet shows one row per entry", rows.length, 3);
+  has("…a batch that's ready says so", rows[0].t, "ready for 12 days");
+  has("…a curing one says how long", rows[1].t, "ready in 18 days");
+  has("…an unlogged make says it isn't logged", rows[2].t, "not logged yet");
+  eq("…a ready batch has no calendar button", rows[0].cal, false);
+  eq("…a curing one does", rows[1].cal, true);
+  has("Two upcoming dates can go in together", await p.$eval(".modal .mfoot", (f) => f.textContent), "Add all 2");
+  const dl = p.waitForEvent("download");
+  await p.click(".cure-row:has-text(\"A1\") .cure-cal");
+  const file = await dl;
+  ok("📅 saves a calendar file", /^soap-ready-lavender-e-v2-\d{4}-\d{2}-\d{2}\.ics$/.test(file.suggestedFilename()), file.suggestedFilename());
+  const saved = t.fs.readFileSync(await file.path(), "utf8");
+  has("…for that batch", saved, "SUMMARY:Soap ready: Lavender\\, é\\; v2 (lot A1)");
+  // tapping a name opens that recipe, on its Make tab
+  await p.click(".cure-row:has-text(\"Castile\") .cure-name"); await p.waitForTimeout(150);
+  const at = await p.evaluate(async () => { const s = await import("/src/core/state.js"); return s.currentId + "/" + s.state.tab; });
+  eq("Tapping a batch opens its recipe on the Make tab", at, "r2/make");
+
+  // --- the .ics itself ---
+  const ics = await p.evaluate(async () => { const b = await import("/src/features/batches.js");
+    return b.icsFor([{ recipeId:"r1", name:"A, long; name \\ with\nnewline and é — enough words to need folding twice over at seventy-five bytes",
+      batchId:"b1", lot:"L1", madeOn:"2026-09-15", weeks:4, ready:"2026-10-13" }]); });
+  const lines = ics.split("\r\n");
+  ok("Lines end CRLF, as the format requires", ics.includes("\r\n") && !/[^\r]\n/.test(ics));
+  ok("…and none runs past 75 bytes", lines.every((l) => new TextEncoder().encode(l).length <= 75),
+     String(Math.max(...lines.map((l) => new TextEncoder().encode(l).length))));
+  const unfolded = ics.replace(/\r\n /g, "");
+  has("Commas, semicolons, backslashes and newlines are escaped", unfolded,
+      "SUMMARY:Soap ready: A\\, long\\; name \\\\ with\\nnewline and é");
+  has("It's an all-day event on the ready date", unfolded, "DTSTART;VALUE=DATE:20261013");
+  has("…ending the next day", unfolded, "DTEND;VALUE=DATE:20261014");
+  has("…with a reminder at 9 that morning", unfolded, "TRIGGER;RELATED=START:PT9H");
+  has("…a stable id, so adding it twice updates rather than duplicates", unfolded, "UID:b1-ready@soapcalc");
+  has("…and the one safety note that matters on the day", unfolded, "Zap-test a bar before you use or give it.");
+  eq("One event per entry, properly closed", (unfolded.match(/BEGIN:VEVENT/g) || []).length + "/" + (unfolded.match(/END:VEVENT/g) || []).length, "1/1");
+  ok("…inside one calendar", unfolded.startsWith("BEGIN:VCALENDAR\r\n") && unfolded.trimEnd().endsWith("END:VCALENDAR"));
+
+  // --- the Make tab's own button ---
+  await p.evaluate(() => document.querySelectorAll(".modal-back").forEach((m) => m.remove()));
+  await open(p, Object.assign(store({}), { recipes:lib, currentId:"r2", tab:"make" }));
+  eq("The Make tab offers the ready date for the calendar", await p.evaluate(() => !document.getElementById("readyCal").classList.contains("hide")), true);
+  const dl2 = p.waitForEvent("download"); await p.click("#readyCal"); const f2 = await dl2;
+  has("…and saves this make's date", t.fs.readFileSync(await f2.path(), "utf8"), "DTSTART;VALUE=DATE:" + iso(53).replace(/-/g, ""));
+  await open(p, Object.assign(store({}), { recipes:[R("r5", "Undated", { madeOn:"" })], currentId:"r5", tab:"make" }));
+  eq("…but not without a make date", await p.evaluate(() => document.getElementById("readyCal").classList.contains("hide")), true);
+  await open(p, Object.assign(store({}), { recipes:[R("r6", "Done", { madeOn:iso(-60), cureWeeks:4 })], currentId:"r6", tab:"make" }));
+  eq("…nor once it's already ready", await p.evaluate(() => document.getElementById("readyCal").classList.contains("hide")), true);
+
+  await open(p, Object.assign(store({}), { recipes:[R("r7", "Nothing", {})], currentId:"r7" }));
+  await menu(p, "curing"); await p.waitForTimeout(100);
+  has("With nothing curing, the sheet says how to get something there", await p.$eval(".modal", (m) => m.textContent), "Nothing curing");
+  await p.close();
+}
+
+/* =======================================================================
+   THE GIFT LOG — who got which batch
+======================================================================= */
+{
+  const p = await newPage();
+  const B = (id, made, lot, given) => ({ id, madeOn:made, lot, cureWeeks:4, notes:"", checks:[], given:given || [] });
+  const R = (id, name, batches) => Object.assign(recipe({ id, name }), { oils:[OIL("olive",500)], batches });
+  const lib = [
+    R("r1", "Lavender Oat", [ B("b1", "2026-08-01", "LO-1", [{ id:"g1", to:"Aunt Sue", bars:2, on:"2026-09-01" }]) ]),
+    R("r2", "Castile", [ B("b2", "2026-07-01", "C-7", [{ id:"g2", to:"Sam", bars:1, on:"2026-08-20" },
+                                                    { id:"g3", to:"Aunt Sue", bars:3, on:"2026-09-10" }]) ])
+  ];
+  await open(p, Object.assign(store({}), { recipes:lib, currentId:"r1", tab:"make" }));
+  has("A batch shows who it was given to", await p.$eval(".bh-gifts", (g) => g.textContent), "Aunt Sue");
+  has("…with the bar count totalled", await p.$eval(".bh-gifts", (g) => g.textContent), "Given to · 2 bars");
+  ok("Every batch offers a gift form, closed", await p.$$eval(".bh-gform", (fs) => fs.length === 1 && fs.every((f) => f.hidden)));
+
+  await p.click(".bh-addgift"); await p.waitForTimeout(60);
+  const sugg = await p.$$eval(".bh-gform datalist option", (os) => os.map((o) => o.value).join(","));
+  eq("The name field suggests everyone you've given soap to, once each", sugg, "Aunt Sue,Sam");
+  await p.fill(".bh-gform .bgf-name", "  Jo  "); await p.fill(".bh-gform .bgf-bars", "4");
+  await p.fill(".bh-gform .bgf-on", "2026-09-20");
+  await p.click(".bh-gform button[type=submit]"); await p.waitForTimeout(150);
+  let saved = (await LS(p)).recipes.find((r) => r.id === "r1").batches[0].given;
+  eq("Saving a gift records it on that batch", saved.length, 2);
+  eq("…name trimmed, bars and date kept", JSON.stringify({ to:saved[1].to, bars:saved[1].bars, on:saved[1].on }),
+     JSON.stringify({ to:"Jo", bars:4, on:"2026-09-20" }));
+  has("…and the total follows", await p.$eval(".bh-gifts", (g) => g.textContent), "Given to · 6 bars");
+  await p.click(".bh-gifts .bc-del >> nth=0"); await p.waitForTimeout(150);
+  saved = (await LS(p)).recipes.find((r) => r.id === "r1").batches[0].given;
+  eq("A gift can be removed", saved.map((g) => g.to).join(","), "Jo");
+
+  // --- the view across every batch ---
+  await menu(p, "gifts"); await p.waitForTimeout(150);
+  const rows = () => p.$$eval(".gift-row", (rs) => rs.map((r) => r.innerText.replace(/\n/g, " | ")));
+  let r = await rows();
+  eq("The gift log lists every gift in every recipe", r.length, 3);
+  has("…newest first", r[0], "Jo");
+  await p.fill(".gift-q", "aunt sue"); await p.waitForTimeout(60);
+  r = await rows();
+  eq("Searching a name finds that person's gifts", r.length, 1);
+  has("…with the recipe and lot they got", r[0], "Castile · lot C-7");
+  await p.fill(".gift-q", "lo-1"); await p.waitForTimeout(60);
+  eq("Searching a lot finds who got that batch", (await rows()).length, 1);
+  await p.fill(".gift-q", ""); await p.waitForTimeout(60);
+  has("The summary counts gifts, people and bars", await p.$eval(".gift-list .subinfo", (e) => e.textContent), "3 gifts to 3 people · 8 bars");
+  await p.fill(".gift-q", "castile"); await p.waitForTimeout(60);
+  await p.click(".gift-row .gift-recipe"); await p.waitForTimeout(150);
+  eq("Tapping a gift opens its recipe", await p.evaluate(async () => (await import("/src/core/state.js")).currentId), "r2");
+
+  // --- gifts are personal: they never travel in a share link ---
+  const url = await p.evaluate(async () => { const o = await import("/src/features/output.js"), s = await import("/src/core/state.js");
+    return o.recipeShareURL(s.libById("r2")); });
+  const payload = await p.evaluate((u) => decodeURIComponent(escape(atob(u.split("#r=")[1].replace(/-/g, "+").replace(/_/g, "/")))), url);
+  ok("A share link carries no gifts", !/Aunt Sue|Sam|given/.test(payload), payload.slice(0, 80));
+
+  // --- a hand-edited backup can't put junk in the log ---
+  await open(p, Object.assign(store({}), { currentId:"r9", recipes:[ R("r9", "Junk", [ B("b9", "2026-01-01", "", [
+    { to:"", bars:2 }, { to:"   " }, "nonsense", null, { to:"A".repeat(90), bars:-3 }, { to:"Big", bars:5000, on:"2026-02-02T10:00" } ]) ]) ] }));
+  // what the app loaded, not the raw storage — that isn't rewritten until the next save
+  const clean = await p.evaluate(async () => (await import("/src/core/state.js")).state.batches[0].given);
+  eq("Gifts without a name are dropped", clean.length, 2);
+  eq("…a long name is cut to 60", clean[0].to.length, 60);
+  eq("…a negative bar count becomes no count", clean[0].bars, 0);
+  eq("…a silly one is capped", clean[1].bars, 999);
+  eq("…and the date is just the date", clean[1].on, "2026-02-02");
+  ok("…and each gets an id so it can be removed", clean.every((g) => typeof g.id === "string" && g.id));
+
+  await open(p, Object.assign(store({}), { recipes:[ R("r8", "Fresh", []) ], currentId:"r8" }));
+  await menu(p, "gifts"); await p.waitForTimeout(100);
+  has("With no gifts yet, the log says where to add one", await p.$eval(".modal", (m) => m.textContent), "+ gift");
   await p.close();
 }
 

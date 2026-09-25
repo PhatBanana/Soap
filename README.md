@@ -223,6 +223,15 @@ phone in the kitchen or on a desktop.
   yes/no zap and a note, and they list oldest-first with the cure week worked out from
   the make date — so a bar's story reads *week 1: ⚡ zaps, pH 11* → *week 4: ✓ no zap,
   pH 9*. Any check can be removed on its own.
+- ⏳ **Curing now** — every batch across every recipe by ready date ("ready in 18 days"),
+  including a make that has a date but hasn't been logged yet. 📅 hands any ready date to
+  your phone's own calendar as a standard .ics file — an all-day event with a reminder
+  that morning — with no account and no server; the Make tab has the same button under
+  *Ready to use*.
+- 💝 **Gift log** — **+ gift** on any logged batch notes who got bars, how many and when;
+  the **Gift log** in the ☰ menu searches every gift by name, recipe or lot. If someone
+  reacts to a bar, it tells you which batch they had and who else got it. Gifts are
+  personal: backed up, never shared in a link.
 - **Troubleshooting reference** — a searchable "why did my soap do X?" guide grouped
   by stage (in the pot / in the mold / curing & storing / using the bar): seizing,
   soda ash, overheating, DOS, soft or crumbly bars, poor lather, and more — each with
@@ -365,7 +374,7 @@ phone in the kitchen or on a desktop.
   the numbers move as you tweak.
 - **Theme** — follows your device by default; tap **Theme** in the ☰ menu to cycle
   auto → light → dark and force one.
-- **Searchable menu** — the ☰ menu holds 29 actions, so it has a search box. It matches
+- **Searchable menu** — the ☰ menu holds 31 actions, so it has a search box. It matches
   synonyms as well as labels, because the word you'd type usually isn't the word on the
   button: **csv** finds Import and Export, **print** finds all four printable outputs,
   **inci** finds the ingredient label. On a keyboard, type and press Enter when one
@@ -445,7 +454,7 @@ obvious one: don't commit anything you wouldn't publish.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **2325 assertions.**
+the real app and asserts on the computed numbers and saved state. **2385 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)

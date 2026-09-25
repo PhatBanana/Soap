@@ -14,6 +14,7 @@ import { openColors, openFirstAid, openRebatch, openTrouble } from "./features/g
 import { backupAll, exportCSV, openPaste, restoreFrom } from "./features/io.js";
 import { openCard, openCompare, openLabel, openShare, openWrapper } from "./features/output.js";
 import { openWeigh } from "./features/weigh.js";
+import { openCuring, openGifts, readyEntryForCurrent, saveToCalendar } from "./features/batches.js";
 import { openCosts, openLibrary, openSAP, openShopping, openStock } from "./features/planning.js";
 import { clearRecipe, deleteRecipe, duplicateRecipe, logBatch, newRecipe, renameRecipe, switchRecipe } from "./features/recipes.js";
 import { applyMold, applyWeightScale, detectAI, nudge, rebuildRecipeSelect, refreshDerived, render, renderMake, roundAmounts, runAIExplain, setScaleDirty, unitsEl, updateCureSuggest, updateDilutePanel, updateMoldHint, updateReady, updateScaleCard, updateScaleHint } from "./ui/render.js";
@@ -84,6 +85,7 @@ bindSeg("waterMode","w","waterMode");
 $("recalcBtn").addEventListener("click",function(){ save(); render(); showToast("Recalculated ✓",true); });
 $("aiExplain").addEventListener("click",runAIExplain);
 $("weighBtn").addEventListener("click",openWeigh);
+$("readyCal").addEventListener("click",function(){ var e=readyEntryForCurrent(); if(e) saveToCalendar([e]); });
 /* Every segmented control in the app is the same three lines: click a child, store its
    data attribute in state, save, redraw. Seven of them were written out in full. */
 function bindSeg(id,attr,key,redraw){
@@ -213,6 +215,8 @@ var ACTIONS={
   shopping:openShopping,
   theme:cycleTheme,
   weigh:openWeigh,
+  curing:openCuring,
+  gifts:openGifts,
   card:openCard,
   label:openLabel,
   wrapper:openWrapper,
