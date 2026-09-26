@@ -224,9 +224,6 @@ input[type=range]{touch-action:pan-y}
 .safety-item.fail{border-left-color:var(--coral)}
 .safety-item .si-title{font-weight:800;font-size:.9rem}
 .safety-item .si-detail{color:var(--muted);font-size:.82rem;line-height:1.45;margin-top:2px}
-.ai-explain{width:100%;margin-top:14px;padding:12px;border:2px solid var(--violet);background:var(--violet-soft);color:var(--ink);border-radius:12px;font-weight:800;font-size:.95rem;cursor:pointer}
-.ai-explain:active{transform:translateY(1px)}
-.ai-out{margin-top:12px;background:var(--violet-soft);border-left:3px solid var(--violet);border-radius:8px;padding:11px 13px;font-size:.88rem;line-height:1.5;color:var(--ink);white-space:pre-wrap}
 
 /* ---------- cure suggestion ---------- */
 .cure-suggest{background:var(--teal-soft);border-left:3px solid var(--teal);border-radius:10px;padding:11px 13px;margin:0 0 14px}
@@ -594,3 +591,7 @@ input[type=range]{touch-action:pan-y}
 .gift-to{color:var(--ink)}
 .gift-recipe{font-weight:700;color:var(--muted);font-size:.9rem}
 .gift-meta{flex:1 1 100%;font-size:.8rem;color:var(--muted)}
+
+/* the Safety Check in plain words, between the verdict and the detail */
+.safety-summary{margin-top:10px;font-size:.95rem;line-height:1.5;color:var(--ink)}
+.safety-summary:empty{display:none}

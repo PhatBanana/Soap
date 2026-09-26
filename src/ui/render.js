@@ -32,8 +32,6 @@ export var scaleDirty=false; // true once the user edits the scale field (stops 
 export var lastGoal=null, fbId=null;
 export function setLastGoal(v){ lastGoal=v; } // last Shape goal tapped, for the balance feedback
 export var TABS={base:renderBase, scents:renderScents, make:renderMake};
-export var lastSafety=null;
-export var aiAvail=false, aiApi=null;
 export var wakeSentinel=null, wakeReq=false;
 export var CP_STEPS=[
   "Suit up: gloves + eye protection, apron, good ventilation.",
@@ -702,12 +700,11 @@ export function safetyChecks(){
   var verdict = fail ? {level:"fail",text:"Not safe to make as-is"}
     : (warn ? {level:"warn",text:"Safe to make, but read the notes below"}
             : {level:"ok",text:"Looks good — core safety checks pass"});
-  return {verdict:verdict, items:items,
-    ctx:{use:use, sf:sf, lyeType:state.lyeType, conc:Math.round(conc), scentPct:+fmt(scentPct,1)}};
+  return {verdict:verdict, items:items};
 }
 export function updateSafety(){
   var card=$("safetyCard"); if(!card) return;
-  var S=safetyChecks(); lastSafety=S;
+  var S=safetyChecks();
   var v=$("safetyVerdict");
   v.className="safety-verdict "+S.verdict.level;
   v.textContent=(S.verdict.level==="fail"?"⛔ ":S.verdict.level==="warn"?"⚠️ ":"✅ ")+S.verdict.text;
@@ -718,11 +715,67 @@ export function updateSafety(){
     row.appendChild(el("div","si-detail",escapeHtml(it.detail)));
     list.appendChild(row);
   });
-  // a fresh recipe state invalidates any prior AI summary
-  $("aiOut").classList.add("hide"); $("aiOut").textContent=""; $("aiNote").hidden=true;
-  maybeShowAI();
+  $("safetySummary").textContent=plainSummary(S);
 }
-export function maybeShowAI(){ var b=$("aiExplain"); if(b) b.classList.toggle("hide", !(aiAvail&&lastSafety)); }
+/* In plain words: the Safety Check in two or three sentences — what the verdict means and
+   the one thing to do first. This replaced an on-device AI explainer that only existed on
+   desktop Chrome: no phone browser lets a web page use the phone's own model, and this app
+   is used from a phone. The AI was only ever rephrasing these findings anyway, so the app
+   does it itself — on every phone, offline, instantly, and it can't make anything up.
+
+   PLAIN is in priority order: when there are several warnings, the first one listed here
+   is the one the summary leads with. Keys are title prefixes (one title carries the names
+   of the milks in it). The suite checks that every warning and stop the Safety Check can
+   raise has an entry, so a new check can't arrive without its plain-words action. */
+export var PLAIN=[
+  ["Can't verify the lye","Add your oils from the ingredient list, so the lye can be worked out."],
+  ["A supplier SAP is too high for its oil","Check that supplier SAP figure in SAP values — as it stands it would put too much lye in the bar."],
+  ["A SAP value doesn't look like a fat","Fix the SAP figure in SAP values — it looks like a typing slip."],
+  ["Acid isn't in the lye math","Remove the custom acid and add citric acid from the ingredient list instead, so the lye allows for it."],
+  ["That salt won't dissolve","Add the salt at trace instead, or use less of it."],
+  ["No superfat cushion","Set the superfat to at least 1–2% (5% is usual), so a small weighing slip can't leave free lye in the bar."],
+  ["Superfat is smaller than it looks","Hold back more of that oil, or pick one there's more of, so the superfat you asked for is really there."],
+  ["Custom oils aren't in the lye math","Enter the SAP value from the custom oil's bottle, so the lye covers it too."],
+  ["Strong lye solution","Mix the lye slowly and watch the heat — or add a little more water."],
+  ["Very small batch","Make a bigger batch if you can — very small amounts of lye are hard to weigh accurately."],
+  ["Skin-irritant scents","Keep those scents low and try a small bar on your skin first."],
+  ["Heavy scent load","Use less fragrance — above about 5% of the oils it can irritate skin."],
+  ["Scent above its typical max","Ease those scents back to their usual amounts."],
+  ["Very high lauric oil","Raise the superfat to about 15–20%, or use less of the coconut-type oils, so the bar isn't harsh on skin."],
+  ["Salt bar needs more superfat","Raise the superfat to about 15–20% — salt bars need it."],
+  ["A supplier SAP is well below its oil","Double-check that supplier SAP figure — as it stands the bar will come out soft."],
+  ["Additive dosed high","Check that additive amount — it may be grams where you meant teaspoons."],
+  ["That's a lot of acid","Use less acid — 0.5–2% of the oils is plenty."],
+  ["Large batch","Think about a smaller batch — a big one holds a lot of heat."],
+  ["Fast trace ahead","Soap on the cool side and have your mould ready before you start — it will thicken fast."],
+  ["Close to a saturated brine","Let the salt dissolve fully in warm water before the lye goes in."],
+  ["That's salt-bar amounts, dissolved","Check you meant to dissolve that much salt, rather than stir it in at trace."],
+  ["More ","Cut the milk back to the recipe's water amount."],
+  ["Very dilute lye","Use less water, so the bar sets properly."],
+  ["Very high superfat","Bring the superfat down to 5–8% for a firmer bar that keeps longer."],
+  ["Nearly a single-oil recipe","Double-check the amounts — did an oil go missing?"],
+  ["Prone to rancid spots (DOS)","Use fresh oils and keep the bars somewhere cool and dry."],
+  ["Supplier SAP values in use","Make sure the supplier SAP figures come from your current spec sheet."]
+];
+function plainRank(title){ for(var i=0;i<PLAIN.length;i++) if(title.indexOf(PLAIN[i][0])===0) return i; return PLAIN.length; }
+export function plainAction(title){ var i=plainRank(title); return i<PLAIN.length ? PLAIN[i][1] : ""; }
+export function plainSummary(S){
+  var liquid=waterReplacersOf(curRV()).g>0 ? "liquid" : "water";
+  var always="Gloves and goggles on, and the lye goes into the "+liquid+" — never the other way round.";
+  function worst(level){
+    var its=S.items.filter(function(i){ return i.level===level; });
+    its.sort(function(a,b){ return plainRank(a.title)-plainRank(b.title); });
+    return its;
+  }
+  var fails=worst("fail"), warns=worst("warn");
+  function lead(it){ return plainAction(it.title) || it.title+" — see below."; }
+  function more(n,what){ return n>0 ? " There "+(n===1?"is 1 more "+what:"are "+n+" more "+what+"s")+" below." : ""; }
+  if(fails.length) return "Don't make this yet. First: "+lead(fails[0])+more(fails.length-1+warns.length,"note");
+  if(warns.length) return "The one thing to do first: "+lead(warns[0])+more(warns.length-1,"note")+" "+always;
+  var L=computeLye(), esf=L.effectiveSf;
+  return "Balanced and safe to make: the "+fmt(esf,esf===Math.round(esf)?0:1)+
+    "% superfat leaves a little extra oil, so no free lye is left in the bar. "+always;
+}
 /* ---------- scale recipe ---------- */
 export function moldOilsG(){
   var shape=state.moldShape||"loaf";
@@ -1381,34 +1434,6 @@ export function makeInProgress(){
   return state.tab==="make" && Object.keys(state.checklist).length>0;
 }
 
-/* ---------- optional on-device AI explainer (Chrome Prompt API / Gemini Nano) ---------- */
-export function detectAI(){
-  try{
-    if(typeof LanguageModel!=="undefined" && LanguageModel.availability){
-      /* "downloading" means Chrome is already fetching the model. Leaving it out hid the
-         button for the whole visit that started the download; create() simply waits for
-         it, and aiRun's monitor shows the progress, so it's as usable as "downloadable". */
-      LanguageModel.availability().then(function(s){
-        if(s==="available"||s==="downloadable"||s==="downloading"){ aiAvail=true; aiApi="new"; maybeShowAI(); }
-      }).catch(function(){});
-    } else if(window.ai && window.ai.languageModel && window.ai.languageModel.capabilities){
-      window.ai.languageModel.capabilities().then(function(c){
-        if(c && (c.available==="readily"||c.available==="after-download")){ aiAvail=true; aiApi="old"; maybeShowAI(); }
-      }).catch(function(){});
-    }
-  }catch(e){}
-}
-export function runAIExplain(){
-  if(!lastSafety) return;
-  var b=$("aiExplain"), out=$("aiOut"), orig=b.textContent;
-  b.disabled=true; b.textContent="Thinking…";
-  out.classList.remove("hide"); out.textContent="Preparing the on-device model…";
-  aiRun(buildAIPrompt(lastSafety),function(p){ out.textContent="Downloading the on-device model… "+p+"%"; })
-    .then(function(text){ out.textContent=String(text).trim(); $("aiNote").hidden=false; })
-    .catch(function(){ out.textContent="Couldn't run the on-device model this time — the rule-based checks above still stand."; })
-    .then(function(){ b.disabled=false; b.textContent=orig; });
-}
-
 var QUAL_HELP={
   hardness:"How firm and long-lasting the bar is. Too low and it's soft and dissolves fast; too high and it can be brittle and crack. Comes from palmitic, stearic, lauric & myristic acids — coconut, palm, tallow, and butters.",
   cleansing:"How strongly the soap strips oil and grime. Higher feels more 'squeaky' but can be drying; lower is gentler and milder. Comes from lauric & myristic acids — coconut, palm-kernel, babassu.",
@@ -1437,24 +1462,6 @@ function lauricNames(){
   state.oils.forEach(function(it){ if(it.g>0 && LAURIC_OILS.indexOf(it.key)>=0 && out.indexOf(OILS[it.key].name)<0) out.push(OILS[it.key].name); });
   return out;
 }
-function buildAIPrompt(S){
-  var lines=["Verdict: "+S.verdict.text+"."];
-  S.items.forEach(function(it){ if(it.level!=="ok") lines.push("- ["+it.level.toUpperCase()+"] "+it.title+": "+it.detail); });
-  if(lines.length===1) lines.push("- No warnings; all core safety checks passed.");
-  var ctx="Recipe: intended use "+S.ctx.use+", superfat "+S.ctx.sf+"%, "+String(S.ctx.lyeType).toUpperCase()+
-    " lye, lye concentration about "+S.ctx.conc+"%, scent load about "+S.ctx.scentPct+"% of oils.";
-  return "You are helping a beginner make soap at home. The app has ALREADY computed the safety check below. "+
-    "Do not change the verdict or invent new problems. In 2 to 4 short, friendly sentences, explain what it means and the single most important thing to do. Be accurate and reassuring.\n\n"+
-    lines.join("\n")+"\n"+ctx;
-}
-function aiRun(prompt,onProgress){
-  var opts={};
-  if(onProgress) opts.monitor=function(m){ m.addEventListener("downloadprogress",function(e){ onProgress(Math.round((e.loaded||0)*100)); }); };
-  if(aiApi==="new") return LanguageModel.create(opts).then(function(sess){ return sess.prompt(prompt).then(function(r){ if(sess.destroy)sess.destroy(); return r; }); });
-  if(aiApi==="old") return window.ai.languageModel.create(opts).then(function(sess){ return sess.prompt(prompt).then(function(r){ if(sess.destroy)sess.destroy(); return r; }); });
-  return Promise.reject(new Error("no ai"));
-}
-
 // The browser drops the lock whenever the page hides, so without this it silently stops
 // working the first time you glance away.
 document.addEventListener("visibilitychange",function(){
