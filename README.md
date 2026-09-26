@@ -152,12 +152,10 @@ phone in the kitchen or on a desktop.
   too large to handle, a **nearly single-oil** recipe that looks like a missed oil
   or mistyped amount, and an **additive dosed like an oil** (a common grams-vs-
   teaspoons slip).
-- **Optional AI explainer** — where your browser has a built-in on-device model
-  (e.g. Chrome's Prompt API / Gemini Nano), a **✨ Explain in plain language**
-  button rephrases the findings into a friendly summary. It runs entirely on your
-  device, and the **verdict always stays the rule-based one** — the AI only
-  explains, it never decides. On browsers without it, the button simply doesn't
-  appear; the safety check itself always works.
+- **In plain words** — under the verdict, two or three sentences say what it means
+  and the one thing to do first, leading with whichever finding matters most. It
+  works on every phone, offline, and can't make anything up: the app writes it from
+  its own findings, and every warning the check can raise has its own plain action.
 
 ### Batch yield & scaling
 - **Expected yield** readout for the current ingredients (batch weight + approx.
@@ -454,7 +452,7 @@ obvious one: don't commit anything you wouldn't publish.
 ## Tests
 The app is plain HTML/CSS/JS, but the soap chemistry, safety checks, scaling and
 localStorage persistence are covered by a headless-browser test suite that drives
-the real app and asserts on the computed numbers and saved state. **2393 assertions.**
+the real app and asserts on the computed numbers and saved state. **2400 assertions.**
 
 ```sh
 npm ci                            # installs playwright (dev-only)

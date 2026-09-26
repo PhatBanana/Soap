@@ -6,8 +6,8 @@ Where the app is today, and where it could go next.
 in the kitchen, offline, with no account and nothing leaving the device. Everything
 below is judged against that.
 
-**Today:** v67 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
-17 example recipes · 2393 test assertions, run on every pull request.
+**Today:** v68 · 65 oils · 45 additives · 22 colorants · 33 aromas ·
+17 example recipes · 2400 test assertions, run on every pull request.
 
 <sub>Those counts are checked against `src/data/` by the test suite, so they can't
 quietly drift — they had, which is why the check exists.</sub>
@@ -50,8 +50,8 @@ quietly drift — they had, which is why the check exists.</sub>
   15% off its oil's own reference — the KOH number in the NaOH box, typically — is a stop.
 - The **printed card** gives NaOH and KOH as separate weights, the water you actually pour,
   and the superfat the bar really gets — and says "Not safe to make as-is" when it isn't.
-- An **optional AI explainer** where the browser has an on-device model — it rephrases
-  the findings, it never decides. The rule-based verdict always wins.
+- **In plain words** — the verdict explained in two or three sentences, leading with the
+  one thing to do first. Written by the app from its own findings, on every phone.
 
 ### Yield, scaling & moulds
 - Expected yield, **after-curing estimate**, and a **bar weight saved per recipe**.
@@ -923,6 +923,28 @@ creating a session waits for it, and the explainer already shows the progress. T
 detection had never been tested at all; it now is, for all four states and the older
 form of the API, with the browser's interface stood in for since no headless browser
 ships the model. Desktop Chrome only — phones don't have it, which is by design.
+---
+
+**33. The AI explainer is gone; the Safety Check explains itself** — ✅ **shipped in v68**
+The explainer ran on Chrome's built-in model, and no phone browser lets a web page use
+the phone's own model — Chrome's documentation lists Android and iOS as unsupported with
+no date, and Apple's on-device model is open to native apps only. This app is used from a
+phone, so the button almost never appeared. The alternatives were a model downloaded into
+the browser (hundreds of megabytes, slow, and small models make things up — not something
+to put in front of lye-safety advice) or a cloud AI (a server, a bill, and the end of
+"nothing leaves your device"). Neither fits, and the AI was only ever rephrasing the
+check's own findings.
+
+So the app does that itself. **In plain words**, under the verdict, says in two or three
+sentences what the verdict means and the one thing to do first — *"The one thing to do
+first: set the superfat to at least 1–2% (5% is usual), so a small weighing slip can't
+leave free lye in the bar. There are 2 more notes below."* It leads by importance, not
+by the order the notes happen to be listed, so a skin-irritant scent comes before a high
+superfat. It says "into the liquid" rather than "into the water" for a milk soap, and a
+failing recipe opens with "Don't make this yet." Every warning and stop the check can
+raise has its own plain action, and the suite reads the source to make sure a new check
+can't arrive without one. Works on every phone, offline, instantly, and can't invent
+anything. Item 32's fix went with the rest of the AI code.
 ---
 
 ## Part 3 — What's next

@@ -311,48 +311,60 @@ export default async function safetySuite(t) {
 }
 
 /* =======================================================================
-   THE OPTIONAL AI EXPLAINER — when its button appears
+   IN PLAIN WORDS — the Safety Check in two or three sentences
 
-   Chrome's built-in model reports one of four states. The button belongs everywhere
-   the model is usable or about to be — including "downloading", which used to hide it
-   for the whole visit that started the download. The browser's API is stood in for
-   here, since no headless browser ships the model.
+   Replaced an on-device AI explainer that no phone browser could run. The summary
+   leads with the most important finding and what to do about it, and every warning
+   or stop the check can raise must have a plain-words action — checked against the
+   source, so a new check can't arrive without one.
 ======================================================================= */
 {
-  const shown = async (setup) => {
-    const p = await newPage();
-    await p.addInitScript(setup);
-    await open(p, store({ oils:[OIL("olive",700), OIL("coconut",300)] }));
-    await p.waitForTimeout(150);
-    const vis = await p.evaluate(() => !document.getElementById("aiExplain").classList.contains("hide"));
-    return { p, vis };
-  };
-  const api = (state) => `window.LanguageModel = { availability: () => Promise.resolve(${JSON.stringify(state)}),
-    create: (o) => { if (o && o.monitor) { const m = new EventTarget(); o.monitor(m);
-      const e = new Event("downloadprogress"); e.loaded = 0.5; m.dispatchEvent(e); }
-      return new Promise((r) => setTimeout(() => r({ prompt: () => Promise.resolve("Stub explanation."), destroy(){} }), 50)); } };`;
-  for (const [st, want] of [["available", true], ["downloadable", true], ["downloading", true], ["unavailable", false]]) {
-    const { p, vis } = await shown(api(st));
-    eq(`Model "${st}": explain button ${want ? "offered" : "hidden"}`, vis, want);
-    await p.close();
-  }
-  // mid-download, the button works: it waits for the model and shows its progress first
-  const { p, vis } = await shown(api("downloading"));
-  if (vis) {
-    await p.click("#aiExplain");
-    const seen = [];
-    for (let i = 0; i < 20; i++) { seen.push(await txt(p, "#aiOut")); if (/Stub explanation/.test(seen[seen.length - 1])) break; await p.waitForTimeout(25); }
-    ok("…and while it's downloading, the explainer shows the progress", seen.some((x) => /Downloading the on-device model… 50%/.test(x)), seen.join(" | "));
-    eq("…then the explanation", seen[seen.length - 1], "Stub explanation.");
-  }
+  const p = await newPage();
+  const sum = async (rec, view) => { await open(p, store(rec, view)); return txt(p, "#safetySummary"); };
+
+  let s = await sum({ oils:[OIL("olive",700), OIL("coconut",300)] });
+  has("A balanced recipe: says so", s, "Balanced and safe to make");
+  has("…with the superfat that makes it so", s, "the 5% superfat leaves a little extra oil");
+  has("…and the rule that always applies", s, "the lye goes into the water — never the other way round");
+
+  s = await sum({ oils:[OIL("olive",1000)] }, { sapOverrides:{ olive:0.188 } });
+  has("A failing recipe: don't make it yet", s, "Don't make this yet.");
+  has("…and the first thing to fix", s, "Check that supplier SAP figure in SAP values");
+  ok("…without the reassurance meant for safe recipes", !/safe to make|free lye is left/i.test(s), s);
+
+  // several warnings: it leads with the most important, and counts the rest
+  s = await sum({ oils:[OIL("olive",700), OIL("coconut",300)], superfat:0,
+    aromas:[{ name:"Cinnamon leaf EO", key:"cinnamon", g:5 }] });
+  has("Several notes: leads with the one that matters most", s, "The one thing to do first: Set the superfat to at least 1–2%");
+  ok("…and says how many more there are", /There (is 1 more note|are \d+ more notes) below\./.test(s), s);
+
+  // the check lists "Very high superfat" before "Skin-irritant scents"; the summary must
+  // still lead with the one that can hurt someone
+  s = await sum({ oils:[OIL("olive",700), OIL("coconut",300)], superfat:14,
+    aromas:[{ name:"Cinnamon leaf EO", key:"cinnamon", g:5 }] });
+  has("It leads by importance, not by the order the notes are listed", s, "The one thing to do first: Keep those scents low");
+  s = await sum({ oils:[OIL("olive",700), OIL("coconut",300)], additives:[{ name:"Goat milk", key:"goatmilk", g:380 }] });
+  has("A milk soap: lye into the liquid, not \"the water\"", s, "the lye goes into the liquid");
+
+  // the summary sits between the verdict and the detail, and nothing AI is left
+  const layout = await p.evaluate(() => {
+    const c = document.getElementById("safetyCard"), kids = [...c.children].map((e) => e.id).filter(Boolean);
+    return { order: kids.join(","), ai: !!document.querySelector("#aiExplain, #aiOut, .ai-explain") };
+  });
+  eq("It sits between the verdict and the list", layout.order, "safetyVerdict,safetySummary,safetyList");
+  eq("The AI explainer is gone from the page", layout.ai, false);
+  ok("…and from the code", !/LanguageModel|window\.ai\b|aiExplain/.test(t.appSrcForShare));
+
+  // every warning and stop has its plain-words action
+  const src = t.fs.readFileSync(new URL("../../src/ui/render.js", import.meta.url), "utf8");
+  const titles = [...src.matchAll(/add\("(warn|fail)","([^"]+)"/g)].map((m) => m[2]);
+  const keys = await p.evaluate(async () => (await import("/src/ui/render.js")).PLAIN.map((x) => x[0]));
+  const missing = titles.filter((tt) => !keys.some((k) => tt.indexOf(k) === 0));
+  ok("Every warning and stop the check can raise has a plain-words action", titles.length >= 25 && missing.length === 0,
+     `${titles.length} titles; missing: ${missing.join(" | ")}`);
+  const stale = keys.filter((k) => !titles.some((tt) => tt.indexOf(k) === 0));
+  eq("…and none is left over for a check that no longer exists", stale.join(" | "), "");
   await p.close();
-  // the older shape of the API still works as it did
-  const old = await shown(`window.ai = { languageModel: { capabilities: () => Promise.resolve({ available: "after-download" }) } };`);
-  eq("Older API, model downloadable: offered", old.vis, true);
-  await old.p.close();
-  const none = await shown(`delete window.LanguageModel;`);
-  eq("No model API at all: hidden", none.vis, false);
-  await none.p.close();
 }
 
 }

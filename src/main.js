@@ -17,7 +17,7 @@ import { openWeigh } from "./features/weigh.js";
 import { openCuring, openGifts, readyEntryForCurrent, saveToCalendar } from "./features/batches.js";
 import { openCosts, openLibrary, openSAP, openShopping, openStock } from "./features/planning.js";
 import { clearRecipe, deleteRecipe, duplicateRecipe, logBatch, newRecipe, renameRecipe, switchRecipe } from "./features/recipes.js";
-import { applyMold, applyWeightScale, detectAI, nudge, rebuildRecipeSelect, refreshDerived, render, renderMake, roundAmounts, runAIExplain, setScaleDirty, unitsEl, updateCureSuggest, updateDilutePanel, updateMoldHint, updateReady, updateScaleCard, updateScaleHint } from "./ui/render.js";
+import { applyMold, applyWeightScale, nudge, rebuildRecipeSelect, refreshDerived, render, renderMake, roundAmounts, setScaleDirty, unitsEl, updateCureSuggest, updateDilutePanel, updateMoldHint, updateReady, updateScaleCard, updateScaleHint } from "./ui/render.js";
 import { doUndo, showToast } from "./ui/toast.js";
 /* ---------- small helpers ---------- */
 // the scale target has its own unit so you can ask for "10 lb" without switching the whole app
@@ -83,7 +83,6 @@ bindRange($("lyeConc"),"concVal","lyeConc");
 bindRange($("purity"),"purVal","kohPurity");
 bindSeg("waterMode","w","waterMode");
 $("recalcBtn").addEventListener("click",function(){ save(); render(); showToast("Recalculated ✓",true); });
-$("aiExplain").addEventListener("click",runAIExplain);
 $("weighBtn").addEventListener("click",openWeigh);
 $("readyCal").addEventListener("click",function(){ var e=readyEntryForCurrent(); if(e) saveToCalendar([e]); });
 /* Every segmented control in the app is the same three lines: click a child, store its
@@ -352,7 +351,6 @@ function initCollapsibles(){
 applyTheme();
 render();
 initCollapsibles();
-detectAI();
 if(sharedImportName){ save();
   // say it out loud: a supplier SAP figure changes every recipe that uses that oil,
   // not just the one that arrived
